@@ -1,0 +1,5 @@
+[package]
+
+name = "synth"
+version = "0.0.1"
+authors = ["trypt"]
