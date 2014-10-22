@@ -1,5 +1,5 @@
 [package]
 
-name = "synth"
+name = "synthizer"
 version = "0.0.1"
-authors = ["trypt"]
+authors = ["Noah Weninger"]

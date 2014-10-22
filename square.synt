@@ -1,0 +1,6 @@
+square(freq k=1) {
+	~(freq=(2*k-1)*freq amp=4/pi/(2*k-1))
+	square(k=k+1)
+}
+
+square(freq=440)
