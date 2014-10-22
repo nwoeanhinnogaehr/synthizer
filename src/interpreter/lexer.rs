@@ -25,7 +25,7 @@ static EQUALS_REGEX: Regex = regex!(r"=");
 static PERIOD_REGEX: Regex = regex!(r"\.");
 static COMMENT_REGEX: Regex = regex!(r"//.*");
 
-pub fn tokenize<'a>(s: &'a str) -> Vec<Token<'a>> {
+pub fn tokenize<'a>(s: &'a str) -> Result<Vec<Token<'a>>, String> {
 	let mut walk = s;
 	let mut tokens = Vec::new();
 	let mut lineindex = 1u;
@@ -97,9 +97,9 @@ pub fn tokenize<'a>(s: &'a str) -> Vec<Token<'a>> {
 
 
 		if !found {
-			fail!("unrecognized token at line {}:{}", linenum, lineindex);
+			return Err(format!("unrecognized token at line {}:{}", linenum, lineindex));
 		}
 	}
-	tokens
+	Ok(tokens)
 }
 

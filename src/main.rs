@@ -22,12 +22,18 @@ fn main() {
 	match file.read_to_string() {
 		Err(why) => fail!("couldn't read {}: {}", display, why.desc),
 		Ok(string) => {
-			let tok = interpreter::lexer::tokenize(string.as_slice());
-			println!("lexer says: {}", tok);
-			let mut expr = interpreter::expr::Expression::new(tok);
-			expr.try_set_var("pi", 3.141592653589);
-			println!("parser says: {}", expr);
-			println!("expr evals to {}", expr.eval());
+			match interpreter::lexer::tokenize(string.as_slice()) {
+				Ok(tok) => {
+					println!("lexer says: {}", tok);
+					let mut expr = interpreter::expr::Expression::new(tok);
+					expr.try_set_var("pi", 3.141592653589);
+					println!("parser says: {}", expr);
+					println!("expr evals to {}", expr.eval());
+				},
+				Err(e) => {
+					println!("Error lexing: {}", e);
+				}
+			}
 		}
 	};
 }
