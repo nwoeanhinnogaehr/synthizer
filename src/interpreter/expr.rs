@@ -272,6 +272,8 @@ impl<'a> Expression<'a> {
 		}
 	}
 
+	// Returns a uint identifier which can be passed to set_var to quickly update the value of a
+	// variable.
 	pub fn var_id(&self, var: &'a str) -> Option<uint> {
 		match self.vars.find(&var) {
 			Some(v) => Some(*v),
@@ -279,14 +281,18 @@ impl<'a> Expression<'a> {
 		}
 	}
 
-	pub fn set_var(&mut self, var_id: uint, value: f32) {
+	// Sets a variable to an id retrieved from var_id. Return value indicates whether it was set
+	// sucessfully or not.
+	pub fn set_var(&mut self, var_id: uint, value: f32) -> bool {
 		if var_id > self.var_values.len() {
-			fail!("invalid var id passed to set_var");
+			return false;
 		}
 		self.var_values[var_id] = value;
-		self.value = None // Setting a var clears evaled value
+		self.value = None; // Setting a var clears evaled value
+		true
 	}
 
+	// Attempts to set a variable by name. If the variable does not exist, nothing is done.
 	pub fn try_set_var(&mut self, var: &'a str, value: f32) {
 		if let Some(id) = self.var_id(var) {
 			self.set_var(id, value);
