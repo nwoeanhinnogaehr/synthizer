@@ -11,14 +11,14 @@ pub enum Token<'a> {
 	Paren(&'a str),
 	Colon,
 	Equals,
-    Period,
+	Period,
 }
 
 static IDENT_REGEX: Regex = regex!(r"[a-zA-Z_~']+[a-zA-Z_~0-9']*");
 static WHITESPACE_REGEX: Regex = regex!(r"[ \t]+");
 static NEWLINE_REGEX: Regex = regex!(r"[\n]+");
 static CONST_REGEX: Regex = regex!(r"[0-9]+\.?[0-9]*");
-static OPERATOR_REGEX: Regex = regex!(r"\^\^|>=|<=|~=|[\+\*/\^><!-]|&&|\|\||==|!=");
+static OPERATOR_REGEX: Regex = regex!(r"\^\^|>=|<=|~=|[\+\*/\^><!%-]|&&|\|\||==|!=");
 static PAREN_REGEX: Regex = regex!(r"[\(\)\{\}]|\[|\]");
 static COLON_REGEX: Regex = regex!(r":");
 static EQUALS_REGEX: Regex = regex!(r"=");
@@ -47,6 +47,11 @@ pub fn tokenize<'a>(s: &'a str) -> Vec<Token<'a>> {
 		if let Some((0, x)) = comment_match { // Strip comments, don't add any tokens
 			walk = walk[x..];
 			found = true;
+		} else if let Some((0, x)) = operator_match {
+			tokens.push(Operator(walk[0..x]));
+			walk = walk[x..];
+			found = true;
+			lineindex += x;
 		} else if let Some((0, x)) = ident_match {
 			tokens.push(Ident(walk[0..x]));
 			walk = walk[x..];
@@ -65,11 +70,6 @@ pub fn tokenize<'a>(s: &'a str) -> Vec<Token<'a>> {
 			lineindex = 0;
 		} else if let Some((0, x)) = const_match {
 			tokens.push(Const(walk[0..x]));
-			walk = walk[x..];
-			found = true;
-			lineindex += x;
-		} else if let Some((0, x)) = operator_match {
-			tokens.push(Operator(walk[0..x]));
 			walk = walk[x..];
 			found = true;
 			lineindex += x;

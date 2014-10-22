@@ -10,24 +10,24 @@ use std::io::File;
 mod interpreter;
 
 fn main() {
-    let path = Path::new("expr.synt");
-    let display = path.display();
+	let path = Path::new("expr.synt");
+	let display = path.display();
 	println!("input file: {}", display);
 
-    let mut file = match File::open(&path) {
-        Err(why) => fail!("couldn't open {}: {}", display, why.desc),
-        Ok(file) => file,
-    };
+	let mut file = match File::open(&path) {
+		Err(why) => fail!("couldn't open {}: {}", display, why.desc),
+		Ok(file) => file,
+	};
 
-    match file.read_to_string() {
-        Err(why) => fail!("couldn't read {}: {}", display, why.desc),
-        Ok(string) => {
+	match file.read_to_string() {
+		Err(why) => fail!("couldn't read {}: {}", display, why.desc),
+		Ok(string) => {
 			let tok = interpreter::lexer::tokenize(string.as_slice());
 			println!("lexer says: {}", tok);
 			let mut expr = interpreter::expr::Expression::new(tok);
 			expr.try_set_var("pi", 3.141592653589);
 			println!("parser says: {}", expr);
-            println!("expr evals to {}", expr.eval());
+			println!("expr evals to {}", expr.eval());
 		}
-    };
+	};
 }
