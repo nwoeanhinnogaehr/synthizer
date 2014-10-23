@@ -40,17 +40,12 @@ enum Operator {
 
 fn precedence(op: Operator) -> int {
 	match op {
+		And | Or | Xor => 0,
 		Equ | NotEqu | ApproxEqu => 1,
 		Less | Greater | GreaterEqual | LessEqual => 2,
-		And | Or | Xor => 0,
-		Add => 3,
-		Sub => 3,
-		Mul => 4,
-		Div => 4,
-		Mod => 4,
-		Neg => 6,
-		Not => 6,
-		Exp => 6,
+		Add | Sub => 3,
+		Mul | Div | Mod => 4,
+		Neg | Not | Exp => 6,
 	}
 }
 
