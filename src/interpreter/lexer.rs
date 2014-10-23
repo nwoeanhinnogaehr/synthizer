@@ -1,4 +1,5 @@
 use regex::Regex;
+use std::fmt;
 
 #[deriving(Show)]
 pub enum Token<'a> {
@@ -14,6 +15,18 @@ pub enum Token<'a> {
 	Period,
 }
 
+pub struct LexError {
+    pub msg: &'static str,
+    pub line_num: uint,
+    pub col_num: uint,
+}
+
+impl fmt::Show for LexError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "At line {}:{} -> {}", self.line_num, self.col_num, self.msg)
+    }
+}
+
 static IDENT_REGEX: Regex = regex!(r"[a-zA-Z_~']+[a-zA-Z_~0-9']*");
 static WHITESPACE_REGEX: Regex = regex!(r"[ \t]+");
 static NEWLINE_REGEX: Regex = regex!(r"[\n]+");
@@ -25,7 +38,7 @@ static EQUALS_REGEX: Regex = regex!(r"=");
 static PERIOD_REGEX: Regex = regex!(r"\.");
 static COMMENT_REGEX: Regex = regex!(r"//.*");
 
-pub fn tokenize<'a>(s: &'a str) -> Result<Vec<Token<'a>>, String> {
+pub fn tokenize<'a>(s: &'a str) -> Result<Vec<Token<'a>>, LexError> {
 	let mut walk = s;
 	let mut tokens = Vec::new();
 	let mut lineindex = 1u;
@@ -97,7 +110,7 @@ pub fn tokenize<'a>(s: &'a str) -> Result<Vec<Token<'a>>, String> {
 
 
 		if !found {
-			return Err(format!("unrecognized token at line {}:{}", linenum, lineindex));
+			return Err(LexError { msg: "unrecognized token", line_num: linenum, col_num: lineindex });
 		}
 	}
 	Ok(tokens)
