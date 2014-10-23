@@ -79,7 +79,7 @@ pub struct Expression<'a> {
 
 impl<'a> Expression<'a> {
 	// converts a token slice from the lexer into an expression that can be evaluated
-	pub fn new<'a>(tok: Vec<Token<'a>>) -> Result<Expression, String> {
+	pub fn new(tok: Vec<Token<'a>>) -> Result<Expression, String> {
 		let mut vars: HashMap<&'a str, uint> = HashMap::new();
 		let mut err: Option<String> = None;
 		let out: Vec<ExprToken> = tok.iter().filter_map(|&t| {
