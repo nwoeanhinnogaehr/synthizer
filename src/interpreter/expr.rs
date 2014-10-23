@@ -119,11 +119,11 @@ impl<'a> Expression<'a> {
 					}))
 				},
 				lexer::Paren(v) => {
-                    match v {
-                        "(" => Some(LParen),
-                        ")" => Some(RParen),
-                        _ => None,
-                    }
+					match v {
+						"(" => Some(LParen),
+						")" => Some(RParen),
+						_ => None,
+					}
 				},
 				// An identifier in the context of an expression is always a variable (TODO FALSE!!)
 				lexer::Ident(v) => {

@@ -16,15 +16,15 @@ pub enum Token<'a> {
 }
 
 pub struct LexError {
-    pub msg: &'static str,
-    pub line_num: uint,
-    pub col_num: uint,
+	pub msg: &'static str,
+	pub line_num: uint,
+	pub col_num: uint,
 }
 
 impl fmt::Show for LexError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "At line {}:{} -> {}", self.line_num, self.col_num, self.msg)
-    }
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		write!(f, "At line {}:{} -> {}", self.line_num, self.col_num, self.msg)
+	}
 }
 
 static IDENT_REGEX: Regex = regex!(r"[a-zA-Z_~']+[a-zA-Z_~0-9']*");
