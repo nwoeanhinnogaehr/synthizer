@@ -25,10 +25,16 @@ fn main() {
 			match interpreter::lexer::tokenize(string.as_slice()) {
 				Ok(tok) => {
 					println!("lexer says: {}", tok);
-					let mut expr = interpreter::expr::Expression::new(tok);
-					expr.try_set_var("pi", 3.141592653589);
-					println!("parser says: {}", expr);
-					println!("expr evals to {}", expr.eval());
+					match interpreter::expr::Expression::new(tok) {
+						Ok(mut expr) => {
+							expr.try_set_var("pi", 3.141592653589);
+							println!("parser says: {}", expr);
+							println!("expr evals to {}", expr.eval());
+						},
+						Err(e) => {
+							println!("Error parsing expr: {}", e);
+						},
+					}
 				},
 				Err(e) => {
 					println!("Error lexing: {}", e);

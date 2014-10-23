@@ -79,16 +79,21 @@ pub struct Expression<'a> {
 
 impl<'a> Expression<'a> {
 	// converts a token slice from the lexer into an expression that can be evaluated
-	pub fn new<'a>(tok: Vec<Token<'a>>) -> Expression {
+	pub fn new<'a>(tok: Vec<Token<'a>>) -> Result<Expression, String> {
 		let mut vars: HashMap<&'a str, uint> = HashMap::new();
+		let mut err: Option<String> = None;
 		let out: Vec<ExprToken> = tok.iter().filter_map(|&t| {
+			if err.is_some() {
+				return None;
+			}
 			match t {
 				// Try to parse constants as f32. subject to maybe change but probably not.
 				lexer::Const(v) => {
 					if let Some(x) = from_str::<f32>(v) {
 						Some(Value(x))
 					} else {
-						fail!("invalid const, regex must be broken!");
+						err = Some("internal error: error parsing constant, indicating the lexer is probably broken".to_string());
+						None
 					}
 				},
 				lexer::Operator(v) => {
@@ -110,14 +115,20 @@ impl<'a> Expression<'a> {
 						"&&" => And,
 						"||" => Or,
 						"^^" => Xor,
-						_ => fail!("unexpected operator"),
+						x => {
+							err = Some(format!("unexpected operator: `{}`", x));
+							return None; // report first error only
+						}
 					}))
 				},
 				lexer::Paren(v) => {
 					match v {
 						"(" => Some(LParen),
 						")" => Some(RParen),
-						_ => None,
+						x => {
+							err = Some(format!("unexpected paren type: `{}`", x));
+							return None;
+						}
 					}
 				},
 				// An identifier in the context of an expression is always a variable (TODO FALSE!!)
@@ -137,11 +148,16 @@ impl<'a> Expression<'a> {
 				lexer::Whitespace(_) | lexer::Newline => {
 					None
 				},
-				_ => {
-					fail!("not expression!");
+				x => {
+					err = Some(format!("unexpected token in expression `{}`", x));
+					return None;
 				}
 			}
 		}).collect();
+
+		if let Some(e) = err {
+			return Err(e)
+		}
 
 		// Handle special case with unary minus
 		// If an subtraction operator is preceded by another operator, left paren, or the start of the
@@ -159,19 +175,21 @@ impl<'a> Expression<'a> {
 			}
 		}).collect();
 
-		Expression {
-			rpn: shunting_yard(out),
+		let out = try!(shunting_yard(out));
+
+		Ok(Expression {
+			rpn: out,
 			var_values: Vec::from_elem(vars.len(), 0f32),
 			vars: vars,
 			value: None,
-		}
+		})
 	}
 
 	// http://en.wikipedia.org/wiki/Reverse_Polish_notation
-	pub fn eval(&mut self) -> f32 { 
+	pub fn eval(&mut self) -> Result<f32, String> {
 		// If the expression is constant, return it's value
 		if let Some(v) = self.value {
-			return v;
+			return Ok(v);
 		}
 
 		let mut stack: Vec<f32> = Vec::new();
@@ -183,7 +201,7 @@ impl<'a> Expression<'a> {
 				Op(op) => {
 					let n = nargs(op);
 					if stack.len() < n {
-						fail!("invalid expression: not enough args for operator {}", op);
+						return Err(format!("invalid expression: not enough args for operator {}", op));
 					}
 					let args: Vec<f32> = range(0, n).map(|_| stack.pop().unwrap()).collect();
 					stack.push(match op {
@@ -247,20 +265,20 @@ impl<'a> Expression<'a> {
 				Var(id) => {
 					stack.push(self.var_values[id]);
 				},
-				_ => fail!("unexpected token in expression"),
+				x => return Err(format!("unexpected token in expression: `{}`", x)),
 			};
 		}
 		match stack.len() {
 			1 => {
 				let val = stack.pop().unwrap();
 				self.value = Some(val);
-				val
+				Ok(val)
 			},
 			0 => {
-				fail!("zero values in expression");
+				Err("zero values in expression".to_string())
 			},
 			_ => {
-				fail!("to many values in expression");
+				Err("too many values in expression".to_string())
 			},
 		}
 	}
@@ -294,7 +312,8 @@ impl<'a> Expression<'a> {
 }
 
 // http://en.wikipedia.org/wiki/Shunting-yard_algorithm
-fn shunting_yard(tok: Vec<ExprToken>) -> Vec<ExprToken> {
+// todo iterators can be used better here
+fn shunting_yard(tok: Vec<ExprToken>) -> Result<Vec<ExprToken>, String> {
 	let mut out = Vec::new();
 	let mut stack: Vec<ExprToken> = Vec::new();
 	for &t in tok.iter() {
@@ -335,11 +354,11 @@ fn shunting_yard(tok: Vec<ExprToken>) -> Vec<ExprToken> {
 							foundleft = true;
 							break;
 						},
-						_ => fail!("not sure how this can happen, but maybe"),
+						x => return Err(format!("internal error: unexpected value on stack: `{}`", x)),
 					}
 				}
 				if !foundleft {
-					fail!("mismatched parens");
+					return Err("mismatched parens: skewed right".to_string());
 				}
 			},
 		};
@@ -351,9 +370,9 @@ fn shunting_yard(tok: Vec<ExprToken>) -> Vec<ExprToken> {
 				stack.pop();
 				out.push(top);
 			},
-			LParen | RParen => fail!("mismatched parens"),
-			_ => fail!("non operator on stack!"),
+			LParen | RParen => return Err("mismatched parens: skewed left".to_string()),
+			x => return Err(format!("internal error: non operator on stack: `{}`", x)),
 		}
 	}
-	out
+	Ok(out)
 }
