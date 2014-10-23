@@ -228,37 +228,48 @@ impl<'a> Expression<'a> {
 							-args[0]
 						},
 						Not => {
-							if args[0] > 0f32 { -1f32 } else { 1f32 }
+							if args[0] > 0f32
+								{ -1f32 } else { 1f32 }
 						},
 						Less => {
-							if args[1] < args[0] { 1f32 } else { -1f32 }
+							if args[1] < args[0]
+								{ 1f32 } else { -1f32 }
 						},
 						Greater => {
-							if args[1] > args[0] { 1f32 } else { -1f32 }
+							if args[1] > args[0]
+								{ 1f32 } else { -1f32 }
 						},
 						LessEqual => {
-							if args[1] <= args[0] { 1f32 } else { -1f32 }
+							if args[1] <= args[0]
+								{ 1f32 } else { -1f32 }
 						},
 						GreaterEqual => {
-							if args[1] >= args[0] { 1f32 } else { -1f32 }
+							if args[1] >= args[0]
+								{ 1f32 } else { -1f32 }
 						},
 						Equ => {
-							if args[1] == args[0] { 1f32 } else { -1f32 }
+							if args[1] == args[0]
+								{ 1f32 } else { -1f32 }
 						},
 						NotEqu => {
-							if args[1] != args[0] { 1f32 } else { -1f32 }
+							if args[1] != args[0]
+								{ 1f32 } else { -1f32 }
 						},
 						ApproxEqu => {
-							if num::abs(args[1] - args[0]) < 0.0001 { 1f32 } else { -1f32 }
+							if num::abs(args[1] - args[0]) < 0.0001
+								{ 1f32 } else { -1f32 }
 						},
 						And => {
-							if args[1] > 0f32 && args[0] > 0f32 { 1f32 } else { -1f32 }
+							if args[1] > 0f32 && args[0] > 0f32
+								{ 1f32 } else { -1f32 }
 						},
 						Or => {
-							if args[1] > 0f32 || args[0] > 0f32 { 1f32 } else { -1f32 }
+							if args[1] > 0f32 || args[0] > 0f32
+								{ 1f32 } else { -1f32 }
 						},
 						Xor => {
-							if (args[1] > 0f32) ^ (args[0] > 0f32) { 1f32 } else { -1f32 }
+							if (args[1] > 0f32) ^ (args[0] > 0f32)
+								{ 1f32 } else { -1f32 }
 						},
 					});
 				},
