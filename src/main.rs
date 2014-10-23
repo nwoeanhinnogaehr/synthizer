@@ -10,7 +10,7 @@ use std::io::File;
 mod interpreter;
 
 fn main() {
-	let path = Path::new("expr.synt");
+	let path = Path::new("examples/expr.synt");
 	let display = path.display();
 	println!("input file: {}", display);
 

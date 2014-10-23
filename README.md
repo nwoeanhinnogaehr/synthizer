@@ -12,4 +12,4 @@ A simple, experimental functional language for real time additive audio synthesi
 - MIDI (maybe) or at least some interface for a DAW
 
 ## Example code
-See hello.synt or square.synt. Syntax is subject to change at any moment and will not be documented fully until it has stabilized.
+See the examples directory. Syntax is subject to change at any moment and will not be documented fully until it has stabilized.
