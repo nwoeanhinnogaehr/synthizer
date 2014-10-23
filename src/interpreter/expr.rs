@@ -8,7 +8,7 @@ use std::collections::hashmap::{Occupied, Vacant};
 use std::num;
 
 #[deriving(Show)]
-enum ExprToken<'a> {
+enum ExprToken {
 	Op(Operator),
 	Value(f32),
 	Var(uint),
@@ -76,7 +76,7 @@ fn associativity(op: Operator) -> Associativity {
 
 #[deriving(Show)]
 pub struct Expression<'a> {
-	rpn: Vec<ExprToken<'a>>, // reverse polish notation
+	rpn: Vec<ExprToken>, // reverse polish notation
 	var_values: Vec<f32>, // values of vars by id
 	vars: HashMap<&'a str, uint>, // map of var name -> var id
 	value: Option<f32>, // holds the last value of the expression, if it's been evaluated and vars have not been updated
@@ -86,7 +86,7 @@ impl<'a> Expression<'a> {
 	// converts a token slice from the lexer into an expression that can be evaluated
 	pub fn new<'a>(tok: Vec<Token<'a>>) -> Expression {
 		let mut vars: HashMap<&'a str, uint> = HashMap::new();
-		let out: Vec<ExprToken<'a>> = tok.iter().filter_map(|&t| {
+		let out: Vec<ExprToken> = tok.iter().filter_map(|&t| {
 			match t {
 				// Try to parse constants as f32. subject to maybe change but probably not.
 				lexer::Const(v) => {
