@@ -3,6 +3,7 @@
 
 use interpreter::lexer::Token;
 use interpreter::lexer;
+use interpreter::parser;
 use std::collections::HashMap;
 use std::collections::hashmap::{Occupied, Vacant};
 use std::num;
@@ -79,7 +80,7 @@ pub struct Expression<'a> {
 
 impl<'a> Expression<'a> {
 	// converts a token slice from the lexer into an expression that can be evaluated
-	pub fn new(tok: Vec<Token<'a>>) -> Result<Expression, String> {
+	pub fn new(tok: &[Token<'a>]) -> Result<Expression<'a>, String> {
 		let mut vars: HashMap<&'a str, uint> = HashMap::new();
 		let mut err: Option<String> = None;
 		let out: Vec<ExprToken> = tok.iter().filter_map(|&t| {
@@ -145,7 +146,7 @@ impl<'a> Expression<'a> {
 					}
 				},
 				// Discard whitesapce
-				lexer::Whitespace(_) | lexer::Newline => {
+				lexer::Newline => {
 					None
 				},
 				x => {
@@ -162,7 +163,7 @@ impl<'a> Expression<'a> {
 		// Handle special case with unary minus
 		// If an subtraction operator is preceded by another operator, left paren, or the start of the
 		// expression, make it a negation operator.
-		let out = out.iter().enumerate().map(|(i, &v)| {
+		let out: Vec<ExprToken> = out.iter().enumerate().map(|(i, &v)| {
 			match v {
 				Op(Sub) => {
 					if i == 0 || match out[i-1] { Op(_) | LParen => true, _ => false } {
@@ -175,7 +176,7 @@ impl<'a> Expression<'a> {
 			}
 		}).collect();
 
-		let out = try!(shunting_yard(out));
+		let out = try!(shunting_yard(out.as_slice()));
 
 		Ok(Expression {
 			rpn: out,
@@ -324,7 +325,7 @@ impl<'a> Expression<'a> {
 
 // http://en.wikipedia.org/wiki/Shunting-yard_algorithm
 // todo iterators can be used better here
-fn shunting_yard(tok: Vec<ExprToken>) -> Result<Vec<ExprToken>, String> {
+fn shunting_yard(tok: &[ExprToken]) -> Result<Vec<ExprToken>, String> {
 	let mut out = Vec::new();
 	let mut stack: Vec<ExprToken> = Vec::new();
 	for &t in tok.iter() {

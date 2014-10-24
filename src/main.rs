@@ -25,7 +25,7 @@ fn main() {
 			match interpreter::lexer::tokenize(string.as_slice()) {
 				Ok(tok) => {
 					println!("lexer says: {}", tok);
-					match interpreter::expr::Expression::new(tok) {
+					match interpreter::expr::Expression::new(tok.as_slice()) {
 						Ok(mut expr) => {
 							expr.try_set_var("pi", 3.141592653589);
 							println!("parser says: {}", expr);

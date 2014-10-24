@@ -8,7 +8,6 @@ pub enum Token<'a> {
 	Const(&'a str),
 	Operator(&'a str),
 	Newline,
-	Whitespace(&'a str),
 	Paren(&'a str),
 	Colon,
 	Equals,
@@ -71,7 +70,6 @@ pub fn tokenize<'a>(s: &'a str) -> Result<Vec<Token<'a>>, LexError> {
 			found = true;
 			lineindex += x;
 		} else if let Some((0, x)) = whitespace_match {
-			tokens.push(Whitespace(walk[0..x]));
 			walk = walk[x..];
 			found = true;
 			lineindex += x;
