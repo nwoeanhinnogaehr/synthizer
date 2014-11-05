@@ -5,8 +5,8 @@ pub mod expr;
 
 #[deriving(Clone)]
 pub struct SourcePos {
-    pub line: uint,
-    pub col: uint,
+	pub line: uint,
+	pub col: uint,
 }
 
 impl fmt::Show for SourcePos {
@@ -17,7 +17,7 @@ impl fmt::Show for SourcePos {
 
 pub struct CompileError {
 	pub msg: String,
-    pub pos: SourcePos,
+	pub pos: SourcePos,
 }
 
 impl fmt::Show for CompileError {
