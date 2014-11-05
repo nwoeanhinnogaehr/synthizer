@@ -15,21 +15,21 @@ fn main() {
 	println!("input file: {}", display);
 
 	let mut file = match File::open(&path) {
-		Err(why) => fail!("couldn't open {}: {}", display, why.desc),
+		Err(why) => panic!("couldn't open {}: {}", display, why.desc),
 		Ok(file) => file,
 	};
 
 	match file.read_to_string() {
-		Err(why) => fail!("couldn't read {}: {}", display, why.desc),
+		Err(why) => panic!("couldn't read {}: {}", display, why.desc),
 		Ok(string) => {
 			match interpreter::lexer::tokenize(string.as_slice()) {
 				Ok(tok) => {
-					println!("lexer says: {}", tok);
-					match interpreter::expr::Expression::new(tok.as_slice()) {
-						Ok(mut expr) => {
-							expr.try_set_var("pi", 3.141592653589);
-							println!("parser says: {}", expr);
-							println!("expr evals to {}", expr.eval());
+					println!("tokens: {}\n\n", tok);
+					let scope = interpreter::expr::Scope::new();
+					match interpreter::expr::Expression::new(tok.as_slice(), &scope) {
+						Ok(expr) => {
+							println!("expr: {}", expr);
+							println!("evals to {}", expr.eval(&scope));
 						},
 						Err(e) => {
 							println!("Error parsing expr: {}", e);

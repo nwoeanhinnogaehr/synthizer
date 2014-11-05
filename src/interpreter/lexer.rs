@@ -1,8 +1,8 @@
 use regex::Regex;
-use std::fmt;
+use super::{CompileError, SourcePos};
 
-#[deriving(Show)]
-pub enum Token<'a> {
+#[deriving(Show, Clone)]
+pub enum TokenType<'a> {
 	// tokenize gives:
 	Ident(&'a str),
 	Const(&'a str),
@@ -14,22 +14,16 @@ pub enum Token<'a> {
 	Period,
 }
 
-pub struct LexError {
-	pub msg: &'static str,
-	pub line_num: uint,
-	pub col_num: uint,
-}
-
-impl fmt::Show for LexError {
-	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		write!(f, "At line {}:{} -> {}", self.line_num, self.col_num, self.msg)
-	}
+#[deriving(Show, Clone)]
+pub struct Token<'a> {
+	pub t: TokenType<'a>,
+	pub pos: SourcePos,
 }
 
 static IDENT_REGEX: Regex = regex!(r"[a-zA-Z_~']+[a-zA-Z_~0-9']*");
 static WHITESPACE_REGEX: Regex = regex!(r"[ \t]+");
 static NEWLINE_REGEX: Regex = regex!(r"[\n]+");
-static CONST_REGEX: Regex = regex!(r"[0-9]+\.?[0-9]*");
+static CONST_REGEX: Regex = regex!(r"[0-9]+\.?[0-9]*|[0-9]*\.?[0-9]+");
 static OPERATOR_REGEX: Regex = regex!(r"\^\^|>=|<=|~=|[\+\*/\^><!%-]|&&|\|\||==|!=");
 static PAREN_REGEX: Regex = regex!(r"[\(\)\{\}]|\[|\]");
 static COLON_REGEX: Regex = regex!(r":");
@@ -37,11 +31,10 @@ static EQUALS_REGEX: Regex = regex!(r"=");
 static PERIOD_REGEX: Regex = regex!(r"\.");
 static COMMENT_REGEX: Regex = regex!(r"//.*");
 
-pub fn tokenize<'a>(s: &'a str) -> Result<Vec<Token<'a>>, LexError> {
+pub fn tokenize<'a>(s: &'a str) -> Result<Vec<Token<'a>>, CompileError> {
 	let mut walk = s;
 	let mut tokens = Vec::new();
-	let mut lineindex = 1u;
-	let mut linenum = 1u;
+	let mut pos = SourcePos { line: 1u, col: 1u };
 
 	while walk.len() > 0 {
 		let mut found = false;
@@ -60,55 +53,54 @@ pub fn tokenize<'a>(s: &'a str) -> Result<Vec<Token<'a>>, LexError> {
 			walk = walk[x..];
 			found = true;
 		} else if let Some((0, x)) = operator_match {
-			tokens.push(Operator(walk[0..x]));
+			tokens.push(Token { t: Operator(walk[0..x]), pos: pos });
 			walk = walk[x..];
 			found = true;
-			lineindex += x;
+			pos.col += x;
 		} else if let Some((0, x)) = ident_match {
-			tokens.push(Ident(walk[0..x]));
+			tokens.push(Token { t: Ident(walk[0..x]), pos: pos });
 			walk = walk[x..];
 			found = true;
-			lineindex += x;
+			pos.col += x;
 		} else if let Some((0, x)) = whitespace_match {
 			walk = walk[x..];
 			found = true;
-			lineindex += x;
+			pos.col += x;
 		} else if let Some((0, x)) = newline_match {
-			tokens.push(Newline);
+			tokens.push(Token { t: Newline, pos: pos });
 			walk = walk[x..];
 			found = true;
-			linenum += 1;
-			lineindex = 0;
+			pos.line += x;
+			pos.col = 1;
 		} else if let Some((0, x)) = const_match {
-			tokens.push(Const(walk[0..x]));
+			tokens.push(Token { t: Const(walk[0..x]), pos: pos });
 			walk = walk[x..];
 			found = true;
-			lineindex += x;
+			pos.col += x;
 		} else if let Some((0, x)) = paren_match {
-			tokens.push(Paren(walk[0..x]));
+			tokens.push(Token { t: Paren(walk[0..x]), pos: pos });
 			walk = walk[x..];
 			found = true;
-			lineindex += x;
+			pos.col += x;
 		} else if let Some((0, x)) = colon_match {
-			tokens.push(Colon);
+			tokens.push(Token { t: Colon, pos: pos });
 			walk = walk[x..];
 			found = true;
-			lineindex += x;
+			pos.col += x;
 		} else if let Some((0, x)) = equals_match {
-			tokens.push(Equals);
+			tokens.push(Token { t: Equals, pos: pos });
 			walk = walk[x..];
 			found = true;
-			lineindex += x;
+			pos.col += x;
 		} else if let Some((0, x)) = period_match {
-			tokens.push(Period);
+			tokens.push(Token { t: Period, pos: pos });
 			walk = walk[x..];
 			found = true;
-			lineindex += x;
+			pos.col += x;
 		}
 
-
 		if !found {
-			return Err(LexError { msg: "unrecognized token", line_num: linenum, col_num: lineindex });
+			return Err(CompileError { msg: format!("unrecognized token `{}`", walk[0..1]), pos: pos});
 		}
 	}
 	Ok(tokens)
