@@ -25,7 +25,7 @@ static WHITESPACE_REGEX: Regex = regex!(r"[ \t]+");
 static NEWLINE_REGEX: Regex = regex!(r"[\n]+");
 static CONST_REGEX: Regex = regex!(r"[0-9]+\.?[0-9]*|[0-9]*\.?[0-9]+");
 static OPERATOR_REGEX: Regex = regex!(r"\^\^|>=|<=|~=|[\+\*/\^><!%-]|&&|\|\||==|!=");
-static PAREN_REGEX: Regex = regex!(r"[\(\)\{\}]|\[|\]");
+static PAREN_REGEX: Regex = regex!(r"[\(\)\{\}\]\[]");
 static COLON_REGEX: Regex = regex!(r":");
 static EQUALS_REGEX: Regex = regex!(r"=");
 static PERIOD_REGEX: Regex = regex!(r"\.");
