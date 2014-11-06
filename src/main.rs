@@ -4,6 +4,7 @@
 #[phase(plugin)]
 extern crate regex_macros;
 extern crate regex;
+extern crate time;
 
 use std::io::File;
 
@@ -25,7 +26,7 @@ fn main() {
 			match interpreter::lexer::tokenize(string.as_slice()) {
 				Ok(tok) => {
 					println!("tokens: {}\n\n", tok);
-					let scope = interpreter::expr::Scope::new();
+					let scope = interpreter::scope::Scope::new();
 					match interpreter::expr::Expression::new(tok.as_slice(), &scope) {
 						Ok(expr) => {
 							println!("expr: {}", expr);
