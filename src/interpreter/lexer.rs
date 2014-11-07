@@ -5,10 +5,10 @@ use super::{CompileError, SourcePos};
 pub enum TokenType<'a> {
 	// tokenize gives:
 	Ident(&'a str),
-	Const(&'a str),
+	Const(f32),
 	Operator(&'a str),
 	Newline,
-	Paren(&'a str),
+	Paren(char),
 	Colon,
 	Equals,
 	Period,
@@ -73,12 +73,17 @@ pub fn tokenize<'a>(s: &'a str) -> Result<Vec<Token<'a>>, CompileError> {
 			pos.line += x;
 			pos.col = 1;
 		} else if let Some((0, x)) = const_match {
-			tokens.push(Token { t: Const(walk[0..x]), pos: pos });
-			walk = walk[x..];
-			found = true;
-			pos.col += x;
+			if let Some(v) = from_str::<f32>(walk[0..x]) {
+				tokens.push(Token { t: Const(v), pos: pos });
+				walk = walk[x..];
+				found = true;
+				pos.col += x;
+			} else {
+				panic!("internal error: error parsing constant, the lexer is probably broken");
+			}
 		} else if let Some((0, x)) = paren_match {
-			tokens.push(Token { t: Paren(walk[0..x]), pos: pos });
+			assert!(x == 1);
+			tokens.push(Token { t: Paren(walk.char_at(0)), pos: pos });
 			walk = walk[x..];
 			found = true;
 			pos.col += x;

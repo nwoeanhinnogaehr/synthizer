@@ -4,8 +4,6 @@ use super::lexer::Token;
 use super::lexer;
 use super::{CompileError, SourcePos};
 use super::scope::Scope;
-use std::collections::HashMap;
-use std::collections::hash_map::{Occupied, Vacant};
 use std::num;
 
 #[deriving(Show, Clone)]
@@ -132,11 +130,7 @@ fn to_expr_tokens(tok: &[Token], scope: &Scope) -> Result<Vec<ExprToken>, Compil
 		match t.t {
 			// Try to parse constants as f32. subject to maybe change but probably not.
 			lexer::Const(v) => {
-				if let Some(x) = from_str::<f32>(v) {
-					out.push(Value(x))
-				} else {
-					panic!("internal error: error parsing constant, the lexer is probably broken");
-				}
+				out.push(Value(v))
 			},
 			lexer::Operator(v) => {
 				out.push(Op(match v {
@@ -164,8 +158,8 @@ fn to_expr_tokens(tok: &[Token], scope: &Scope) -> Result<Vec<ExprToken>, Compil
 			},
 			lexer::Paren(v) => {
 				out.push(match v {
-					"(" => LParen,
-					")" => RParen,
+					'(' => LParen,
+					')' => RParen,
 					x => {
 						return Err(CompileError { msg: format!("unexpected paren type in expression: `{}`", x), pos: t.pos });
 					}
