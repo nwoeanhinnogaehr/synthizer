@@ -1,6 +1,8 @@
 #![feature(if_let)]
 #![feature(slicing_syntax)]
 #![feature(phase)]
+#![feature(macro_rules)]
+#![allow(dead_code)]
 #[phase(plugin)]
 extern crate regex_macros;
 extern crate regex;

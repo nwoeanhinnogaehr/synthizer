@@ -105,7 +105,7 @@ pub fn tokenize<'a>(s: &'a str) -> Result<Vec<Token<'a>>, CompileError> {
 		}
 
 		if !found {
-			return Err(CompileError { msg: format!("unrecognized token `{}`", walk[0..1]), pos: pos});
+			return Err(CompileError { msg: format!("unrecognized token `{}`", walk[0..1]), pos: Some(pos) });
 		}
 	}
 	Ok(tokens)

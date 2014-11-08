@@ -84,7 +84,7 @@ impl<'a> Expression<'a> {
 		let out = try!(to_expr_tokens(tok, scope));
 		let out = match shunting_yard(out.as_slice()) {
 			Ok(out) => out,
-			Err(e) => return Err(CompileError { msg: e.to_string(), pos: tok[0].pos })
+			Err(e) => return Err(CompileError { msg: e.to_string(), pos: Some(tok[0].pos) })
 		};
 
 		Ok(Expression {
@@ -112,7 +112,7 @@ impl<'a> Expression<'a> {
 	pub fn eval(&self, scope: &'a Scope<'a>) -> Result<f32, CompileError> {
 		match eval_rpn(self.rpn.as_slice(), scope) {
 			Ok(val) => Ok(val),
-			Err(e) => Err(CompileError { msg: e, pos: self.pos }),
+			Err(e) => Err(CompileError { msg: e, pos: Some(self.pos) }),
 		}
 	}
 }
@@ -122,7 +122,7 @@ impl<'a> Expression<'a> {
 // defined in the scope.
 fn to_expr_tokens(tok: &[Token], scope: &Scope) -> Result<Vec<ExprToken>, CompileError> {
 	if tok.is_empty() {
-		return Err(CompileError { msg: "empty expression in file".to_string(), pos: SourcePos { line: 0, col: 0 }});
+		return Err(CompileError { msg: "empty expression in file".to_string(), pos: None });
 	}
 	let mut out = Vec::new();
 
@@ -152,7 +152,7 @@ fn to_expr_tokens(tok: &[Token], scope: &Scope) -> Result<Vec<ExprToken>, Compil
 					"||" => Or,
 					"^^" => Xor,
 					x => {
-						return Err(CompileError { msg: format!("unexpected operator in expression: `{}`", x), pos: t.pos });
+						return Err(CompileError { msg: format!("unexpected operator in expression: `{}`", x), pos: Some(t.pos) });
 					}
 				}))
 			},
@@ -161,7 +161,7 @@ fn to_expr_tokens(tok: &[Token], scope: &Scope) -> Result<Vec<ExprToken>, Compil
 					'(' => LParen,
 					')' => RParen,
 					x => {
-						return Err(CompileError { msg: format!("unexpected paren type in expression: `{}`", x), pos: t.pos });
+						return Err(CompileError { msg: format!("unexpected paren type in expression: `{}`", x), pos: Some(t.pos) });
 					}
 				})
 			},
@@ -170,7 +170,7 @@ fn to_expr_tokens(tok: &[Token], scope: &Scope) -> Result<Vec<ExprToken>, Compil
 				match scope.var_id(v) {
 					Some(id) => out.push(Var(id)),
 					None => {
-						return Err(CompileError { msg: format!("variable `{}` appears in expression but is not defined in scope", v), pos: t.pos })
+						return Err(CompileError { msg: format!("variable `{}` appears in expression but is not defined in scope", v), pos: Some(t.pos) })
 					}
 				}
 			},
@@ -178,7 +178,7 @@ fn to_expr_tokens(tok: &[Token], scope: &Scope) -> Result<Vec<ExprToken>, Compil
 			lexer::Newline => { },
 
 			x => {
-				return Err(CompileError { msg: format!("unexpected token in expression `{}`", x), pos: t.pos });
+				return Err(CompileError { msg: format!("unexpected token in expression `{}`", x), pos: Some(t.pos) });
 			}
 		}
 	}

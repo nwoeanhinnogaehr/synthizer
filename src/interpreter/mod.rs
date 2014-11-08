@@ -3,6 +3,7 @@ use std::fmt;
 pub mod lexer;
 pub mod expr;
 pub mod scope;
+pub mod parser;
 
 #[deriving(Clone)]
 pub struct SourcePos {
@@ -18,11 +19,14 @@ impl fmt::Show for SourcePos {
 
 pub struct CompileError {
 	pub msg: String,
-	pub pos: SourcePos,
+	pub pos: Option<SourcePos>,
 }
 
 impl fmt::Show for CompileError {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		write!(f, "@{}\n\t{}", self.pos, self.msg)
+		match self.pos {
+			Some(pos) => write!(f, "{} :: {}", pos, self.msg),
+			None => write!(f, "{}", self.msg),
+		}
 	}
 }
