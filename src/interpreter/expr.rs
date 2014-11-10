@@ -2,7 +2,7 @@
 
 use super::lexer::Token;
 use super::lexer;
-use super::{CompileError, SourcePos};
+use super::{CompileError, SourcePos, from_bool, is_truthy};
 use super::scope::Scope;
 use std::num;
 
@@ -319,54 +319,43 @@ fn eval_rpn(rpn: &[ExprToken], scope: &Scope) -> Result<f32, String> {
 					},
 					Mod => {
 						let c = num::abs(args[1]/args[0]).fract()*num::abs(args[0]);
-						if args[1] < 0f32 { -c } else { c }
+						if is_truthy(args[1]) { c } else { -c }
 					},
 					Neg => {
 						-args[0]
 					},
 					Not => {
-						if args[0] > 0f32
-							{ -1f32 } else { 1f32 }
+						from_bool(is_truthy(-args[0]))
 					},
 					Less => {
-						if args[1] < args[0]
-							{ 1f32 } else { -1f32 }
+						from_bool(args[1] < args[0])
 					},
 					Greater => {
-						if args[1] > args[0]
-							{ 1f32 } else { -1f32 }
+						from_bool(args[1] > args[0])
 					},
 					LessEqual => {
-						if args[1] <= args[0]
-							{ 1f32 } else { -1f32 }
+						from_bool(args[1] <= args[0])
 					},
 					GreaterEqual => {
-						if args[1] >= args[0]
-							{ 1f32 } else { -1f32 }
+						from_bool(args[1] >= args[0])
 					},
 					Equ => {
-						if args[1] == args[0]
-							{ 1f32 } else { -1f32 }
+						from_bool(args[1] == args[0])
 					},
 					NotEqu => {
-						if args[1] != args[0]
-							{ 1f32 } else { -1f32 }
+						from_bool(args[1] != args[0])
 					},
 					ApproxEqu => {
-						if num::abs(args[1] - args[0]) < 0.0001
-							{ 1f32 } else { -1f32 }
+						from_bool(num::abs(args[1] - args[0]) < 0.0001)
 					},
 					And => {
-						if args[1] > 0f32 && args[0] > 0f32
-							{ 1f32 } else { -1f32 }
+						from_bool(is_truthy(args[1]) && is_truthy(args[0]))
 					},
 					Or => {
-						if args[1] > 0f32 || args[0] > 0f32
-							{ 1f32 } else { -1f32 }
+						from_bool(is_truthy(args[1]) || is_truthy(args[0]))
 					},
 					Xor => {
-						if (args[1] > 0f32) ^ (args[0] > 0f32)
-							{ 1f32 } else { -1f32 }
+						from_bool(is_truthy(args[1]) ^ is_truthy(args[0]))
 					},
 				});
 			},

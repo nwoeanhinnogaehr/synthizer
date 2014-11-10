@@ -31,3 +31,14 @@ impl fmt::Show for CompileError {
 		}
 	}
 }
+
+fn is_truthy(v: f32) -> bool {
+	v > 0_f32
+}
+
+fn from_bool(v: bool) -> f32 {
+	if v { TRUE } else { FALSE }
+}
+
+static TRUE: f32 = 1_f32;
+static FALSE: f32 = -1_f32;
