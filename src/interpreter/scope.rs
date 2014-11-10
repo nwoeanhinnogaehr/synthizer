@@ -19,7 +19,7 @@ impl<'a> Scope<'a> {
 	// Returns a uint identifier which can be passed to set_var to quickly update the value of a
 	// variable.
 	pub fn var_id(&self, var: &'a str) -> Option<uint> {
-		match self.vars.find(&var) {
+		match self.vars.get(&var) {
 			Some(v) => Some(*v),
 			None => None,
 		}
