@@ -6,12 +6,12 @@ use super::scope::Scope;
 use super::lexer;
 
 // Something that can be called with arguments given in the scope
-trait Function {
+pub trait Function {
 	fn call(&self, scope: &Scope) -> Result<f32, CompileError>;
 }
 
 macro_rules! bind_function(
-    ( $name:ident, $func:ident ( $($arg:ident),+ ) ) => (
+    ( $name:ident, $func:ident ( $($arg:ident),* ) ) => (
 		struct $name;
 		impl $name {
 			fn new() -> $name {
@@ -19,8 +19,10 @@ macro_rules! bind_function(
 			}
 		}
 		impl Function for $name {
+			#[allow(unused_variables)] // Compiler complains that scope is not used on functions with no args.
 			fn call(&self, scope: &Scope) -> Result<f32, CompileError> {
 				Ok($func($(
+					// Insert each argument from the scope
 					match scope.var_id(stringify!($arg)) {
 						Some(id) => scope.get_var(id).unwrap(),
 
@@ -28,7 +30,7 @@ macro_rules! bind_function(
 							msg: format!("function requires argument `{}` but not passed or defined in scope", stringify!($arg)),
 							pos: None }),
 					}
-				),+))
+				),*))
 			}
 		}
     );
@@ -71,20 +73,6 @@ impl<'a> ExprFunction<'a> {
 impl<'a> Function for ExprFunction<'a> {
 	fn call(&self, scope: &Scope) -> Result<f32, CompileError> {
 		self.expr.eval(scope)
-	}
-}
-
-struct Sum<'a> {
-	fns: Vec<Box<Function + 'a>>,
-}
-
-impl<'a> Sum<'a> {
-	fn eval(&self, scope: &'a Scope) -> Result<f32, CompileError> {
-		let mut sum = 0_f32;
-		for f in self.fns.iter() {
-			sum += try!(f.call(scope));
-		}
-		Ok(sum)
 	}
 }
 

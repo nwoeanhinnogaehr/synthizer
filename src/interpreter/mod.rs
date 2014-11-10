@@ -3,7 +3,8 @@ use std::fmt;
 pub mod lexer;
 pub mod expr;
 pub mod scope;
-pub mod parser;
+pub mod function;
+pub mod sum;
 
 #[deriving(Clone)]
 pub struct SourcePos {
