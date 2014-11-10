@@ -29,7 +29,7 @@ macro_rules! bind_function(
 						Some(id) => scope.get_var(id).unwrap(),
 
 						None => return Err(CompileError {
-							msg: format!("function requires argument `{}` but not passed or defined in scope", stringify!($arg)),
+							msg: format!("function `{}` requires argument `{}` but it is not defined in scope", stringify!($func), stringify!($arg)),
 							pos: None }),
 					}
 				),*))
