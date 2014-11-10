@@ -319,7 +319,7 @@ fn eval_rpn(rpn: &[ExprToken], scope: &Scope) -> Result<f32, String> {
 					},
 					Mod => {
 						let c = num::abs(args[1]/args[0]).fract()*num::abs(args[0]);
-						if is_truthy(args[1]) { c } else { -c }
+						if args[1] > 0_f32 { c } else { -c }
 					},
 					Neg => {
 						-args[0]
