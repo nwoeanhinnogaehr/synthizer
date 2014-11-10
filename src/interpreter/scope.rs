@@ -1,10 +1,13 @@
 use std::collections::hash_map::{HashMap, Occupied, Vacant};
+use super::function::Function;
 
 // Holds a number of variables and their values.
-#[deriving(Show, Clone)]
-pub struct Scope<'s> {
+#[deriving(Clone)]
+pub struct Scope<'a> {
 	var_values: Vec<f32>, // values of vars by id
-	vars: HashMap<&'s str, uint>, // map of var name -> var id
+	vars: HashMap<&'a str, uint>, // map of var name -> var id
+
+	functions: HashMap<&'a str, &'a Box<Function + 'a>>,
 }
 
 impl<'a> Scope<'a> {
@@ -13,6 +16,7 @@ impl<'a> Scope<'a> {
 		Scope {
 			var_values: Vec::new(),
 			vars: HashMap::new(),
+			functions: HashMap::new(),
 		}
 	}
 
@@ -45,7 +49,7 @@ impl<'a> Scope<'a> {
 	}
 
 	// Sets a variable to a specified value, creating the variable if it does not exist.
-	pub fn define(&mut self, var: &'a str, value: f32) {
+	pub fn define_var(&mut self, var: &'a str, value: f32) {
 		let nv = self.vars.len();
 		match self.vars.entry(var) {
 			Occupied(entry) => {
@@ -61,5 +65,16 @@ impl<'a> Scope<'a> {
 	// Returns the number of variables set in the scope.
 	pub fn num_vars(&self) -> uint {
 		self.vars.len()
+	}
+
+	pub fn define_function(&mut self, name: &'a str, func: &'a Box<Function + 'a>) {
+		self.functions[name] = func;
+	}
+
+	pub fn get_function(&self, name: &'a str) -> Option<&'a Box<Function + 'a>> {
+		match self.functions.get(&name) {
+			Some(v) => Some(*v),
+			None => None,
+		}
 	}
 }
