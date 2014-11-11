@@ -84,11 +84,11 @@ impl<'a> Function for ExprFunction<'a> {
 
 // Returns the result of calling the function if the condition is truthy, else 0
 struct CondFunction<'a> {
-	cond: Box<Function + 'a>,
-	func: Box<Function + 'a>,
+	cond: &'a Function + 'a,
+	func: &'a Function + 'a,
 }
 impl<'a> CondFunction<'a> {
-	fn new(cond: Box<Function + 'a>, func: Box<Function + 'a>) -> CondFunction<'a> {
+	fn new(cond: &'a Function, func: &'a Function) -> CondFunction<'a> {
 		CondFunction {
 			cond: cond,
 			func: func,
@@ -152,8 +152,8 @@ fn cond_test() {
 	let cond_truthy = ConstFunction::new(TRUE);
 	let cond_falsey = ConstFunction::new(FALSE);
 	let expr = ConstFunction::new(42_f32);
-	let f_truthy = CondFunction::new(box cond_truthy, box expr);
-	let f_falsey = CondFunction::new(box cond_falsey, box expr);
+	let f_truthy = CondFunction::new(&cond_truthy, &expr);
+	let f_falsey = CondFunction::new(&cond_falsey, &expr);
 	let s = Scope::new();
 	assert_eq!(f_truthy.call(&s).unwrap(), 42_f32);
 	assert_eq!(f_falsey.call(&s).unwrap(), 0_f32);
