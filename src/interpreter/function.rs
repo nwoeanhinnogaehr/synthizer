@@ -2,6 +2,8 @@ use super::expr::Expression;
 use super::{CompileError, is_truthy};
 use super::scope::Scope;
 use super::sum::Sum;
+use std::collections::HashMap;
+use super::lexer::Token;
 
 #[cfg(test)]
 use super::lexer;
@@ -119,6 +121,50 @@ impl<'a> SumFunction<'a> {
 impl<'a> Function for SumFunction<'a> {
 	fn call(&self, scope: &Scope) -> Result<f32, CompileError> {
 		self.sum.eval(scope)
+	}
+}
+
+// Represents a function call written in synthizer
+struct SyntFunctionCall<'a> {
+	func: &'a Function + 'a, // the function the call refers to
+	args: HashMap<&'a str, &'a Function + 'a>, // the value of each argument passed is a function (internally an ExprFunction)
+	name: &'a str,
+}
+impl<'a> SyntFunctionCall<'a> {
+	// Parse a function call from a token stream. Scope is used to find function definitions
+	fn new<'s>(tok: &'a [Token<'a>], scope: &'s Scope<'a>) -> Result<SyntFunctionCall<'a>, CompileError> {
+		unimplemented!();
+	}
+
+	fn name(&self) -> &'a str {
+		self.name
+	}
+}
+impl<'a> Function for SyntFunctionCall<'a> {
+	fn call(&self, scope: &Scope) -> Result<f32, CompileError> {
+		unimplemented!();
+	}
+}
+
+// Represents a function definition written in synthizer
+struct SyntFunctionDef<'a> {
+	func: &'a Function + 'a, // Internally a SumFunction containing CondFunctions containing ExprFunctions
+	args: HashMap<&'a str, Option<f32>>, // Default arguments
+	name: &'a str,
+}
+impl<'a> SyntFunctionDef<'a> {
+	// Parse a function definition from a token stream. Scope is used to find function definitions
+	fn new<'s>(tok: &'a [Token<'a>], scope: &'s Scope<'a>) -> Result<SyntFunctionDef<'a>, CompileError> {
+		unimplemented!();
+	}
+
+	fn name(&self) -> &'a str {
+		self.name
+	}
+}
+impl<'a> Function for SyntFunctionDef<'a> {
+	fn call(&self, scope: &Scope) -> Result<f32, CompileError> {
+		unimplemented!();
 	}
 }
 
