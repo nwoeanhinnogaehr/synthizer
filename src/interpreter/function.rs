@@ -14,7 +14,7 @@ pub trait Function {
 }
 
 macro_rules! bind_function(
-    ( $name:ident, $func:ident ( $($arg:ident),* ) ) => (
+	( $name:ident, $func:ident ( $($arg:ident),* ) ) => (
 		struct $name;
 		impl $name {
 			fn new() -> $name {
@@ -36,7 +36,7 @@ macro_rules! bind_function(
 				),*))
 			}
 		}
-    );
+	);
 )
 
 fn sin(a: f32) -> f32 {
