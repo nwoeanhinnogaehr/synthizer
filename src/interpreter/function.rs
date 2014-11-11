@@ -14,7 +14,7 @@ pub trait Function {
 }
 
 macro_rules! bind_function(
-	( $name:ident, $func:ident ( $($arg:ident),* ) ) => (
+	( $name:ident, $func:ident ( $($arg:ident = $val:expr),* ) ) => (
 		struct $name;
 		impl $name {
 			fn new() -> $name {
@@ -29,9 +29,12 @@ macro_rules! bind_function(
 					match scope.var_id(stringify!($arg)) {
 						Some(id) => scope.get_var(id).unwrap(),
 
-						None => return Err(CompileError {
-							msg: format!("function `{}` requires argument `{}` but it is not defined in scope", stringify!($func), stringify!($arg)),
-							pos: None }),
+						None => match $val {
+							Some(val) => val,
+							None => return Err(CompileError {
+								msg: format!("function `{}` requires argument `{}` but it is not defined in scope", stringify!($func), stringify!($arg)),
+								pos: None }),
+						}
 					}
 				),*))
 			}
@@ -39,11 +42,11 @@ macro_rules! bind_function(
 	);
 )
 
-fn sin(a: f32) -> f32 {
-	a.sin()
+fn sin(freq: f32, amp: f32, phase: f32, time: f32) -> f32 {
+	(freq*time*Float::two_pi() + phase).sin()*amp
 }
 
-bind_function!(SinFunction, sin(a))
+bind_function!(SinFunction, sin(freq=None, amp=Some(1_f32), phase=Some(0_f32), time=None))
 
 // Always returns a specific constant
 struct ConstFunction {
@@ -102,8 +105,7 @@ impl<'a> Function for CondFunction<'a> {
 	}
 }
 
-// A SumFunction represents the sum of a bunch of other functions. Functions defined in syntizer
-// are internally represented as this.
+// A SumFunction represents the sum of a bunch of other functions.
 struct SumFunction<'a> {
 	sum: &'a Sum<'a>
 }
@@ -123,7 +125,7 @@ impl<'a> Function for SumFunction<'a> {
 #[test]
 fn const_function_test() {
 	let f = ConstFunction::new(42_f32);
-	assert!(f.call(&Scope::new()).unwrap() == 42_f32);
+	assert_eq!(f.call(&Scope::new()).unwrap(), 42_f32);
 }
 
 #[test]
@@ -132,16 +134,17 @@ fn expr_function_test() {
 	s.define_var("a", 9_f32);
 	let e = Expression::new(lexer::tokenize("5*3+a").unwrap().as_slice(), &s).unwrap();
 	let f = ExprFunction::new(&e);
-	assert!(f.call(&s).unwrap() == 24_f32);
+	assert_eq!(f.call(&s).unwrap(), 24_f32);
 }
 
 #[test]
 fn sin_test() {
-	let a = 2_f32;
 	let mut s = Scope::new();
-	s.define_var("a", a);
+	s.define_var("freq", 440_f32);
+	s.define_var("time", 0_f32);
+	s.define_var("amp", 0.5_f32);
 	let f = SinFunction::new();
-	assert!(f.call(&s).unwrap() == a.sin());
+	assert_eq!(f.call(&s).unwrap(), 0_f32);
 }
 
 #[test]
@@ -152,8 +155,8 @@ fn cond_test() {
 	let f_truthy = CondFunction::new(box cond_truthy, box expr);
 	let f_falsey = CondFunction::new(box cond_falsey, box expr);
 	let s = Scope::new();
-	assert!(f_truthy.call(&s).unwrap() == 42_f32);
-	assert!(f_falsey.call(&s).unwrap() == 0_f32);
+	assert_eq!(f_truthy.call(&s).unwrap(), 42_f32);
+	assert_eq!(f_falsey.call(&s).unwrap(), 0_f32);
 }
 
 #[test]
@@ -165,5 +168,5 @@ fn sum_test() {
 		box ConstFunction::new(4_f32) as Box<Function>]);
 	let f = SumFunction::new(&sum);
 	let s = Scope::new();
-	assert!(f.call(&s).unwrap() == 10_f32);
+	assert_eq!(f.call(&s).unwrap(), 10_f32);
 }
