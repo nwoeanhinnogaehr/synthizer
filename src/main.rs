@@ -3,17 +3,29 @@
 #![feature(phase)]
 #![feature(macro_rules)]
 #![allow(dead_code)]
-#[phase(plugin)]
-extern crate regex_macros;
 extern crate regex;
+#[phase(plugin)] extern crate regex_macros;
 extern crate time;
+extern crate serialize;
+extern crate docopt;
+#[phase(plugin)] extern crate docopt_macros;
 
 use std::io::File;
 
 mod interpreter;
 
+docopt!(Args, "
+Usage:
+  synthizer <file>
+  synthizer --help
+
+Options:
+  -h, --help       Show this message.
+")
+
 fn main() {
-	let path = Path::new("examples/expr.synt");
+	let args: Args = Args::docopt().decode().unwrap_or_else(|e| e.exit());
+	let path = Path::new(args.arg_file);
 	let display = path.display();
 	println!("input file: {}", display);
 
