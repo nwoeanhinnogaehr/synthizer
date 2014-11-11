@@ -1,6 +1,7 @@
 use super::expr::Expression;
 use super::{CompileError, is_truthy};
 use super::scope::Scope;
+use super::sum::Sum;
 
 #[cfg(test)]
 use super::lexer;
@@ -101,6 +102,24 @@ impl<'a> Function for CondFunction<'a> {
 	}
 }
 
+// A SumFunction represents the sum of a bunch of other functions. Functions defined in syntizer
+// are internally represented as this.
+struct SumFunction<'a> {
+	sum: &'a Sum<'a>
+}
+impl<'a> SumFunction<'a> {
+	pub fn new(sum: &'a Sum<'a>) -> SumFunction<'a> {
+		SumFunction {
+			sum: sum,
+		}
+	}
+}
+impl<'a> Function for SumFunction<'a> {
+	fn call(&self, scope: &Scope) -> Result<f32, CompileError> {
+		self.sum.eval(scope)
+	}
+}
+
 #[test]
 fn const_function_test() {
 	let f = ConstFunction::new(42_f32);
@@ -135,4 +154,16 @@ fn cond_test() {
 	let s = Scope::new();
 	assert!(f_truthy.call(&s).unwrap() == 42_f32);
 	assert!(f_falsey.call(&s).unwrap() == 0_f32);
+}
+
+#[test]
+fn sum_test() {
+	let sum = Sum::new(vec![
+		box ConstFunction::new(1_f32) as Box<Function>,
+		box ConstFunction::new(2_f32) as Box<Function>,
+		box ConstFunction::new(3_f32) as Box<Function>,
+		box ConstFunction::new(4_f32) as Box<Function>]);
+	let f = SumFunction::new(&sum);
+	let s = Scope::new();
+	assert!(f.call(&s).unwrap() == 10_f32);
 }
