@@ -68,14 +68,14 @@ impl<'a> Scope<'a> {
 	}
 
 	/// Defines a function in the scope.
-	pub fn define_function(&mut self, name: &'a str, func: &'a Box<Function + 'a>) {
+	pub fn define_function(&mut self, name: &'a str, func: &'a Box<Function>) {
 		self.functions[name] = func;
 	}
 
 	/// Gets a function previously defined in the scope.
-	pub fn get_function(&self, name: &'a str) -> Option<&'a Box<Function + 'a>> {
+	pub fn get_function(&self, name: &'a str) -> Option<&'a Function> {
 		match self.functions.get(&name) {
-			Some(v) => Some(*v),
+			Some(v) => Some(&***v),
 			None => None,
 		}
 	}
