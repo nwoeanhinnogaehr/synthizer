@@ -10,7 +10,7 @@ use super::lexer;
 #[cfg(test)]
 use super::{TRUE, FALSE};
 
-// Something that can be called with arguments given in the scope
+/// Something that can be called with arguments given in the scope
 pub trait Function {
 	fn call(&self, scope: &Scope) -> Result<f32, CompileError>;
 }
@@ -48,10 +48,10 @@ fn sin(freq: f32, amp: f32, phase: f32, time: f32) -> f32 {
 	(freq*time*Float::two_pi() + phase).sin()*amp
 }
 
-bind_function!(SinFunction, sin(freq=None, amp=Some(1_f32), phase=Some(0_f32), time=None))
+pub bind_function!(SinFunction, sin(freq=None, amp=Some(1_f32), phase=Some(0_f32), time=None))
 
-// Always returns a specific constant
-struct ConstFunction {
+/// Always returns a specific constant
+pub struct ConstFunction {
 	val: f32,
 }
 impl ConstFunction {
@@ -67,8 +67,8 @@ impl Function for ConstFunction {
 	}
 }
 
-// Wraps an expression from the expr module.
-struct ExprFunction<'a> {
+/// Wraps an expression from the expr module.
+pub struct ExprFunction<'a> {
 	expr: &'a Expression<'a>,
 }
 impl<'a> ExprFunction<'a> {
@@ -84,8 +84,8 @@ impl<'a> Function for ExprFunction<'a> {
 	}
 }
 
-// Returns the result of calling the function if the condition is truthy, else 0
-struct CondFunction<'a> {
+/// Returns the result of calling the function if the condition is truthy, else 0
+pub struct CondFunction<'a> {
 	cond: &'a Function + 'a,
 	func: &'a Function + 'a,
 }
@@ -107,8 +107,8 @@ impl<'a> Function for CondFunction<'a> {
 	}
 }
 
-// A SumFunction represents the sum of a bunch of other functions.
-struct SumFunction<'a> {
+/// A SumFunction represents the sum of a bunch of other functions.
+pub struct SumFunction<'a> {
 	sum: &'a Sum<'a>
 }
 impl<'a> SumFunction<'a> {
@@ -124,14 +124,14 @@ impl<'a> Function for SumFunction<'a> {
 	}
 }
 
-// Represents a function call written in synthizer
-struct SyntFunctionCall<'a> {
+/// Represents a function call written in synthizer
+pub struct SyntFunctionCall<'a> {
 	func: &'a Function + 'a, // the function the call refers to
 	args: HashMap<&'a str, &'a Function + 'a>, // the value of each argument passed is a function (internally an ExprFunction)
 	name: &'a str,
 }
 impl<'a> SyntFunctionCall<'a> {
-	// Parse a function call from a token stream. Scope is used to find function definitions
+	/// Parse a function call from a token stream. Scope is used to find function definitions
 	fn new<'s>(tok: &'a [Token<'a>], scope: &'s Scope<'a>) -> Result<SyntFunctionCall<'a>, CompileError> {
 		unimplemented!();
 	}
@@ -146,14 +146,14 @@ impl<'a> Function for SyntFunctionCall<'a> {
 	}
 }
 
-// Represents a function definition written in synthizer
-struct SyntFunctionDef<'a> {
+/// Represents a function definition written in synthizer
+pub struct SyntFunctionDef<'a> {
 	func: &'a Function + 'a, // Internally a SumFunction containing CondFunctions containing ExprFunctions
 	args: HashMap<&'a str, Option<f32>>, // Default arguments
 	name: &'a str,
 }
 impl<'a> SyntFunctionDef<'a> {
-	// Parse a function definition from a token stream. Scope is used to find function definitions
+	/// Parse a function definition from a token stream. Scope is used to find function definitions
 	fn new<'s>(tok: &'a [Token<'a>], scope: &'s Scope<'a>) -> Result<SyntFunctionDef<'a>, CompileError> {
 		unimplemented!();
 	}

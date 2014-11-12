@@ -1,9 +1,9 @@
 use regex::Regex;
 use super::{CompileError, SourcePos};
 
+/// The various types that a token can be
 #[deriving(Show, Clone)]
 pub enum TokenType<'a> {
-	// tokenize gives:
 	Ident(&'a str),
 	Const(f32),
 	Operator(&'a str),
@@ -14,6 +14,7 @@ pub enum TokenType<'a> {
 	Period,
 }
 
+/// Stores the type and position of a token
 #[deriving(Show, Clone)]
 pub struct Token<'a> {
 	pub t: TokenType<'a>,
@@ -31,6 +32,7 @@ static EQUALS_REGEX: Regex = regex!(r"=");
 static PERIOD_REGEX: Regex = regex!(r"\.");
 static COMMENT_REGEX: Regex = regex!(r"//.*");
 
+/// Converts a string into a vector of tokens.
 pub fn tokenize<'a>(s: &'a str) -> Result<Vec<Token<'a>>, CompileError> {
 	let mut walk = s;
 	let mut tokens = Vec::new();

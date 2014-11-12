@@ -70,8 +70,8 @@ impl Operator {
 	}
 }
 
-// An expression is a mathematical statement containing a number of operators, constants and
-// variables. It evaluates to a single number.
+/// An expression is a mathematical statement containing a number of operators, constants and
+/// variables. It evaluates to a single number.
 #[deriving(Show, Clone)]
 pub struct Expression<'a> {
 	rpn: Vec<ExprToken>, // reverse polish notation
@@ -79,7 +79,7 @@ pub struct Expression<'a> {
 }
 
 impl<'a> Expression<'a> {
-	// converts a token slice from the lexer into an expression that can be evaluated
+	/// Converts a token slice from the lexer into an expression that can be evaluated
 	pub fn new<'s>(tok: &'a [Token<'a>], scope: &'s Scope<'a>) -> Result<Expression<'a>, CompileError> {
 		let out = try!(to_expr_tokens(tok, scope));
 		let out = match shunting_yard(out.as_slice()) {
@@ -93,7 +93,7 @@ impl<'a> Expression<'a> {
 		})
 	}
 
-	// Replaces variables with their values in the given scope
+	/// Replaces variables with their values in the given scope
 	pub fn fold_scope(&mut self, scope: &'a Scope<'a>) {
 		for tok in self.rpn.iter_mut() {
 			match tok {
@@ -108,7 +108,7 @@ impl<'a> Expression<'a> {
 		}
 	}
 
-	// Evaluates the value of the expression
+	/// Evaluates the value of the expression
 	pub fn eval(&self, scope: &'a Scope<'a>) -> Result<f32, CompileError> {
 		match eval_rpn(self.rpn.as_slice(), scope) {
 			Ok(val) => Ok(val),

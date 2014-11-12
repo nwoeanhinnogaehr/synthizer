@@ -12,7 +12,7 @@ extern crate docopt;
 
 use std::io::File;
 
-mod interpreter;
+pub mod interpreter;
 
 docopt!(Args, "
 Usage:
