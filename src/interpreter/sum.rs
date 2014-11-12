@@ -17,7 +17,7 @@ impl<'a> Sum<'a> {
 
 	// TODO parallelize
 	/// Sums up all the functions
-	pub fn eval(&self, scope: &Scope) -> Result<f32, CompileError> {
+	pub fn eval<'s>(&self, scope: &'s Scope<'s>) -> Result<f32, CompileError> {
 		let mut sum = 0_f32;
 		for f in self.fns.iter() {
 			sum += try!(f.call(scope));

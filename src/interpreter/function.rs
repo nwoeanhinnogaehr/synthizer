@@ -12,7 +12,7 @@ use super::{TRUE, FALSE};
 
 /// Something that can be called with arguments given in the scope
 pub trait Function {
-	fn call(&self, scope: &Scope) -> Result<f32, CompileError>;
+	fn call<'s>(&self, scope: &'s Scope<'s>) -> Result<f32, CompileError>;
 }
 
 macro_rules! bind_function(
@@ -79,7 +79,7 @@ impl<'a> ExprFunction<'a> {
 	}
 }
 impl<'a> Function for ExprFunction<'a> {
-	fn call(&self, scope: &Scope) -> Result<f32, CompileError> {
+	fn call<'s>(&self, scope: &'s Scope<'s>) -> Result<f32, CompileError> {
 		self.expr.eval(scope)
 	}
 }
@@ -98,7 +98,7 @@ impl<'a> CondFunction<'a> {
 	}
 }
 impl<'a> Function for CondFunction<'a> {
-	fn call(&self, scope: &Scope) -> Result<f32, CompileError> {
+	fn call<'s>(&self, scope: &'s Scope<'s>) -> Result<f32, CompileError> {
 		if is_truthy(try!(self.cond.call(scope))) {
 			self.func.call(scope)
 		} else {
@@ -119,7 +119,7 @@ impl<'a> SumFunction<'a> {
 	}
 }
 impl<'a> Function for SumFunction<'a> {
-	fn call(&self, scope: &Scope) -> Result<f32, CompileError> {
+	fn call<'s>(&self, scope: &'s Scope<'s>) -> Result<f32, CompileError> {
 		self.sum.eval(scope)
 	}
 }
@@ -178,7 +178,8 @@ fn const_function_test() {
 fn expr_function_test() {
 	let mut s = Scope::new();
 	s.define_var("a", 9_f32);
-	let e = Expression::new(lexer::tokenize("5*3+a").unwrap().as_slice(), &s).unwrap();
+	let t = lexer::tokenize("5*3+a").unwrap();
+	let e = Expression::new(t.as_slice(), &s).unwrap();
 	let f = ExprFunction::new(&e);
 	assert_eq!(f.call(&s).unwrap(), 24_f32);
 }

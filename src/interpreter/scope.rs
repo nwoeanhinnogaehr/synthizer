@@ -7,7 +7,8 @@ pub struct Scope<'a> {
 	var_values: Vec<f32>, // values of vars by id
 	vars: HashMap<&'a str, uint>, // map of var name -> var id
 
-	functions: HashMap<&'a str, &'a Box<Function + 'a>>,
+	func_values: Vec<&'a Box<Function + 'a>>,
+	funcs: HashMap<&'a str, uint>,
 }
 
 impl<'a> Scope<'a> {
@@ -16,7 +17,8 @@ impl<'a> Scope<'a> {
 		Scope {
 			var_values: Vec::new(),
 			vars: HashMap::new(),
-			functions: HashMap::new(),
+			func_values: Vec::new(),
+			funcs: HashMap::new(),
 		}
 	}
 
@@ -68,14 +70,32 @@ impl<'a> Scope<'a> {
 	}
 
 	/// Defines a function in the scope.
-	pub fn define_function(&mut self, name: &'a str, func: &'a Box<Function>) {
-		self.functions[name] = func;
+	pub fn define_func(&mut self, name: &'a str, func: &'a Box<Function>) {
+		let nv = self.funcs.len();
+		match self.funcs.entry(name) {
+			Occupied(entry) => {
+				self.func_values[*entry.get()] = func;
+			},
+			Vacant(entry) => {
+				entry.set(nv);
+				self.func_values.push(func);
+			},
+		}
 	}
 
-	/// Gets a function previously defined in the scope.
-	pub fn get_function(&self, name: &'a str) -> Option<&'a Function> {
-		match self.functions.get(&name) {
-			Some(v) => Some(&***v),
+	/// Gets a function previously defined in the scope by id.
+	pub fn get_func(&self, func_id: uint) -> Option<&'a Function> {
+		if func_id >= self.func_values.len() {
+			None
+		} else {
+			Some(&**self.func_values[func_id])
+		}
+	}
+
+	// Returns the id of a function previously defined in the scope by name.
+	pub fn func_id(&self, name: &'a str) -> Option<uint> {
+		match self.funcs.get(&name) {
+			Some(id) => Some(*id),
 			None => None,
 		}
 	}
