@@ -80,7 +80,7 @@ pub struct Expression<'a> {
 
 impl<'a> Expression<'a> {
 	/// Converts a token slice from the lexer into an expression that can be evaluated
-	pub fn new<'s>(tok: &'a [Token<'a>], scope: &'s Scope<'a>) -> Result<Expression<'a>, CompileError> {
+	pub fn new<'s>(tok: &'a [Token<'a>], scope: &'s Scope<'s>) -> Result<Expression<'a>, CompileError> {
 		let out = try!(to_expr_tokens(tok, scope));
 		let out = match shunting_yard(out.as_slice()) {
 			Ok(out) => out,
@@ -94,7 +94,7 @@ impl<'a> Expression<'a> {
 	}
 
 	/// Replaces variables with their values in the given scope
-	pub fn fold_scope(&mut self, scope: &'a Scope<'a>) {
+	pub fn fold_scope<'s>(&mut self, scope: &'s Scope<'s>) {
 		for tok in self.rpn.iter_mut() {
 			match tok {
 				&Var(id) => {
@@ -109,7 +109,7 @@ impl<'a> Expression<'a> {
 	}
 
 	/// Evaluates the value of the expression
-	pub fn eval(&self, scope: &'a Scope<'a>) -> Result<f32, CompileError> {
+	pub fn eval<'s>(&self, scope: &'s Scope<'s>) -> Result<f32, CompileError> {
 		match eval_rpn(self.rpn.as_slice(), scope) {
 			Ok(val) => Ok(val),
 			Err(e) => Err(CompileError { msg: e, pos: Some(self.pos) }),
