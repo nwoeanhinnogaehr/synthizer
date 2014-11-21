@@ -1,5 +1,6 @@
 use std::collections::hash_map::{HashMap, Occupied, Vacant};
 use super::function::Function;
+use std::rc::Rc;
 
 /// Holds a number of variables, functions and their values.
 #[deriving(Clone)]
@@ -7,7 +8,7 @@ pub struct Scope<'a> {
 	var_values: Vec<f32>, // values of vars by id
 	vars: HashMap<&'a str, uint>, // map of var name -> var id
 
-	func_values: Vec<&'a Box<Function + 'a>>,
+	func_values: Vec<Rc<&'a Function + 'a>>,
 	funcs: HashMap<&'a str, uint>,
 }
 
@@ -29,6 +30,16 @@ impl<'a> Scope<'a> {
 			Some(v) => Some(*v),
 			None => None,
 		}
+	}
+
+	/// XXX this shouldn't be needed eventually. Don't use it.
+	pub fn var_name(&self, var_id: uint) -> Option<&'a str> {
+		for (k, v) in self.vars.iter() {
+			if *v == var_id {
+				return Some(*k);
+			}
+		}
+		None
 	}
 
 	/// Sets a variable to an id retrieved from var_id. Return value indicates whether it was set
@@ -70,7 +81,7 @@ impl<'a> Scope<'a> {
 	}
 
 	/// Defines a function in the scope.
-	pub fn define_func(&mut self, name: &'a str, func: &'a Box<Function>) {
+	pub fn define_func(&mut self, name: &'a str, func: Rc<&'a Function + 'a>) {
 		let nv = self.funcs.len();
 		match self.funcs.entry(name) {
 			Occupied(entry) => {
@@ -84,11 +95,11 @@ impl<'a> Scope<'a> {
 	}
 
 	/// Gets a function previously defined in the scope by id.
-	pub fn get_func(&self, func_id: uint) -> Option<&'a Function> {
+	pub fn get_func(&self, func_id: uint) -> Option<Rc<&'a Function + 'a>> {
 		if func_id >= self.func_values.len() {
 			None
 		} else {
-			Some(&**self.func_values[func_id])
+			Some(self.func_values[func_id].clone())
 		}
 	}
 
@@ -98,5 +109,15 @@ impl<'a> Scope<'a> {
 			Some(id) => Some(*id),
 			None => None,
 		}
+	}
+
+	/// XXX this shouldn't be needed eventually. Don't use it.
+	pub fn func_name(&self, func_id: uint) -> Option<&'a str> {
+		for (k, v) in self.funcs.iter() {
+			if *v == func_id {
+				return Some(*k);
+			}
+		}
+		None
 	}
 }

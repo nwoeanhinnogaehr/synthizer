@@ -2,7 +2,7 @@ use regex::Regex;
 use super::{CompileError, SourcePos};
 
 /// The various types that a token can be
-#[deriving(Show, Clone)]
+#[deriving(Show, Clone, PartialEq)]
 pub enum TokenType<'a> {
 	Ident(&'a str),
 	Const(f32),
@@ -55,12 +55,12 @@ pub fn tokenize<'a>(s: &'a str) -> Result<Vec<Token<'a>>, CompileError> {
 			walk = walk[x..];
 			found = true;
 		} else if let Some((0, x)) = operator_match {
-			tokens.push(Token { t: Operator(walk[0..x]), pos: pos });
+			tokens.push(Token { t: TokenType::Operator(walk[0..x]), pos: pos });
 			walk = walk[x..];
 			found = true;
 			pos.col += x;
 		} else if let Some((0, x)) = ident_match {
-			tokens.push(Token { t: Ident(walk[0..x]), pos: pos });
+			tokens.push(Token { t: TokenType::Ident(walk[0..x]), pos: pos });
 			walk = walk[x..];
 			found = true;
 			pos.col += x;
@@ -69,14 +69,14 @@ pub fn tokenize<'a>(s: &'a str) -> Result<Vec<Token<'a>>, CompileError> {
 			found = true;
 			pos.col += x;
 		} else if let Some((0, x)) = newline_match {
-			tokens.push(Token { t: Newline, pos: pos });
+			tokens.push(Token { t: TokenType::Newline, pos: pos });
 			walk = walk[x..];
 			found = true;
 			pos.line += x;
 			pos.col = 1;
 		} else if let Some((0, x)) = const_match {
 			if let Some(v) = from_str::<f32>(walk[0..x]) {
-				tokens.push(Token { t: Const(v), pos: pos });
+				tokens.push(Token { t: TokenType::Const(v), pos: pos });
 				walk = walk[x..];
 				found = true;
 				pos.col += x;
@@ -85,22 +85,22 @@ pub fn tokenize<'a>(s: &'a str) -> Result<Vec<Token<'a>>, CompileError> {
 			}
 		} else if let Some((0, x)) = paren_match {
 			assert!(x == 1);
-			tokens.push(Token { t: Paren(walk.char_at(0)), pos: pos });
+			tokens.push(Token { t: TokenType::Paren(walk.char_at(0)), pos: pos });
 			walk = walk[x..];
 			found = true;
 			pos.col += x;
 		} else if let Some((0, x)) = colon_match {
-			tokens.push(Token { t: Colon, pos: pos });
+			tokens.push(Token { t: TokenType::Colon, pos: pos });
 			walk = walk[x..];
 			found = true;
 			pos.col += x;
 		} else if let Some((0, x)) = equals_match {
-			tokens.push(Token { t: Equals, pos: pos });
+			tokens.push(Token { t: TokenType::Equals, pos: pos });
 			walk = walk[x..];
 			found = true;
 			pos.col += x;
 		} else if let Some((0, x)) = period_match {
-			tokens.push(Token { t: Period, pos: pos });
+			tokens.push(Token { t: TokenType::Period, pos: pos });
 			walk = walk[x..];
 			found = true;
 			pos.col += x;

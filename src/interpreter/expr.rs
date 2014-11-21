@@ -1,18 +1,19 @@
 // Used internally for evalulating expressions
 
-use super::lexer::Token;
-use super::lexer;
+use super::lexer::{Token, TokenType};
 use super::{CompileError, SourcePos, from_bool, is_truthy};
 use super::scope::Scope;
-use std::num;
+use super::function::{Function, SyntFunctionCall};
+use std::num::Float;
 
 #[deriving(Show, Clone)]
-enum ExprToken {
+enum ExprToken<'a> {
 	Op(Operator),
 	Value(f32),
 	Var(uint),
 	LParen,
 	RParen,
+	Fn(SyntFunctionCall<'a>),
 }
 
 #[deriving(Show, Clone)]
@@ -45,6 +46,7 @@ enum Associativity {
 
 impl Operator {
 	fn precedence(self) -> int {
+		use self::Operator::*;
 		match self {
 			And | Or | Xor => 0,
 			Equ | NotEqu | ApproxEqu => 1,
@@ -56,6 +58,7 @@ impl Operator {
 	}
 
 	fn num_args(self) -> uint {
+		use self::Operator::*;
 		match self {
 			Neg | Not => 1,
 			_ => 2,
@@ -63,9 +66,10 @@ impl Operator {
 	}
 
 	fn associativity(self) -> Associativity {
+		use self::Operator::*;
 		match self {
-			Exp => Right,
-			_ => Left,
+			Exp => Associativity::Right,
+			_ => Associativity::Left,
 		}
 	}
 }
@@ -74,13 +78,13 @@ impl Operator {
 /// variables. It evaluates to a single number.
 #[deriving(Show, Clone)]
 pub struct Expression<'a> {
-	rpn: Vec<ExprToken>, // reverse polish notation
+	rpn: Vec<ExprToken<'a>>, // reverse polish notation
 	pos: SourcePos,
 }
 
 impl<'a> Expression<'a> {
 	/// Converts a token slice from the lexer into an expression that can be evaluated
-	pub fn new<'s>(tok: &'a [Token<'a>], scope: &'s Scope<'s>) -> Result<Expression<'a>, CompileError> {
+	pub fn new(tok: &'a [Token<'a>], scope: &'a Scope<'a>) -> Result<Expression<'a>, CompileError> {
 		let out = try!(to_expr_tokens(tok, scope));
 		let out = match shunting_yard(out.as_slice()) {
 			Ok(out) => out,
@@ -94,12 +98,12 @@ impl<'a> Expression<'a> {
 	}
 
 	/// Replaces variables with their values in the given scope
-	pub fn fold_scope<'s>(&mut self, scope: &'s Scope<'s>) {
+	pub fn fold_scope(&mut self, scope: &Scope) {
 		for tok in self.rpn.iter_mut() {
 			match tok {
-				&Var(id) => {
+				&ExprToken::Var(id) => {
 					match scope.get_var(id) {
-						Some(id) => *tok = Value(id),
+						Some(id) => *tok = ExprToken::Value(id),
 						None => { }
 					}
 				},
@@ -120,20 +124,27 @@ impl<'a> Expression<'a> {
 // Converts tokens from the lexer into ExprTokens, which are simplified to drop any strings and
 // contain only information understandable by the expression parser. Any variables encountered are
 // defined in the scope.
-fn to_expr_tokens(tok: &[Token], scope: &Scope) -> Result<Vec<ExprToken>, CompileError> {
+fn to_expr_tokens<'a>(tok: &'a [Token<'a>], scope: &'a Scope<'a>) -> Result<Vec<ExprToken<'a>>, CompileError> {
 	if tok.is_empty() {
 		return Err(CompileError { msg: "empty expression in file".to_string(), pos: None });
 	}
 	let mut out = Vec::new();
 
-	for &t in tok.iter() {
+	let mut iter = tok.iter().peekable();
+	let mut index = 0u;
+	loop {
+		let t = match iter.next() {
+			Some(t) => t,
+			None => break,
+		};
 		match t.t {
 			// Try to parse constants as f32. subject to maybe change but probably not.
-			lexer::Const(v) => {
-				out.push(Value(v))
+			TokenType::Const(v) => {
+				out.push(ExprToken::Value(v))
 			},
-			lexer::Operator(v) => {
-				out.push(Op(match v {
+			TokenType::Operator(v) => {
+				use self::Operator::*;
+				out.push(ExprToken::Op(match v {
 					"+" => Add,
 					"-" => Sub,
 					"*" => Mul,
@@ -156,38 +167,74 @@ fn to_expr_tokens(tok: &[Token], scope: &Scope) -> Result<Vec<ExprToken>, Compil
 					}
 				}))
 			},
-			lexer::Paren(v) => {
+			TokenType::Paren(v) => {
 				out.push(match v {
-					'(' => LParen,
-					')' => RParen,
+					'(' => ExprToken::LParen,
+					')' => ExprToken::RParen,
 					x => {
 						return Err(CompileError { msg: format!("unexpected paren type in expression: `{}`", x), pos: Some(t.pos) });
 					}
 				})
 			},
-			// An identifier in the context of an expression is always a variable
-			lexer::Ident(v) => {
-				match scope.var_id(v) {
-					Some(id) => out.push(Var(id)),
-					None => {
-						return Err(CompileError { msg: format!("variable `{}` appears in expression but is not defined in scope", v), pos: Some(t.pos) })
+			// An identifier in the context of an expression is always a variable except for when
+			// it's a function.
+			TokenType::Ident(v) => {
+				let is_fn = if let Some(t) = iter.peek() { t.t == TokenType::Paren('(') } else { false };
+
+				if is_fn {
+					let call_start = index;
+					let mut call_end = index;
+					let mut depth = 0u;
+					loop {
+						match iter.next() {
+							Some(token) => {
+								match token.t {
+									TokenType::Paren('(') => depth += 1,
+									TokenType::Paren(')') => depth -= 1,
+									_ => { },
+								}
+								call_end += 1;
+								index += 1;
+							},
+							None => return Err(CompileError { msg: format!("unexpected end of file in function call"), pos: Some(t.pos) })
+						}
+						if depth == 0 {
+							break;
+						}
+					}
+					match scope.func_id(v) {
+						Some(_) => {
+							let func = try!(SyntFunctionCall::new(tok[call_start..call_end + 1], scope));
+							out.push(ExprToken::Fn(func));
+						},
+						None => {
+							return Err(CompileError { msg: format!("function `{}` appears in expression but is not defined in scope", v), pos: Some(t.pos) })
+						}
+					}
+				} else {
+					match scope.var_id(v) {
+						Some(id) => out.push(ExprToken::Var(id)),
+						None => {
+							return Err(CompileError { msg: format!("variable `{}` appears in expression but is not defined in scope", v), pos: Some(t.pos) })
+						}
 					}
 				}
 			},
 			// Discard whitesapce
-			lexer::Newline => { },
+			TokenType::Newline => { },
 
 			x => {
 				return Err(CompileError { msg: format!("unexpected token in expression `{}`", x), pos: Some(t.pos) });
 			}
 		}
+		index += 1;
 	}
 
 	// Handle special case with unary minus
 	// If an subtraction operator is preceded by another operator, left paren, or the start of the
 	// expression, make it a negation operator.
 	// would be nice if you could use map_in_place here, but can't because of enumerate.
-	let out: Vec<ExprToken> = out.iter().enumerate().map(|(i, &v)| {
+	/*let out: Vec<ExprToken> = out.iter().enumerate().map(|(i, &v)| {
 		match v {
 			Op(Sub) => {
 				if i == 0 || match out[i-1] { Op(_) | LParen => true, _ => false } {
@@ -198,31 +245,42 @@ fn to_expr_tokens(tok: &[Token], scope: &Scope) -> Result<Vec<ExprToken>, Compil
 			},
 			_ => v
 		}
-	}).collect();
+	}).collect();*/
+
+	for i in range(0, out.len()) {
+		match out[i] {
+			ExprToken::Op(Operator::Sub) => {
+				if i == 0 || match out[i - 1] { ExprToken::Op(_) | ExprToken::LParen => true, _ => false } {
+					out[i] = ExprToken::Op(Operator::Neg);
+				}
+			}
+			_ => { }
+		}
+	}
 
 	Ok(out)
 }
 
 // http://en.wikipedia.org/wiki/Shunting-yard_algorithm
-fn shunting_yard(tok: &[ExprToken]) -> Result<Vec<ExprToken>, &'static str> {
+fn shunting_yard<'a>(tok: &[ExprToken<'a>]) -> Result<Vec<ExprToken<'a>>, &'static str> {
 	let mut out = Vec::new();
 	let mut stack: Vec<ExprToken> = Vec::new();
 
-	for &t in tok.iter() {
+	for t in tok.iter() {
 		match t {
-			Value(_) | Var(_) => {
-				out.push(t);
-			}
+			&ExprToken::Value(_) | &ExprToken::Var(_) | &ExprToken::Fn(_) => {
+				out.push(t.clone());
+			},
 
-			Op(op1) => {
+			&ExprToken::Op(op1) => {
 				while stack.len() > 0 {
-					let top = *stack.last().unwrap(); // unwrap() can't fail, see condition on while loop
+					let top = stack.last().unwrap().clone(); // unwrap() can't fail, see condition on while loop
 					match top {
-						Op(op2) => {
-							if op1.associativity() == Left && op1.precedence() <= op2.precedence()
+						ExprToken::Op(op2) => {
+							if op1.associativity() == Associativity::Left && op1.precedence() <= op2.precedence()
 								|| op1.precedence() < op2.precedence() {
 								stack.pop();
-								out.push(top);
+								out.push(top.clone());
 							} else {
 								break;
 							}
@@ -230,22 +288,22 @@ fn shunting_yard(tok: &[ExprToken]) -> Result<Vec<ExprToken>, &'static str> {
 						_ => break
 					}
 				}
-				stack.push(t);
+				stack.push(t.clone());
 			},
 
-			LParen => {
-				stack.push(t);
+			&ExprToken::LParen => {
+				stack.push(t.clone());
 			},
 
-			RParen => {
+			&ExprToken::RParen => {
 				let mut foundleft = false;
 				while stack.len() > 0 {
 					let op = stack.pop().unwrap();
 					match op {
-						Op(_) => {
-							out.push(op);
+						ExprToken::Op(_) => {
+							out.push(op.clone());
 						},
-						LParen => {
+						ExprToken::LParen => {
 							foundleft = true;
 							break;
 						},
@@ -260,13 +318,13 @@ fn shunting_yard(tok: &[ExprToken]) -> Result<Vec<ExprToken>, &'static str> {
 	}
 
 	while stack.len() > 0 {
-		let top = stack[stack.len()-1];
+		let top = stack[stack.len()-1].clone();
 		match top {
-			Op(_) => {
+			ExprToken::Op(_) => {
 				stack.pop();
-				out.push(top);
+				out.push(top.clone());
 			},
-			LParen | RParen => return Err("mismatched parens: skewed left"),
+			ExprToken::LParen | ExprToken::RParen => return Err("mismatched parens: skewed left"),
 			x => panic!("internal error: non operator on stack: `{}`", x)
 		}
 	}
@@ -275,23 +333,32 @@ fn shunting_yard(tok: &[ExprToken]) -> Result<Vec<ExprToken>, &'static str> {
 }
 
 // http://en.wikipedia.org/wiki/Reverse_Polish_notation
-fn eval_rpn(rpn: &[ExprToken], scope: &Scope) -> Result<f32, String> {
+fn eval_rpn<'s>(rpn: &[ExprToken], scope: &'s Scope<'s>) -> Result<f32, String> {
 	let mut stack = Vec::new();
 
-	for &t in rpn.iter() {
+	for t in rpn.iter() {
 		match t {
-			Value(v) => {
+			&ExprToken::Value(v) => {
 				stack.push(v);
 			},
 
-			Var(id) => {
+			&ExprToken::Fn(ref v) => {
+				stack.push(match v.call(scope) {
+					Ok(v) => v,
+					Err(e) => return Err(format!("{}", e)),
+				});
+			}
+
+			&ExprToken::Var(id) => {
 				match scope.get_var(id) {
 					Some(val) => stack.push(val),
 					None => return Err(format!("Attempted to access a nonexistent variable (id={})", id))
 				}
 			},
 
-			Op(op) => {
+			&ExprToken::Op(op) => {
+				use self::Operator::*;
+
 				// Pop args off stack
 				let n = op.num_args();
 				if stack.len() < n {
@@ -318,7 +385,7 @@ fn eval_rpn(rpn: &[ExprToken], scope: &Scope) -> Result<f32, String> {
 						args[1].powf(args[0])
 					},
 					Mod => {
-						let c = num::abs(args[1]/args[0]).fract()*num::abs(args[0]);
+						let c = (args[1]/args[0]).abs().fract()*args[0].abs();
 						if args[1] > 0_f32 { c } else { -c }
 					},
 					Neg => {
@@ -346,7 +413,7 @@ fn eval_rpn(rpn: &[ExprToken], scope: &Scope) -> Result<f32, String> {
 						from_bool(args[1] != args[0])
 					},
 					ApproxEqu => {
-						from_bool(num::abs(args[1] - args[0]) < 0.0001)
+						from_bool((args[1] - args[0]).abs() < 0.0001)
 					},
 					And => {
 						from_bool(is_truthy(args[1]) && is_truthy(args[0]))

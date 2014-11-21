@@ -2,15 +2,16 @@
 #![feature(slicing_syntax)]
 #![feature(phase)]
 #![feature(macro_rules)]
+#![feature(globs)]
 #![allow(dead_code)]
 extern crate regex;
 #[phase(plugin)] extern crate regex_macros;
-extern crate time;
 extern crate serialize;
 extern crate docopt;
 #[phase(plugin)] extern crate docopt_macros;
 
 use std::io::File;
+use std::rc::Rc;
 
 pub mod interpreter;
 
@@ -40,7 +41,9 @@ fn main() {
 			match interpreter::lexer::tokenize(string.as_slice()) {
 				Ok(tok) => {
 					println!("tokens: {}\n\n", tok);
-					let scope = interpreter::scope::Scope::new();
+					let mut scope = interpreter::scope::Scope::new();
+					let sin = &interpreter::function::SinFunction::new() as &interpreter::function::Function;
+					scope.define_func("~", Rc::new(sin));
 					match interpreter::expr::Expression::new(tok.as_slice(), &scope) {
 						Ok(expr) => {
 							println!("expr: {}", expr);
