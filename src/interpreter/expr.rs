@@ -234,19 +234,6 @@ fn to_expr_tokens<'a>(tok: &'a [Token<'a>], scope: &'a Scope<'a>) -> Result<Vec<
 	// If an subtraction operator is preceded by another operator, left paren, or the start of the
 	// expression, make it a negation operator.
 	// would be nice if you could use map_in_place here, but can't because of enumerate.
-	/*let out: Vec<ExprToken> = out.iter().enumerate().map(|(i, &v)| {
-		match v {
-			Op(Sub) => {
-				if i == 0 || match out[i-1] { Op(_) | LParen => true, _ => false } {
-					Op(Neg)
-				} else {
-					v
-				}
-			},
-			_ => v
-		}
-	}).collect();*/
-
 	for i in range(0, out.len()) {
 		match out[i] {
 			ExprToken::Op(Operator::Sub) => {
