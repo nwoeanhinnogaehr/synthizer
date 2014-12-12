@@ -164,19 +164,19 @@ fn to_expr_tokens<'a>(tokens: &'a TokenSlice<'a>, scope: &'a Scope<'a>) -> Resul
 				}))
 			},
 
-			Token::Paren(v) => {
+			Token::Symbol(v) => {
 				out.push(match v {
 					'(' => ExprToken::LParen,
 					')' => ExprToken::RParen,
 					x => {
-						return Err(CompileError::new(format!("unexpected paren type in expression: `{}`", x)).with_pos(sourcetoken.pos));
+						return Err(CompileError::new(format!("unexpected symbol in expression: `{}`", x)).with_pos(sourcetoken.pos));
 					}
 				})
 			},
 
 			// An identifier in the context of an expression can represent a variable or a function
 			Token::Ident(v) => {
-				let is_fn = if let Some(t) = iter.peek() { t.token == Token::Paren('(') } else { false };
+				let is_fn = if let Some(t) = iter.peek() { t.token == Token::Symbol('(') } else { false };
 
 				if is_fn {
 					// Attempt to find the end of the function call
@@ -187,8 +187,8 @@ fn to_expr_tokens<'a>(tokens: &'a TokenSlice<'a>, scope: &'a Scope<'a>) -> Resul
 						match iter.next() {
 							Some(t) => {
 								match t.token {
-									Token::Paren('(') => depth += 1,
-									Token::Paren(')') => depth -= 1,
+									Token::Symbol('(') => depth += 1,
+									Token::Symbol(')') => depth -= 1,
 									_ => { },
 								}
 								call_end += 1;
@@ -223,10 +223,6 @@ fn to_expr_tokens<'a>(tokens: &'a TokenSlice<'a>, scope: &'a Scope<'a>) -> Resul
 
 			// Discard newlines
 			Token::Newline => { },
-
-			ref x => {
-				return Err(CompileError::new(format!("unexpected token in expression `{}`", x)).with_pos(sourcetoken.pos));
-			}
 		}
 		index += 1;
 	}

@@ -2,7 +2,7 @@
 #![feature(phase)]
 #![feature(macro_rules)]
 #![feature(globs)]
-#![allow(dead_code)]
+
 extern crate regex;
 #[phase(plugin)] extern crate regex_macros;
 extern crate serialize;

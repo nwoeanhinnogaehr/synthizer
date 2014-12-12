@@ -3,6 +3,7 @@ use super::{CompileError, is_truthy};
 use super::scope::{Scope, FnId};
 use super::sum::Sum;
 use std::collections::HashMap;
+use std::collections::hash_map::Entry;
 use super::lexer::{Token, TokenSlice};
 use std::fmt;
 use std::num::FloatMath;
@@ -13,6 +14,9 @@ use std::f32::consts;
 use super::lexer;
 #[cfg(test)]
 use super::{TRUE, FALSE};
+
+#[path="parseutil.rs"]
+mod parseutil;
 
 /// Something that can be called with arguments given in the scope
 pub trait Function {
@@ -148,112 +152,92 @@ pub struct SyntFunctionCall<'a> {
 }
 impl<'a> SyntFunctionCall<'a> {
 	/// Parse a function call from a token stream. Scope is used to find function definitions
-	pub fn new(tok: &'a TokenSlice<'a>, scope: &'a Scope<'a>) -> Result<SyntFunctionCall<'a>, CompileError> {
-		enum State {
-			Name, Start, ArgName, ArgExpr
-		}
-		let mut state = State::Name;
-		let mut iter = tok.iter();
-		let mut index = 0u;
+	pub fn new(tokens: &'a TokenSlice<'a>, scope: &'a Scope<'a>) -> Result<SyntFunctionCall<'a>, CompileError> {
+		let mut iter = tokens.iter().enumerate();
 
-		// These will all be initialized in the loop (assuming no bugs!) but rust won't let me
-		// leave them uninitialized.
-		let mut name = "";
-		let mut func = 0u;
 		let mut args = HashMap::new();
-		let mut argname = "";
-		let mut argexpr_start = 0u;
-		let mut argexpr_end = 0u;
-		let mut paren_depth = 0i;
 
-		loop {
-			let token = match iter.next() {
-				Some(x) => x,
-				None => return Err(CompileError::new_static("unexpected end of file in function call")),
-			};
-			match state {
-				State::Name => {
-					name = match token.token {
-						Token::Ident(name) => name,
-						_ => return Err(CompileError::new(format!("expected identifier, got `{}`", token.token)).with_pos(token.pos)),
+		// Function name
+		let fn_name = try!(expect_value!(iter.next().map(|(_, x)| x),
+			Token::Ident, "expected function name, got `{}`"));
+
+		let fn_id = try!(scope.func_id(fn_name).ok_or(
+				CompileError::new(format!("function `{}` called but not defined in scope", fn_name))));
+
+		// Opening paren
+		try!(expect!(iter.next().map(|(_, x)| x), Token::Symbol('('), "expected `(`, got `{}`"));
+
+		// Parse arguments
+		'outer: loop {
+			let token = iter.next().map(|(_, x)| x);
+			if let Ok(_) = expect!(token, Token::Symbol(')')) {
+				// Got closing paren, end of list
+				break;
+			} else {
+				// Argument name
+				let arg_name = try!(expect_value!(token, Token::Ident, "expected `)` or argument name, got `{}`"));
+
+				// Mark the position of the start of the expression so we can later extract a slice
+				let next = iter.next();
+				let (expr_start, token) = (next.map(|(x, _)| x), next.map(|(_, x)| x));
+
+				// Equals
+				try!(expect!(token, Token::Symbol('='), "expected `=`, got `{}`"));
+
+				loop {
+					let next = iter.next();
+					let (pos, token) = (next.map(|(x, _)| x), next.map(|(_, x)| x));
+
+					// Adds all the tokens we have scanned so far in the inner loop to the args
+					// list
+					let write_arg = || -> Result<(), CompileError> {
+						let slice = tokens[expr_start.unwrap() + 1..pos.unwrap()];
+						let expr = try!(Expression::new(slice, scope));
+						let expr_func = ExprFunction::new(expr);
+						match args.entry(arg_name) {
+							Entry::Occupied(_) => {
+								return Err(CompileError::new(format!("argument {} has already been defined", arg_name)));
+							}
+							Entry::Vacant(e) => {
+								e.set(expr_func);
+							}
+						}
+						Ok(())
 					};
-					func = match scope.func_id(name) {
-						Some(id) => id,
-						None => return Err(CompileError::new(format!("function `{}` is called but was not defined in scope", name)).with_pos(token.pos)),
-					};
-					state = State::Start;
-				}
 
-				State::Start => {
-					match token.token {
-						Token::Paren('(') => { },
-						_ => return Err(CompileError::new(format!("expected `(`, got `{}`", token.token)).with_pos(token.pos)),
-					}
-					state = State::ArgName;
-				}
-
-				State::ArgName => {
-					match token.token {
-						Token::Ident(name) => {
-							argname = name;
-							state = State::ArgName;
-						},
-						Token::Equals => {
-							argexpr_start = index + 1;
-							argexpr_end = index + 1;
-							state = State::ArgExpr;
-						},
-						Token::Paren(')') => {
+					match token.map(|x| &x.token) {
+						// Advance to next argument
+						Some(&Token::Symbol(',')) => {
+							try!(write_arg());
 							break;
 						}
-						_ => return Err(CompileError::new(format!("expected identifier, `=` or `)`, got `{}`", token.token)).with_pos(token.pos)),
-					};
-				}
 
-				State::ArgExpr => {
-					match token.token {
-						Token::Equals => {
-							if paren_depth == 0 {
-								let nextargname = match tok[argexpr_end - 1].token {
-									Token::Ident(name) => name,
-									ref x => return Err(CompileError::new(format!("expected identifiter, got `{}`", x)).with_pos(token.pos)),
-								};
-								let expr = try!(Expression::new(tok[argexpr_start..argexpr_end - 1], scope));
-								let exprfn = ExprFunction::new(expr);
-								args.insert(argname, exprfn);
+						// End of function call
+						Some(&Token::Symbol(')')) => {
+							try!(write_arg());
+							break 'outer;
+						}
 
-								argname = nextargname;
-								argexpr_start = index + 1;
-								argexpr_end = index + 1;
-							} else {
-								argexpr_end += 1;
-							}
-						},
-						Token::Paren(')') => {
-							if paren_depth == 0 {
-								let expr = try!(Expression::new(tok[argexpr_start..argexpr_end], scope));
-								let exprfn = ExprFunction::new(expr);
-								args.insert(argname, exprfn);
-								break;
-							} else {
-								argexpr_end += 1;
-							}
-							paren_depth -= 1;
-						},
-						Token::Paren('(') => {
-							paren_depth += 1;
-							argexpr_end += 1;
-						},
-						_ => argexpr_end += 1,
+						// We need to handle nested parens so we can include parens in the argument
+						// expressions
+						Some(&Token::Symbol('(')) => {
+							try!(parseutil::match_paren(&mut iter, Token::Symbol('('), Token::Symbol(')')));
+						}
+
+						None => {
+							return Err(CompileError::new_static("Expected expression, got EOF"));
+						}
+
+						_ => { }
 					}
 				}
 			}
-			index += 1;
 		}
+
 		Ok(SyntFunctionCall {
-			func: func,
+			func: fn_id,
+			name: fn_name,
 			args: args,
-			name: name,
 		})
 	}
 

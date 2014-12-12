@@ -1,17 +1,27 @@
 use regex::Regex;
 use super::{CompileError, SourcePos};
+use std::fmt;
 
 /// The various types that a token can be
-#[deriving(Show, Clone, PartialEq)]
+#[deriving(Clone, PartialEq)]
 pub enum Token<'a> {
 	Ident(&'a str),
 	Const(f32),
 	Operator(&'a str),
+	Symbol(char),
 	Newline,
-	Paren(char),
-	Colon,
-	Equals,
-	Period,
+}
+
+impl<'a> fmt::Show for Token<'a> {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		use self::Token::*;
+		match *self {
+			Ident(x) | Operator(x) => write!(f, "{}", x),
+			Const(x) => write!(f, "{}", x),
+			Symbol(x) => write!(f, "{}", x),
+			Newline => write!(f, "\\n")
+		}
+	}
 }
 
 impl<'a> Token<'a> {
@@ -35,10 +45,7 @@ static WHITESPACE_REGEX: Regex = regex!(r"[ \t]+");
 static NEWLINE_REGEX: Regex = regex!(r"[\n]+");
 static CONST_REGEX: Regex = regex!(r"([0-9]+\.?[0-9]*|[0-9]*\.?[0-9]+)([eE]-?[0-9]+)?");
 static OPERATOR_REGEX: Regex = regex!(r"\^\^|>=|<=|~=|[\+\*/\^><!%-]|&&|\|\||==|!=");
-static PAREN_REGEX: Regex = regex!(r"[\(\)\{\}\]\[]");
-static COLON_REGEX: Regex = regex!(r":");
-static EQUALS_REGEX: Regex = regex!(r"=");
-static PERIOD_REGEX: Regex = regex!(r"\.");
+static SYMBOL_REGEX: Regex = regex!(r"[\.,=:\(\)\{\}\]\[]");
 static COMMENT_REGEX: Regex = regex!(r"//.*");
 
 pub type TokenList<'a> = Vec<SourceToken<'a>>;
@@ -83,11 +90,11 @@ pub fn lex<'a>(string: &'a str) -> Result<TokenList<'a>, CompileError> {
 			continue;
 		}
 
-		// Add parens as chars
-		let paren_match = PAREN_REGEX.find(walk);
-		if let Some((0, x)) = paren_match {
+		// Add symbols as chars
+		let symbol_match = SYMBOL_REGEX.find(walk);
+		if let Some((0, x)) = symbol_match {
 			assert!(x == 1);
-			tokens.push(Token::Paren(walk.char_at(0)).with_pos(pos));
+			tokens.push(Token::Symbol(walk.char_at(0)).with_pos(pos));
 			walk = walk[x..];
 			pos.col += x;
 			continue;
@@ -104,33 +111,6 @@ pub fn lex<'a>(string: &'a str) -> Result<TokenList<'a>, CompileError> {
 			} else {
 				panic!("internal error: error parsing numerical constant, the lexer is probably broken");
 			}
-		}
-
-		// Add colon token
-		let colon_match = COLON_REGEX.find(walk);
-		if let Some((0, x)) = colon_match {
-			tokens.push(SourceToken { token: Token::Colon, pos: pos });
-			walk = walk[x..];
-			pos.col += x;
-			continue;
-		}
-
-		// Add equals token
-		let equals_match = EQUALS_REGEX.find(walk);
-		if let Some((0, x)) = equals_match {
-			tokens.push(SourceToken { token: Token::Equals, pos: pos });
-			walk = walk[x..];
-			pos.col += x;
-			continue;
-		}
-
-		// Add period token
-		let period_match = PERIOD_REGEX.find(walk);
-		if let Some((0, x)) = period_match {
-			tokens.push(SourceToken { token: Token::Period, pos: pos });
-			walk = walk[x..];
-			pos.col += x;
-			continue;
 		}
 
 		// Add newline tokens
