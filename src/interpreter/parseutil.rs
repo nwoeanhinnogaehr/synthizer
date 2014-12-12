@@ -1,7 +1,7 @@
 #![macro_escape]
 
-use super::super::lexer;
-use super::super::CompileError;
+use super::lexer;
+use super::CompileError;
 use std::iter;
 use std::slice;
 

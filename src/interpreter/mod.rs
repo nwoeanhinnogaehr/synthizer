@@ -2,6 +2,7 @@ use std::fmt;
 use std::str;
 use std::borrow::Cow;
 
+pub mod parseutil;
 pub mod lexer;
 pub mod expr;
 pub mod scope;

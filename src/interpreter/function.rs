@@ -9,14 +9,13 @@ use std::fmt;
 use std::num::FloatMath;
 use std::num::Float;
 use std::f32::consts;
+use super::parseutil;
 
 #[cfg(test)]
 use super::lexer;
 #[cfg(test)]
 use super::{TRUE, FALSE};
 
-#[path="parseutil.rs"]
-mod parseutil;
 
 /// Something that can be called with arguments given in the scope
 pub trait Function {
