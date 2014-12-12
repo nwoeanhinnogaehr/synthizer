@@ -1,4 +1,6 @@
 use std::fmt;
+use std::str;
+use std::borrow::Cow;
 
 pub mod lexer;
 pub mod expr;
@@ -6,7 +8,7 @@ pub mod scope;
 pub mod function;
 pub mod sum;
 
-#[deriving(Clone)]
+#[deriving(Clone, Copy)]
 pub struct SourcePos {
 	pub line: uint,
 	pub col: uint,
@@ -19,8 +21,31 @@ impl fmt::Show for SourcePos {
 }
 
 pub struct CompileError {
-	pub msg: String,
+	pub msg: str::CowString<'static>,
 	pub pos: Option<SourcePos>,
+}
+
+impl CompileError {
+	pub fn new(msg: String) -> CompileError {
+		CompileError {
+			msg: Cow::Owned(msg),
+			pos: None,
+		}
+	}
+
+	pub fn new_static(msg: &'static str) -> CompileError {
+		CompileError {
+			msg: Cow::Borrowed(msg),
+			pos: None,
+		}
+	}
+
+	pub fn with_pos(self, pos: SourcePos) -> CompileError {
+		CompileError {
+			msg: self.msg,
+			pos: Some(pos),
+		}
+	}
 }
 
 impl fmt::Show for CompileError {

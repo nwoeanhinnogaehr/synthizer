@@ -1,11 +1,12 @@
 use super::expr::Expression;
 use super::{CompileError, is_truthy};
-use super::scope::Scope;
+use super::scope::{Scope, FnId};
 use super::sum::Sum;
 use std::collections::HashMap;
-use super::lexer::{Token, TokenType};
+use super::lexer::{Token, TokenSlice};
 use std::fmt;
 use std::num::FloatMath;
+use std::num::Float;
 use std::f32::consts;
 
 #[cfg(test)]
@@ -20,6 +21,7 @@ pub trait Function {
 
 macro_rules! bind_function(
 	( $name:ident, $func:ident ( $($arg:ident = $val:expr),* ) ) => (
+		#[deriving(Copy)]
 		pub struct $name;
 		impl $name {
 			pub fn new() -> $name {
@@ -36,9 +38,7 @@ macro_rules! bind_function(
 
 						None => match $val {
 							Some(val) => val,
-							None => return Err(CompileError {
-								msg: format!("function `{}` requires argument `{}` but it is not defined in scope", stringify!($func), stringify!($arg)),
-								pos: None }),
+							None => return Err(CompileError::new(format!("function `{}` requires argument `{}` but it is not defined in scope", stringify!($func), stringify!($arg)))),
 						}
 					}
 				),*))
@@ -51,9 +51,20 @@ fn sin(freq: f32, amp: f32, phase: f32, time: f32) -> f32 {
 	(freq*time*consts::PI_2 + phase).sin()*amp
 }
 
+fn sqrt(x: f32) -> f32 {
+	x.sqrt()
+}
+
+fn abs(x: f32) -> f32 {
+	x.abs()
+}
+
 bind_function!(SinFunction, sin(freq=None, amp=Some(1_f32), phase=Some(0_f32), time=None))
+bind_function!(SqrtFunction, sqrt(x=None))
+bind_function!(AbsFunction, abs(x=None))
 
 /// Always returns a specific constant
+#[deriving(Copy)]
 pub struct ConstFunction {
 	val: f32,
 }
@@ -90,8 +101,8 @@ impl<'a> Function for ExprFunction<'a> {
 
 /// Returns the result of calling the function if the condition is truthy, else 0
 pub struct CondFunction<'a> {
-	cond: &'a Function + 'a,
-	func: &'a Function + 'a,
+	cond: &'a (Function + 'a),
+	func: &'a (Function + 'a),
 }
 impl<'a> CondFunction<'a> {
 	pub fn new(cond: &'a Function, func: &'a Function) -> CondFunction<'a> {
@@ -131,13 +142,13 @@ impl<'a> Function for SumFunction<'a> {
 /// Represents a function call written in synthizer
 #[deriving(Clone)]
 pub struct SyntFunctionCall<'a> {
-	func: uint, // the function the call refers to as a scope id
-	args: HashMap<&'a str, ExprFunction<'a>>, // the value of each argument passed is a function 
+	func: FnId, // the function the call refers to as a scope id
+	args: HashMap<&'a str, ExprFunction<'a>>, // the value of each argument passed is a function
 	name: &'a str,
 }
 impl<'a> SyntFunctionCall<'a> {
 	/// Parse a function call from a token stream. Scope is used to find function definitions
-	pub fn new(tok: &'a[Token<'a>], scope: &'a Scope<'a>) -> Result<SyntFunctionCall<'a>, CompileError> {
+	pub fn new(tok: &'a TokenSlice<'a>, scope: &'a Scope<'a>) -> Result<SyntFunctionCall<'a>, CompileError> {
 		enum State {
 			Name, Start, ArgName, ArgExpr
 		}
@@ -154,58 +165,58 @@ impl<'a> SyntFunctionCall<'a> {
 		let mut argexpr_start = 0u;
 		let mut argexpr_end = 0u;
 		let mut paren_depth = 0i;
-		
+
 		loop {
 			let token = match iter.next() {
 				Some(x) => x,
-				None => return Err(CompileError { msg: "unexpected end of file in function call".to_string(), pos: None }),
+				None => return Err(CompileError::new_static("unexpected end of file in function call")),
 			};
 			match state {
 				State::Name => {
-					name = match token.t {
-						TokenType::Ident(name) => name,
-						_ => return Err(CompileError { msg: format!("expected identifier, got `{}`", token.t), pos: Some(token.pos) }),
+					name = match token.token {
+						Token::Ident(name) => name,
+						_ => return Err(CompileError::new(format!("expected identifier, got `{}`", token.token)).with_pos(token.pos)),
 					};
 					func = match scope.func_id(name) {
 						Some(id) => id,
-						None => return Err(CompileError { msg: format!("function `{}` is called but was not defined in scope", name), pos: Some(token.pos) }),
+						None => return Err(CompileError::new(format!("function `{}` is called but was not defined in scope", name)).with_pos(token.pos)),
 					};
 					state = State::Start;
 				}
 
 				State::Start => {
-					match token.t {
-						TokenType::Paren('(') => { },
-						_ => return Err(CompileError { msg: format!("expected `(`, got `{}`", token.t), pos: Some(token.pos) }),
+					match token.token {
+						Token::Paren('(') => { },
+						_ => return Err(CompileError::new(format!("expected `(`, got `{}`", token.token)).with_pos(token.pos)),
 					}
 					state = State::ArgName;
 				}
 
 				State::ArgName => {
-					match token.t {
-						TokenType::Ident(name) => {
+					match token.token {
+						Token::Ident(name) => {
 							argname = name;
 							state = State::ArgName;
 						},
-						TokenType::Equals => {
+						Token::Equals => {
 							argexpr_start = index + 1;
 							argexpr_end = index + 1;
 							state = State::ArgExpr;
 						},
-						TokenType::Paren(')') => {
+						Token::Paren(')') => {
 							break;
 						}
-						_ => return Err(CompileError { msg: format!("expected identifier, `=` or `)`, got `{}`", token.t), pos: Some(token.pos) }),
+						_ => return Err(CompileError::new(format!("expected identifier, `=` or `)`, got `{}`", token.token)).with_pos(token.pos)),
 					};
 				}
 
 				State::ArgExpr => {
-					match token.t {
-						TokenType::Equals => {
+					match token.token {
+						Token::Equals => {
 							if paren_depth == 0 {
-								let nextargname = match tok[argexpr_end - 1].t {
-									TokenType::Ident(name) => name,
-									x => return Err(CompileError { msg: format!("expected identifiter, got `{}`", x), pos: Some(token.pos) }),
+								let nextargname = match tok[argexpr_end - 1].token {
+									Token::Ident(name) => name,
+									ref x => return Err(CompileError::new(format!("expected identifiter, got `{}`", x)).with_pos(token.pos)),
 								};
 								let expr = try!(Expression::new(tok[argexpr_start..argexpr_end - 1], scope));
 								let exprfn = ExprFunction::new(expr);
@@ -218,7 +229,7 @@ impl<'a> SyntFunctionCall<'a> {
 								argexpr_end += 1;
 							}
 						},
-						TokenType::Paren(')') => {
+						Token::Paren(')') => {
 							if paren_depth == 0 {
 								let expr = try!(Expression::new(tok[argexpr_start..argexpr_end], scope));
 								let exprfn = ExprFunction::new(expr);
@@ -229,7 +240,7 @@ impl<'a> SyntFunctionCall<'a> {
 							}
 							paren_depth -= 1;
 						},
-						TokenType::Paren('(') => {
+						Token::Paren('(') => {
 							paren_depth += 1;
 							argexpr_end += 1;
 						},
@@ -296,7 +307,7 @@ impl<'a> Function for SyntFunctionCall<'a> {
 
 /// Represents a function definition written in synthizer
 pub struct SyntFunctionDef<'a> {
-	func: &'a Function + 'a, // Internally a SumFunction containing CondFunctions containing ExprFunctions
+	func: &'a (Function + 'a), // Internally a SumFunction containing CondFunctions containing ExprFunctions
 	args: HashMap<&'a str, Option<f32>>, // Default arguments
 	name: &'a str,
 }

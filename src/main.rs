@@ -1,4 +1,3 @@
-#![feature(if_let)]
 #![feature(slicing_syntax)]
 #![feature(phase)]
 #![feature(macro_rules)]
@@ -38,12 +37,16 @@ fn main() {
 	match file.read_to_string() {
 		Err(why) => panic!("couldn't read {}: {}", display, why.desc),
 		Ok(string) => {
-			match interpreter::lexer::tokenize(string.as_slice()) {
+			match interpreter::lexer::lex(string.as_slice()) {
 				Ok(tok) => {
 					println!("tokens: {}\n\n", tok);
 					let mut scope = interpreter::scope::Scope::new();
 					let sin = &interpreter::function::SinFunction::new() as &interpreter::function::Function;
+					let sqrt = &interpreter::function::SqrtFunction::new() as &interpreter::function::Function;
+					let abs = &interpreter::function::AbsFunction::new() as &interpreter::function::Function;
 					scope.define_func("~", Rc::new(sin));
+					scope.define_func("sqrt", Rc::new(sqrt));
+					scope.define_func("abs", Rc::new(abs));
 					match interpreter::expr::Expression::new(tok.as_slice(), &scope) {
 						Ok(expr) => {
 							println!("expr: {}", expr);
