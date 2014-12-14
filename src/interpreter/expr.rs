@@ -2,7 +2,7 @@
 
 use super::lexer::{Token, TokenSlice};
 use super::{CompileError, SourcePos, from_bool, is_truthy};
-use super::scope::Scope;
+use super::scope::CowScope;
 use super::function::{Function, SyntFunctionCall};
 use std::num::Float;
 
@@ -86,7 +86,7 @@ pub struct Expression<'a> {
 
 impl<'a> Expression<'a> {
 	/// Converts a token slice from the lexer into an expression that can be evaluated
-	pub fn new(tokens: &'a TokenSlice<'a>, scope: &'a Scope<'a>) -> Result<Expression<'a>, CompileError> {
+	pub fn new(tokens: &'a TokenSlice<'a>, scope: CowScope<'a>) -> Result<Expression<'a>, CompileError> {
 		let out = try!(to_expr_tokens(tokens, scope));
 		let out = try!(shunting_yard(out));
 
@@ -97,7 +97,7 @@ impl<'a> Expression<'a> {
 	}
 
 	/// Replaces variables with their values in the given scope
-	pub fn fold_scope(&mut self, scope: &Scope) {
+	pub fn fold_scope(&mut self, scope: CowScope) {
 		for tok in self.rpn.iter_mut() {
 			match tok {
 				&ExprToken::Var(id) => {
@@ -112,14 +112,14 @@ impl<'a> Expression<'a> {
 	}
 
 	/// Evaluates the value of the expression
-	pub fn eval<'s>(&self, scope: &'s Scope<'s>) -> Result<f32, CompileError> {
+	pub fn eval<'s>(&self, scope: CowScope<'s>) -> Result<f32, CompileError> {
 		eval_rpn(&self.rpn, scope)
 	}
 }
 
 // Converts tokens from the lexer into ExprTokens, which are simplified to drop any strings and
 // contain only information understandable by the expression parser.
-fn to_expr_tokens<'a>(tokens: &'a TokenSlice<'a>, scope: &'a Scope<'a>) -> Result<ExprTokenList<'a>, CompileError> {
+fn to_expr_tokens<'a>(tokens: &'a TokenSlice<'a>, scope: CowScope<'a>) -> Result<ExprTokenList<'a>, CompileError> {
 	if tokens.is_empty() {
 		return Err(CompileError::new_static("empty expression in file"));
 	}
@@ -204,7 +204,7 @@ fn to_expr_tokens<'a>(tokens: &'a TokenSlice<'a>, scope: &'a Scope<'a>) -> Resul
 					// Resolve it to a function
 					match scope.func_id(v) {
 						Some(_) => {
-							let func = try!(SyntFunctionCall::new(tokens[call_start..call_end + 1], scope));
+							let func = try!(SyntFunctionCall::new(tokens[call_start..call_end + 1], scope.clone()));
 							out.push(ExprToken::Fn(func));
 						},
 						None => {
@@ -313,7 +313,7 @@ fn shunting_yard<'a>(tokens: ExprTokenList<'a>) -> Result<ExprTokenList<'a>, Com
 }
 
 // http://en.wikipedia.org/wiki/Reverse_Polish_notation
-fn eval_rpn<'s>(rpn: &ExprTokenList, scope: &'s Scope<'s>) -> Result<f32, CompileError> {
+fn eval_rpn<'s>(rpn: &ExprTokenList, scope: CowScope<'s>) -> Result<f32, CompileError> {
 	let mut stack = Vec::new();
 
 	for t in rpn.iter() {
@@ -323,7 +323,7 @@ fn eval_rpn<'s>(rpn: &ExprTokenList, scope: &'s Scope<'s>) -> Result<f32, Compil
 			},
 
 			&ExprToken::Fn(ref v) => {
-				stack.push(match v.call(scope) {
+				stack.push(match v.call(scope.clone()) {
 					Ok(v) => v,
 					Err(e) => return Err(CompileError::new(format!("{}", e)))
 				});

@@ -11,6 +11,7 @@ extern crate docopt;
 
 use std::io::File;
 use std::rc::Rc;
+use std::borrow::Cow;
 
 pub mod interpreter;
 
@@ -47,10 +48,10 @@ fn main() {
 					scope.define_func("~", Rc::new(sin));
 					scope.define_func("sqrt", Rc::new(sqrt));
 					scope.define_func("abs", Rc::new(abs));
-					match interpreter::expr::Expression::new(tok.as_slice(), &scope) {
+					match interpreter::expr::Expression::new(tok.as_slice(), Cow::Borrowed(&scope)) {
 						Ok(expr) => {
 							println!("expr: {}", expr);
-							println!("evals to {}", expr.eval(&scope));
+							println!("evals to {}", expr.eval(Cow::Borrowed(&scope)));
 						},
 						Err(e) => {
 							println!("Error parsing expr: {}", e);

@@ -1,6 +1,6 @@
 use super::expr::Expression;
 use super::{CompileError, is_truthy};
-use super::scope::{Scope, FnId};
+use super::scope::{CowScope, FnId};
 use super::sum::Sum;
 use std::collections::HashMap;
 use std::collections::hash_map::Entry;
@@ -10,16 +10,16 @@ use std::num::FloatMath;
 use std::num::Float;
 use std::f32::consts;
 use super::parseutil;
+use std::borrow::Cow;
 
 #[cfg(test)]
 use super::lexer;
 #[cfg(test)]
 use super::{TRUE, FALSE};
 
-
 /// Something that can be called with arguments given in the scope
 pub trait Function {
-	fn call<'s>(&self, scope: &'s Scope<'s>) -> Result<f32, CompileError>;
+	fn call<'s>(&self, scope: CowScope<'s>) -> Result<f32, CompileError>;
 }
 
 macro_rules! bind_function(
@@ -33,7 +33,7 @@ macro_rules! bind_function(
 		}
 		impl Function for $name {
 			#[allow(unused_variables)] // Compiler complains that scope is not used on functions with no args.
-			fn call(&self, scope: &Scope) -> Result<f32, CompileError> {
+			fn call(&self, scope: CowScope) -> Result<f32, CompileError> {
 				Ok($func($(
 					// Insert each argument from the scope
 					match scope.var_id(stringify!($arg)) {
@@ -79,7 +79,7 @@ impl ConstFunction {
 	}
 }
 impl Function for ConstFunction {
-	fn call(&self, _: &Scope) -> Result<f32, CompileError> {
+	fn call(&self, _: CowScope) -> Result<f32, CompileError> {
 		Ok(self.val)
 	}
 }
@@ -97,7 +97,7 @@ impl<'a> ExprFunction<'a> {
 	}
 }
 impl<'a> Function for ExprFunction<'a> {
-	fn call<'s>(&self, scope: &'s Scope<'s>) -> Result<f32, CompileError> {
+	fn call<'s>(&self, scope: CowScope<'s>) -> Result<f32, CompileError> {
 		self.expr.eval(scope)
 	}
 }
@@ -116,8 +116,8 @@ impl<'a> CondFunction<'a> {
 	}
 }
 impl<'a> Function for CondFunction<'a> {
-	fn call<'s>(&self, scope: &'s Scope<'s>) -> Result<f32, CompileError> {
-		if is_truthy(try!(self.cond.call(scope))) {
+	fn call<'s>(&self, scope: CowScope<'s>) -> Result<f32, CompileError> {
+		if is_truthy(try!(self.cond.call(scope.clone()))) {
 			self.func.call(scope)
 		} else {
 			Ok(0_f32)
@@ -137,7 +137,7 @@ impl<'a> SumFunction<'a> {
 	}
 }
 impl<'a> Function for SumFunction<'a> {
-	fn call<'s>(&self, scope: &'s Scope<'s>) -> Result<f32, CompileError> {
+	fn call<'s>(&self, scope: CowScope<'s>) -> Result<f32, CompileError> {
 		self.sum.eval(scope)
 	}
 }
@@ -151,7 +151,7 @@ pub struct SyntFunctionCall<'a> {
 }
 impl<'a> SyntFunctionCall<'a> {
 	/// Parse a function call from a token stream. Scope is used to find function definitions
-	pub fn new(tokens: &'a TokenSlice<'a>, scope: &'a Scope<'a>) -> Result<SyntFunctionCall<'a>, CompileError> {
+	pub fn new(tokens: &'a TokenSlice<'a>, scope: CowScope<'a>) -> Result<SyntFunctionCall<'a>, CompileError> {
 		let mut iter = tokens.iter().enumerate();
 
 		let mut args = HashMap::new();
@@ -191,7 +191,7 @@ impl<'a> SyntFunctionCall<'a> {
 					// list
 					let write_arg = || -> Result<(), CompileError> {
 						let slice = tokens[expr_start.unwrap() + 1..pos.unwrap()];
-						let expr = try!(Expression::new(slice, scope));
+						let expr = try!(Expression::new(slice, scope.clone()));
 						let expr_func = ExprFunction::new(expr);
 						match args.entry(arg_name) {
 							Entry::Occupied(_) => {
@@ -250,38 +250,14 @@ impl<'a> fmt::Show for SyntFunctionCall<'a> {
 	}
 }
 impl<'a> Function for SyntFunctionCall<'a> {
-	fn call<'s>(&self, scope: &'s Scope<'s>) -> Result<f32, CompileError> {
-		let mut inner = Scope::new();
-		// XXX these two blocks are cheap as fuck and will be replaced eventually when we can just
-		// do scope.clone()
-		{
-			let mut i = 0;
-			loop {
-				let v = scope.get_var(i);
-				match v {
-					Some(v) => inner.define_var(scope.var_name(i).unwrap(), v),
-					None => break,
-				}
-				i += 1;
-			}
-		}
-		{
-			let mut i = 0;
-			loop {
-				let v = scope.get_func(i);
-				match v {
-					Some(v) => inner.define_func(scope.func_name(i).unwrap(), v),
-					None => break,
-				}
-				i += 1;
-			}
-		}
+	fn call<'s>(&self, scope: CowScope<'s>) -> Result<f32, CompileError> {
+		let mut inner = scope.clone().into_owned();
 		match scope.get_func(self.func) {
 			Some(f) => {
 				for (n, a) in self.args.iter() {
-					inner.define_var(*n, try!(a.call(scope)));
+					inner.define_var(n.to_string(), try!(a.call(scope.clone())));
 				}
-				f.call(&inner)
+				f.call(Cow::Owned(inner))
 			}
 			None => panic!("internal error: function id is invalid!"),
 		}
@@ -296,7 +272,7 @@ pub struct SyntFunctionDef<'a> {
 }
 impl<'a> SyntFunctionDef<'a> {
 	/// Parse a function definition from a token stream. Scope is used to find function definitions
-	pub fn new<'s>(tok: Vec<Token<'a>>, scope: &'s Scope<'a>) -> Result<SyntFunctionDef<'a>, CompileError> {
+	pub fn new<'s>(tok: Vec<Token<'a>>, scope: CowScope<'a>) -> Result<SyntFunctionDef<'a>, CompileError> {
 		unimplemented!();
 	}
 
@@ -305,7 +281,7 @@ impl<'a> SyntFunctionDef<'a> {
 	}
 }
 impl<'a> Function for SyntFunctionDef<'a> {
-	fn call(&self, scope: &Scope) -> Result<f32, CompileError> {
+	fn call(&self, scope: CowScope) -> Result<f32, CompileError> {
 		unimplemented!();
 	}
 }

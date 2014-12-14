@@ -1,6 +1,7 @@
 use std::collections::hash_map::{HashMap, Occupied, Vacant};
 use super::function::Function;
 use std::rc::Rc;
+use std::borrow::Cow;
 
 /// Holds a temporary fast reference to a variable defined in a scope. Only valid for the scope it
 /// was leased from and it's children.
@@ -10,11 +11,13 @@ pub type VarId = uint;
 /// was leased from and it's children.
 pub type FnId = uint;
 
+pub type CowScope<'a> = Cow<'a, Scope<'a>, Scope<'a>>;
+
 /// Holds a number of variables, functions and their values.
 #[deriving(Clone)]
 pub struct Scope<'a> {
 	var_values: Vec<f32>, // values of vars by id
-	vars: HashMap<&'a str, VarId>, // map of var name -> var id
+	vars: HashMap<String, VarId>, // map of var name -> var id
 
 	func_values: Vec<Rc<&'a (Function + 'a)>>,
 	funcs: HashMap<&'a str, FnId>,
@@ -34,17 +37,17 @@ impl<'a> Scope<'a> {
 	/// Returns a uint identifier which can be passed to set_var to quickly update the value of a
 	/// variable.
 	pub fn var_id(&self, var: &'a str) -> Option<VarId> {
-		match self.vars.get(&var) {
+		match self.vars.get(var) {
 			Some(v) => Some(*v),
 			None => None,
 		}
 	}
 
 	/// Returns the name of a variable from its id.
-	pub fn var_name(&self, var_id: VarId) -> Option<&'a str> {
+	pub fn var_name(&self, var_id: VarId) -> Option<String> {
 		for (k, v) in self.vars.iter() {
 			if *v == var_id {
-				return Some(*k);
+				return Some(k.clone());
 			}
 		}
 		None
@@ -70,7 +73,7 @@ impl<'a> Scope<'a> {
 	}
 
 	/// Sets a variable to a specified value, creating the variable if it does not exist.
-	pub fn define_var(&mut self, var: &'a str, value: f32) {
+	pub fn define_var(&mut self, var: String, value: f32) {
 		let nv = self.vars.len();
 		match self.vars.entry(var) {
 			Occupied(entry) => {
