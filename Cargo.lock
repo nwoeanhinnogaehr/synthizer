@@ -2,19 +2,19 @@
 name = "synthizer"
 version = "0.0.1"
 dependencies = [
- "docopt_macros 0.6.14 (git+git://github.com/docopt/docopt.rs)",
+ "docopt_macros 0.6.16 (git+git://github.com/docopt/docopt.rs)",
 ]
 
 [[package]]
 name = "docopt"
-version = "0.6.14"
-source = "git+git://github.com/docopt/docopt.rs#30909c4d8c508a3be260c0d96363eb22ea38f310"
+version = "0.6.16"
+source = "git+git://github.com/docopt/docopt.rs#3f39bcc7f590716b6dbb21822fe96f649871ded4"
 
 [[package]]
 name = "docopt_macros"
-version = "0.6.14"
-source = "git+git://github.com/docopt/docopt.rs#30909c4d8c508a3be260c0d96363eb22ea38f310"
+version = "0.6.16"
+source = "git+git://github.com/docopt/docopt.rs#3f39bcc7f590716b6dbb21822fe96f649871ded4"
 dependencies = [
- "docopt 0.6.14 (git+git://github.com/docopt/docopt.rs)",
+ "docopt 0.6.16 (git+git://github.com/docopt/docopt.rs)",
 ]
 

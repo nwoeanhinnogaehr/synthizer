@@ -28,7 +28,7 @@ macro_rules! expect_value(
 			None => Err(())
 		}
 	);
-)
+);
 
 macro_rules! expect(
 	( $token:expr, $ty:pat, $err:expr ) => (
@@ -53,7 +53,7 @@ macro_rules! expect(
 			None => Err(())
 		}
 	);
-)
+);
 
 // Advances an iterator to the matching parenthesis
 // Assumes the first opening paren was already consumed

@@ -20,7 +20,7 @@ pub struct Scope<'a> {
 	vars: HashMap<String, VarId>, // map of var name -> var id
 
 	func_values: Vec<Rc<&'a (Function + 'a)>>,
-	funcs: HashMap<&'a str, FnId>,
+	funcs: HashMap<String, FnId>,
 }
 
 impl<'a> Scope<'a> {
@@ -44,10 +44,10 @@ impl<'a> Scope<'a> {
 	}
 
 	/// Returns the name of a variable from its id.
-	pub fn var_name(&self, var_id: VarId) -> Option<String> {
+	pub fn var_name(&self, var_id: VarId) -> Option<&str> {
 		for (k, v) in self.vars.iter() {
 			if *v == var_id {
-				return Some(k.clone());
+				return Some(k.as_slice());
 			}
 		}
 		None
@@ -73,9 +73,9 @@ impl<'a> Scope<'a> {
 	}
 
 	/// Sets a variable to a specified value, creating the variable if it does not exist.
-	pub fn define_var(&mut self, var: String, value: f32) {
+	pub fn define_var(&mut self, var: &str, value: f32) {
 		let nv = self.vars.len();
-		match self.vars.entry(var) {
+		match self.vars.entry(var.to_string()) {
 			Occupied(entry) => {
 				self.var_values[*entry.get()] = value;
 			},
@@ -94,7 +94,7 @@ impl<'a> Scope<'a> {
 	/// Defines a function in the scope.
 	pub fn define_func(&mut self, name: &'a str, func: Rc<&'a (Function + 'a)>) {
 		let nv = self.funcs.len();
-		match self.funcs.entry(name) {
+		match self.funcs.entry(name.to_string()) {
 			Occupied(entry) => {
 				self.func_values[*entry.get()] = func;
 			},
@@ -116,17 +116,17 @@ impl<'a> Scope<'a> {
 
 	/// Returns the id of a function previously defined in the scope by name.
 	pub fn func_id(&self, name: &'a str) -> Option<FnId> {
-		match self.funcs.get(&name) {
+		match self.funcs.get(name) {
 			Some(id) => Some(*id),
 			None => None,
 		}
 	}
 
 	/// Returns the name of a function from its id.
-	pub fn func_name(&self, func_id: FnId) -> Option<&'a str> {
+	pub fn func_name(&self, func_id: FnId) -> Option<&str> {
 		for (k, v) in self.funcs.iter() {
 			if *v == func_id {
-				return Some(*k);
+				return Some(k.as_slice());
 			}
 		}
 		None

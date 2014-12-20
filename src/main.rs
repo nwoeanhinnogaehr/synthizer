@@ -22,7 +22,7 @@ Usage:
 
 Options:
   -h, --help       Show this message.
-")
+");
 
 fn main() {
 	let args: Args = Args::docopt().decode().unwrap_or_else(|e| e.exit());

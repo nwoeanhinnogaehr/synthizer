@@ -48,7 +48,7 @@ macro_rules! bind_function(
 			}
 		}
 	);
-)
+);
 
 fn sin(freq: f32, amp: f32, phase: f32, time: f32) -> f32 {
 	(freq*time*consts::PI_2 + phase).sin()*amp
@@ -62,9 +62,9 @@ fn abs(x: f32) -> f32 {
 	x.abs()
 }
 
-bind_function!(SinFunction, sin(freq=None, amp=Some(1_f32), phase=Some(0_f32), time=None))
-bind_function!(SqrtFunction, sqrt(x=None))
-bind_function!(AbsFunction, abs(x=None))
+bind_function!(SinFunction, sin(freq=None, amp=Some(1_f32), phase=Some(0_f32), time=None));
+bind_function!(SqrtFunction, sqrt(x=None));
+bind_function!(AbsFunction, abs(x=None));
 
 /// Always returns a specific constant
 #[deriving(Copy)]
@@ -255,7 +255,7 @@ impl<'a> Function for SyntFunctionCall<'a> {
 		match scope.get_func(self.func) {
 			Some(f) => {
 				for (n, a) in self.args.iter() {
-					inner.define_var(n.to_string(), try!(a.call(scope.clone())));
+					inner.define_var(*n, try!(a.call(scope.clone())));
 				}
 				f.call(Cow::Owned(inner))
 			}
