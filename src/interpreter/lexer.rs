@@ -103,7 +103,7 @@ pub fn lex<'a>(string: &'a str) -> Result<TokenList<'a>, CompileError> {
 		// Add numerical literals as f32
 		let const_match = CONST_REGEX.find(walk);
 		if let Some((0, x)) = const_match {
-			if let Some(v) = from_str::<f32>(walk[0..x]) {
+			if let Some(v) = walk[0..x].parse() {
 				tokens.push(Token::Const(v).with_pos(pos));
 				walk = walk[x..];
 				pos.col += x;

@@ -5,7 +5,7 @@
 
 extern crate regex;
 #[phase(plugin)] extern crate regex_macros;
-extern crate serialize;
+extern crate "rustc-serialize" as rustc_serialize;
 extern crate docopt;
 #[phase(plugin)] extern crate docopt_macros;
 
@@ -48,10 +48,8 @@ fn main() {
 					scope.define_func("~", Rc::new(sin));
 					scope.define_func("sqrt", Rc::new(sqrt));
 					scope.define_func("abs", Rc::new(abs));
-					match interpreter::expr::Expression::new(tok.as_slice(), Cow::Borrowed(&scope)) {
+					match interpreter::function::SyntFunctionDef::new(tok.as_slice(), Cow::Borrowed(&scope)) {
 						Ok(expr) => {
-							println!("expr: {}", expr);
-							println!("evals to {}", expr.eval(Cow::Borrowed(&scope)));
 						},
 						Err(e) => {
 							println!("Error parsing expr: {}", e);

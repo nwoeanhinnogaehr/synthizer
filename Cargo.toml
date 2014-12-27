@@ -4,5 +4,7 @@ name = "synthizer"
 version = "0.0.1"
 authors = ["Noah Weninger"]
 
-[dependencies.docopt_macros]
-git = "git://github.com/docopt/docopt.rs"
+[dependencies]
+rustc-serialize = "*"
+regex = "*"
+docopt_macros = "*"

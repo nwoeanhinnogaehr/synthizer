@@ -57,7 +57,7 @@ macro_rules! expect(
 
 // Advances an iterator to the matching parenthesis
 // Assumes the first opening paren was already consumed
-pub fn match_paren<'a>(iter: &mut iter::Enumerate<slice::Items<'a, lexer::SourceToken<'a>>>,
+pub fn match_paren<'a>(iter: &mut iter::Enumerate<slice::Iter<'a, lexer::SourceToken<'a>>>,
 				   open: lexer::Token, close: lexer::Token) -> Result<(), CompileError> {
 	let mut depth = 1i;
 	while depth > 0 {

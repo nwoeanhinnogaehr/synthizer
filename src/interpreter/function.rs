@@ -266,14 +266,56 @@ impl<'a> Function for SyntFunctionCall<'a> {
 
 /// Represents a function definition written in synthizer
 pub struct SyntFunctionDef<'a> {
-	func: &'a (Function + 'a), // Internally a SumFunction containing CondFunctions containing ExprFunctions
+	func: &'a (Function + 'a),
 	args: HashMap<&'a str, Option<f32>>, // Default arguments
 	name: &'a str,
 }
 impl<'a> SyntFunctionDef<'a> {
 	/// Parse a function definition from a token stream. Scope is used to find function definitions
-	pub fn new<'s>(tok: Vec<Token<'a>>, scope: CowScope<'a>) -> Result<SyntFunctionDef<'a>, CompileError> {
-		unimplemented!();
+	pub fn new<'s>(tokens: &'a TokenSlice<'a>, scope: CowScope<'a>) -> Result<SyntFunctionDef<'a>, CompileError> {
+		let mut iter = tokens.iter().enumerate();
+
+		let mut args = HashMap::new();
+
+		let fn_name = try!(expect_value!(iter.next().map(|(_, x)| x), Token::Ident, "expected function name, got `{}`"));
+		try!(expect!(iter.next().map(|(_, x)| x), Token::Symbol('('), "expected `(`, got `{}`"));
+
+		loop {
+			let arg_name = try!(expect_value!(iter.next().map(|(_, x)| x), Token::Ident, "expected argument name, got `{}`"));
+
+			let next = iter.next().map(|(_, x)| x);
+			let (pos, mut token) = (next.map(|x| x.pos), next.map(|x| &x.token));
+			if let Some(&Token::Symbol('='))  = token {
+					let nexttoken = iter.next().map(|(_, x)| x);
+					let value = if let Ok(_) = expect!(nexttoken, Token::Operator("-")) {
+						-try!(expect_value!(iter.next().map(|(_, x)| x), Token::Const, "expected numerical constant, got `{}`"));
+					} else {
+						try!(expect_value!(nexttoken, Token::Const, "expected numerical constant, got `{}`"));
+					};
+					args.insert(arg_name, Some(value));
+					token = iter.next().map(|(_, x)| &x.token);
+			}
+			match token {
+				Some(&Token::Symbol(',')) => {
+					args.insert(arg_name, None);
+				}
+				Some(&Token::Symbol(')')) => {
+					args.insert(arg_name, None);
+					break;
+				}
+				token => {
+					let err = CompileError::new(format!("expected `=`, `,` or `)`, got `{}`", token));
+					return Err(if let Some(pos) = pos {
+						err.with_pos(pos)
+					} else {
+						err
+					})
+				}
+			}
+		}
+		try!(expect!(iter.next().map(|(_, x)| x), Token::Symbol(':'), "expected `:` following function argument declaration, got `{}`"));
+
+		Err(CompileError::new_static(""))
 	}
 
 	pub fn name(&self) -> &'a str {

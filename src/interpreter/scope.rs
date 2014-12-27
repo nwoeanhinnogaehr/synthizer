@@ -1,4 +1,4 @@
-use std::collections::hash_map::{HashMap, Occupied, Vacant};
+use std::collections::hash_map::{HashMap, Entry};
 use super::function::Function;
 use std::rc::Rc;
 use std::borrow::Cow;
@@ -76,10 +76,10 @@ impl<'a> Scope<'a> {
 	pub fn define_var(&mut self, var: &str, value: f32) {
 		let nv = self.vars.len();
 		match self.vars.entry(var.to_string()) {
-			Occupied(entry) => {
+			Entry::Occupied(entry) => {
 				self.var_values[*entry.get()] = value;
 			},
-			Vacant(entry) => {
+			Entry::Vacant(entry) => {
 				entry.set(nv);
 				self.var_values.push(value);
 			},
@@ -95,10 +95,10 @@ impl<'a> Scope<'a> {
 	pub fn define_func(&mut self, name: &'a str, func: Rc<&'a (Function + 'a)>) {
 		let nv = self.funcs.len();
 		match self.funcs.entry(name.to_string()) {
-			Occupied(entry) => {
+			Entry::Occupied(entry) => {
 				self.func_values[*entry.get()] = func;
 			},
-			Vacant(entry) => {
+			Entry::Vacant(entry) => {
 				entry.set(nv);
 				self.func_values.push(func);
 			},
