@@ -5,16 +5,16 @@ use std::borrow::Cow;
 
 /// Holds a temporary fast reference to a variable defined in a scope. Only valid for the scope it
 /// was leased from and it's children.
-pub type VarId = uint;
+pub type VarId = usize;
 
 /// Holds a temporary fast reference to a function defined in a scope. Only valid for the scope it
 /// was leased from and it's children.
-pub type FnId = uint;
+pub type FnId = usize;
 
 pub type CowScope<'a> = Cow<'a, Scope<'a>, Scope<'a>>;
 
 /// Holds a number of variables, functions and their values.
-#[deriving(Clone)]
+#[derive(Clone)]
 pub struct Scope<'a> {
 	var_values: Vec<f32>, // values of vars by id
 	vars: HashMap<String, VarId>, // map of var name -> var id
@@ -80,14 +80,14 @@ impl<'a> Scope<'a> {
 				self.var_values[*entry.get()] = value;
 			},
 			Entry::Vacant(entry) => {
-				entry.set(nv);
+				entry.insert(nv);
 				self.var_values.push(value);
 			},
 		}
 	}
 
 	/// Returns the number of variables set in the scope.
-	pub fn num_vars(&self) -> uint {
+	pub fn num_vars(&self) -> usize {
 		self.vars.len()
 	}
 
@@ -99,7 +99,7 @@ impl<'a> Scope<'a> {
 				self.func_values[*entry.get()] = func;
 			},
 			Entry::Vacant(entry) => {
-				entry.set(nv);
+				entry.insert(nv);
 				self.func_values.push(func);
 			},
 		}

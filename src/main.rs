@@ -1,13 +1,12 @@
 #![feature(slicing_syntax)]
-#![feature(phase)]
-#![feature(macro_rules)]
-#![feature(globs)]
+#![feature(plugin)]
+#![allow(unstable)]
 
 extern crate regex;
-#[phase(plugin)] extern crate regex_macros;
+#[plugin] extern crate regex_macros;
 extern crate "rustc-serialize" as rustc_serialize;
 extern crate docopt;
-#[phase(plugin)] extern crate docopt_macros;
+#[plugin] extern crate docopt_macros;
 
 use std::io::File;
 use std::rc::Rc;
@@ -40,7 +39,6 @@ fn main() {
 		Ok(string) => {
 			match interpreter::lexer::lex(string.as_slice()) {
 				Ok(tok) => {
-					println!("tokens: {}\n\n", tok);
 					let mut scope = interpreter::scope::Scope::new();
 					let sin = &interpreter::function::SinFunction::new() as &interpreter::function::Function;
 					let sqrt = &interpreter::function::SqrtFunction::new() as &interpreter::function::Function;
@@ -48,8 +46,9 @@ fn main() {
 					scope.define_func("~", Rc::new(sin));
 					scope.define_func("sqrt", Rc::new(sqrt));
 					scope.define_func("abs", Rc::new(abs));
-					match interpreter::function::SyntFunctionDef::new(tok.as_slice(), Cow::Borrowed(&scope)) {
-						Ok(expr) => {
+					let res: Result<interpreter::functiondef::FunctionDef, interpreter::CompileError> = interpreter::parser::Parser::parse(tok.as_slice(), Cow::Borrowed(&scope));
+					match res {
+						Ok(_) => {
 						},
 						Err(e) => {
 							println!("Error parsing expr: {}", e);

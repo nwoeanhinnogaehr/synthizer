@@ -6,5 +6,10 @@ authors = ["Noah Weninger"]
 
 [dependencies]
 rustc-serialize = "*"
-regex = "*"
 docopt_macros = "*"
+
+[dependencies.regex]
+git = "https://github.com/rust-lang/regex"
+
+[dependencies.regex_macros]
+git = "https://github.com/rust-lang/regex"

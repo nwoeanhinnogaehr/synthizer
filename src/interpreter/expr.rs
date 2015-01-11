@@ -1,22 +1,63 @@
-// Used internally for evalulating expressions
-
+use super::parser::Parser;
 use super::lexer::{Token, TokenSlice};
 use super::{CompileError, SourcePos, from_bool, is_truthy};
 use super::scope::CowScope;
-use super::function::{Function, SyntFunctionCall};
+use super::function::Function;
+use super::functioncall::FunctionCall;
 use std::num::Float;
 
-#[deriving(Show, Clone)]
-enum ExprToken<'a> {
-	Op(Operator),
-	Value(f32),
-	Var(uint),
-	LParen,
-	RParen,
-	Fn(SyntFunctionCall<'a>),
+#[derive(Clone)]
+pub struct Expression {
+	rpn: Vec<ExprToken>,
+	pos: SourcePos,
 }
 
-#[deriving(Show, Clone, Copy)]
+impl<'a> Parser<'a> for Expression {
+	fn parse(tokens: &'a TokenSlice<'a>, scope: CowScope<'a>) -> Result<Expression, CompileError> {
+		let out = try!(to_expr_tokens(tokens, scope));
+		let out = try!(shunting_yard(out));
+
+		Ok(Expression {
+			rpn: out,
+			pos: tokens[0].pos, // Point to the location in the source that the expression started at.
+		})
+	}
+}
+
+impl Expression {
+	/// Replaces variables with their values in the given scope
+	pub fn fold_scope(&mut self, scope: CowScope) {
+		for tok in self.rpn.iter_mut() {
+			match *tok {
+				ExprToken::Var(id) => {
+					match scope.get_var(id) {
+						Some(id) => *tok = ExprToken::Value(id),
+						None => { }
+					}
+				},
+				_ => { }
+			}
+		}
+	}
+}
+
+impl Function for Expression {
+	/// Evaluates the value of the expression
+	fn call(&self, scope: CowScope) -> Result<f32, CompileError> {
+		eval_rpn(&self.rpn, scope)
+	}
+}
+
+#[derive(Show, Clone)]
+enum ExprToken {
+	Op(Operator),
+	Value(f32),
+	Var(usize),
+	LParen,
+	RParen,
+	Fn(FunctionCall),
+}
+#[derive(Show, Clone, Copy)]
 enum Operator {
 	Add,
 	Sub,
@@ -38,14 +79,40 @@ enum Operator {
 	LessEqual,
 }
 
-#[deriving(PartialEq)]
+impl Operator {
+	fn parse(s: &str) -> Option<Operator> {
+	use self::Operator::*;
+		Some(match s {
+			"+" => Add,
+			"-" => Sub,
+			"*" => Mul,
+			"/" => Div,
+			"^" => Exp,
+			"%" => Mod,
+			"==" => Equ,
+			"!=" => NotEqu,
+			"~=" => ApproxEqu,
+			"<" => Less,
+			">" => Greater,
+			"<=" => LessEqual,
+			">=" => GreaterEqual,
+			"!" => Not,
+			"&&" => And,
+			"||" => Or,
+			"^^" => Xor,
+			_ => return None,
+		})
+	}
+}
+
+#[derive(PartialEq)]
 enum Associativity {
 	Left,
 	Right,
 }
 
 impl Operator {
-	fn precedence(&self) -> int {
+	fn precedence(&self) -> i32 {
 		use self::Operator::*;
 		match *self {
 			And | Or | Xor => 0,
@@ -57,7 +124,7 @@ impl Operator {
 		}
 	}
 
-	fn num_args(&self) -> uint {
+	fn num_args(&self) -> usize {
 		use self::Operator::*;
 		match *self {
 			Neg | Not => 1,
@@ -74,59 +141,16 @@ impl Operator {
 	}
 }
 
-type ExprTokenList<'a> = Vec<ExprToken<'a>>;
-
-/// An expression is a mathematical statement containing a number of operators, constants and
-/// variables. It evaluates to a single number.
-#[deriving(Show, Clone)]
-pub struct Expression<'a> {
-	rpn: ExprTokenList<'a>, // reverse polish notation
-	pos: SourcePos,
-}
-
-impl<'a> Expression<'a> {
-	/// Converts a token slice from the lexer into an expression that can be evaluated
-	pub fn new(tokens: &'a TokenSlice<'a>, scope: CowScope<'a>) -> Result<Expression<'a>, CompileError> {
-		let out = try!(to_expr_tokens(tokens, scope));
-		let out = try!(shunting_yard(out));
-
-		Ok(Expression {
-			rpn: out,
-			pos: tokens[0].pos, // Point to the location in the source that the expression started at.
-		})
-	}
-
-	/// Replaces variables with their values in the given scope
-	pub fn fold_scope(&mut self, scope: CowScope) {
-		for tok in self.rpn.iter_mut() {
-			match tok {
-				&ExprToken::Var(id) => {
-					match scope.get_var(id) {
-						Some(id) => *tok = ExprToken::Value(id),
-						None => { }
-					}
-				},
-				_ => { }
-			}
-		}
-	}
-
-	/// Evaluates the value of the expression
-	pub fn eval<'s>(&self, scope: CowScope<'s>) -> Result<f32, CompileError> {
-		eval_rpn(&self.rpn, scope)
-	}
-}
-
 // Converts tokens from the lexer into ExprTokens, which are simplified to drop any strings and
 // contain only information understandable by the expression parser.
-fn to_expr_tokens<'a>(tokens: &'a TokenSlice<'a>, scope: CowScope<'a>) -> Result<ExprTokenList<'a>, CompileError> {
+fn to_expr_tokens<'a>(tokens: &'a TokenSlice<'a>, scope: CowScope<'a>) -> Result<Vec<ExprToken>, CompileError> {
 	if tokens.is_empty() {
 		return Err(CompileError::new_static("empty expression in file"));
 	}
 
 	let mut out = Vec::new();
 	let mut iter = tokens.iter().peekable();
-	let mut index = 0u;
+	let mut index = 0us;
 
 	loop {
 		let sourcetoken = match iter.next() {
@@ -139,28 +163,10 @@ fn to_expr_tokens<'a>(tokens: &'a TokenSlice<'a>, scope: CowScope<'a>) -> Result
 			},
 
 			Token::Operator(v) => {
-				use self::Operator::*;
-				out.push(ExprToken::Op(match v {
-					"+" => Add,
-					"-" => Sub,
-					"*" => Mul,
-					"/" => Div,
-					"^" => Exp,
-					"%" => Mod,
-					"==" => Equ,
-					"!=" => NotEqu,
-					"~=" => ApproxEqu,
-					"<" => Less,
-					">" => Greater,
-					"<=" => LessEqual,
-					">=" => GreaterEqual,
-					"!" => Not,
-					"&&" => And,
-					"||" => Or,
-					"^^" => Xor,
-					x => {
-						return Err(CompileError::new(format!("unexpected operator in expression: `{}`", x)).with_pos(sourcetoken.pos));
-					}
+				out.push(ExprToken::Op(match Operator::parse(v) {
+					Some(op) => op,
+					None => return Err(CompileError::new_static("invalid operator in expression")
+									   .with_pos(sourcetoken.pos)),
 				}))
 			},
 
@@ -168,9 +174,8 @@ fn to_expr_tokens<'a>(tokens: &'a TokenSlice<'a>, scope: CowScope<'a>) -> Result
 				out.push(match v {
 					'(' => ExprToken::LParen,
 					')' => ExprToken::RParen,
-					x => {
-						return Err(CompileError::new(format!("unexpected symbol in expression: `{}`", x)).with_pos(sourcetoken.pos));
-					}
+					x => return Err(CompileError::new(format!("unexpected symbol in expression: `{}`", x))
+								   .with_pos(sourcetoken.pos)),
 				})
 			},
 
@@ -182,7 +187,7 @@ fn to_expr_tokens<'a>(tokens: &'a TokenSlice<'a>, scope: CowScope<'a>) -> Result
 					// Attempt to find the end of the function call
 					let call_start = index;
 					let mut call_end = index;
-					let mut depth = 0u;
+					let mut depth = 0u32;
 					loop {
 						match iter.next() {
 							Some(t) => {
@@ -194,7 +199,8 @@ fn to_expr_tokens<'a>(tokens: &'a TokenSlice<'a>, scope: CowScope<'a>) -> Result
 								call_end += 1;
 								index += 1;
 							},
-							None => return Err(CompileError::new(format!("unexpected end of file in function call")).with_pos(sourcetoken.pos))
+							None => return Err(CompileError::new(format!("unexpected EOF in function call"))
+											   .with_pos(sourcetoken.pos))
 						}
 						if depth == 0 {
 							break;
@@ -204,7 +210,7 @@ fn to_expr_tokens<'a>(tokens: &'a TokenSlice<'a>, scope: CowScope<'a>) -> Result
 					// Resolve it to a function
 					match scope.func_id(v) {
 						Some(_) => {
-							let func = try!(SyntFunctionCall::new(tokens[call_start..call_end + 1], scope.clone()));
+							let func = try!(Parser::parse(&tokens[call_start..call_end + 1], scope.clone()));
 							out.push(ExprToken::Fn(func));
 						},
 						None => {
@@ -242,7 +248,7 @@ fn to_expr_tokens<'a>(tokens: &'a TokenSlice<'a>, scope: CowScope<'a>) -> Result
 }
 
 // http://en.wikipedia.org/wiki/Shunting-yard_algorithm
-fn shunting_yard<'a>(tokens: ExprTokenList<'a>) -> Result<ExprTokenList<'a>, CompileError> {
+fn shunting_yard<'a>(tokens: Vec<ExprToken>) -> Result<Vec<ExprToken>, CompileError> {
 	let mut out = Vec::new();
 	let mut stack: Vec<ExprToken> = Vec::new();
 
@@ -287,7 +293,7 @@ fn shunting_yard<'a>(tokens: ExprTokenList<'a>) -> Result<ExprTokenList<'a>, Com
 							foundleft = true;
 							break;
 						},
-						x => panic!("internal error: unexpected value on stack: `{}`", x)
+						x => panic!("internal error: unexpected value on stack: `{:?}`", x)
 					}
 				}
 				if !foundleft {
@@ -305,7 +311,7 @@ fn shunting_yard<'a>(tokens: ExprTokenList<'a>) -> Result<ExprTokenList<'a>, Com
 				out.push(top.clone());
 			},
 			ExprToken::LParen | ExprToken::RParen => return Err(CompileError::new_static("mismatched parens: skewed left")),
-			x => panic!("internal error: non operator on stack: `{}`", x)
+			x => panic!("internal error: non operator on stack: `{:?}`", x)
 		}
 	}
 
@@ -313,7 +319,7 @@ fn shunting_yard<'a>(tokens: ExprTokenList<'a>) -> Result<ExprTokenList<'a>, Com
 }
 
 // http://en.wikipedia.org/wiki/Reverse_Polish_notation
-fn eval_rpn<'s>(rpn: &ExprTokenList, scope: CowScope<'s>) -> Result<f32, CompileError> {
+fn eval_rpn<'s>(rpn: &Vec<ExprToken>, scope: CowScope<'s>) -> Result<f32, CompileError> {
 	let mut stack = Vec::new();
 
 	for t in rpn.iter() {
@@ -342,7 +348,7 @@ fn eval_rpn<'s>(rpn: &ExprTokenList, scope: CowScope<'s>) -> Result<f32, Compile
 				// Pop args off stack
 				let n = op.num_args();
 				if stack.len() < n {
-					return Err(CompileError::new(format!("invalid expression: not enough args for operator {}", op)));
+					return Err(CompileError::new(format!("invalid expression: not enough args for operator {:?}", op)));
 				}
 				// unwrap() can't fail because of the size check above.
 				let args: Vec<f32> = range(0, n).map(|_| stack.pop().unwrap()).collect();
@@ -407,7 +413,7 @@ fn eval_rpn<'s>(rpn: &ExprTokenList, scope: CowScope<'s>) -> Result<f32, Compile
 				});
 			},
 
-			x => return Err(CompileError::new(format!("unexpected token in expression: `{}`", x)))
+			x => return Err(CompileError::new(format!("unexpected token in expression: `{:?}`", x)))
 		}
 	}
 	match stack.len() {

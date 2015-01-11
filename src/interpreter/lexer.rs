@@ -3,7 +3,7 @@ use super::{CompileError, SourcePos};
 use std::fmt;
 
 /// The various types that a token can be
-#[deriving(Clone, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub enum Token<'a> {
 	Ident(&'a str),
 	Const(f32),
@@ -12,7 +12,7 @@ pub enum Token<'a> {
 	Newline,
 }
 
-impl<'a> fmt::Show for Token<'a> {
+impl<'a> fmt::String for Token<'a> {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		use self::Token::*;
 		match *self {
@@ -34,10 +34,16 @@ impl<'a> Token<'a> {
 }
 
 /// Stores the type and position of a token
-#[deriving(Show, Clone)]
+#[derive(Clone)]
 pub struct SourceToken<'a> {
 	pub token: Token<'a>,
 	pub pos: SourcePos,
+}
+
+impl<'a> fmt::String for SourceToken<'a> {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		write!(f, "`{}`;{}", self.token, self.pos)
+	}
 }
 
 static IDENT_REGEX: Regex = regex!(r"[a-zA-Z_~']+[a-zA-Z_~0-9']*");
@@ -54,20 +60,20 @@ pub type TokenSlice<'a> = [SourceToken<'a>];
 pub fn lex<'a>(string: &'a str) -> Result<TokenList<'a>, CompileError> {
 	let mut walk = string;
 	let mut tokens = Vec::new();
-	let mut pos = SourcePos { line: 1u, col: 1u };
+	let mut pos = SourcePos { line: 1us, col: 1us };
 
 	while walk.len() > 0 {
 		// Strip comments
 		let comment_match = COMMENT_REGEX.find(walk);
 		if let Some((0, x)) = comment_match {
-			walk = walk[x..];
+			walk = &walk[x..];
 			continue;
 		}
 
 		// Strip whitespace
 		let whitespace_match = WHITESPACE_REGEX.find(walk);
 		if let Some((0, x)) = whitespace_match {
-			walk = walk[x..];
+			walk = &walk[x..];
 			pos.col += x;
 			continue;
 		}
@@ -75,8 +81,8 @@ pub fn lex<'a>(string: &'a str) -> Result<TokenList<'a>, CompileError> {
 		// Add operators as strings
 		let operator_match = OPERATOR_REGEX.find(walk);
 		if let Some((0, x)) = operator_match {
-			tokens.push(Token::Operator(walk[0..x]).with_pos(pos));
-			walk = walk[x..];
+			tokens.push(Token::Operator(&walk[0..x]).with_pos(pos));
+			walk = &walk[x..];
 			pos.col += x;
 			continue;
 		}
@@ -84,8 +90,8 @@ pub fn lex<'a>(string: &'a str) -> Result<TokenList<'a>, CompileError> {
 		// Add identifiers as strings
 		let ident_match = IDENT_REGEX.find(walk);
 		if let Some((0, x)) = ident_match {
-			tokens.push(Token::Ident(walk[0..x]).with_pos(pos));
-			walk = walk[x..];
+			tokens.push(Token::Ident(&walk[0..x]).with_pos(pos));
+			walk = &walk[x..];
 			pos.col += x;
 			continue;
 		}
@@ -95,7 +101,7 @@ pub fn lex<'a>(string: &'a str) -> Result<TokenList<'a>, CompileError> {
 		if let Some((0, x)) = symbol_match {
 			assert!(x == 1);
 			tokens.push(Token::Symbol(walk.char_at(0)).with_pos(pos));
-			walk = walk[x..];
+			walk = &walk[x..];
 			pos.col += x;
 			continue;
 		}
@@ -105,7 +111,7 @@ pub fn lex<'a>(string: &'a str) -> Result<TokenList<'a>, CompileError> {
 		if let Some((0, x)) = const_match {
 			if let Some(v) = walk[0..x].parse() {
 				tokens.push(Token::Const(v).with_pos(pos));
-				walk = walk[x..];
+				walk = &walk[x..];
 				pos.col += x;
 				continue;
 			} else {
@@ -117,7 +123,7 @@ pub fn lex<'a>(string: &'a str) -> Result<TokenList<'a>, CompileError> {
 		let newline_match = NEWLINE_REGEX.find(walk);
 		if let Some((0, x)) = newline_match {
 			tokens.push(Token::Newline.with_pos(pos));
-			walk = walk[x..];
+			walk = &walk[x..];
 			pos.line += x;
 			pos.col = 1;
 			continue;

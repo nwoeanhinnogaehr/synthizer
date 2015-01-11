@@ -1,16 +1,8 @@
 use super::expr::Expression;
 use super::{CompileError, is_truthy};
-use super::scope::{CowScope, FnId};
-use super::sum::Sum;
-use std::collections::HashMap;
-use std::collections::hash_map::Entry;
-use super::lexer::{Token, TokenSlice};
-use std::fmt;
-use std::num::FloatMath;
+use super::scope::CowScope;
 use std::num::Float;
 use std::f32::consts;
-use super::parseutil;
-use std::borrow::Cow;
 
 #[cfg(test)]
 use super::lexer;
@@ -19,12 +11,12 @@ use super::{TRUE, FALSE};
 
 /// Something that can be called with arguments given in the scope
 pub trait Function {
-	fn call<'s>(&self, scope: CowScope<'s>) -> Result<f32, CompileError>;
+	fn call(&self, scope: CowScope) -> Result<f32, CompileError>;
 }
 
 macro_rules! bind_function(
 	( $name:ident, $func:ident ( $($arg:ident = $val:expr),* ) ) => (
-		#[deriving(Copy)]
+		#[derive(Copy)]
 		pub struct $name;
 		impl $name {
 			pub fn new() -> $name {
@@ -67,7 +59,7 @@ bind_function!(SqrtFunction, sqrt(x=None));
 bind_function!(AbsFunction, abs(x=None));
 
 /// Always returns a specific constant
-#[deriving(Copy)]
+#[derive(Copy)]
 pub struct ConstFunction {
 	val: f32,
 }
@@ -85,20 +77,20 @@ impl Function for ConstFunction {
 }
 
 /// Wraps an expression from the expr module.
-#[deriving(Clone)]
-pub struct ExprFunction<'a> {
-	expr: Expression<'a>,
+#[derive(Clone)]
+pub struct ExprFunction {
+	expr: Expression,
 }
-impl<'a> ExprFunction<'a> {
-	pub fn new(expr: Expression<'a>) -> ExprFunction<'a> {
+impl ExprFunction {
+	pub fn new(expr: Expression) -> ExprFunction {
 		ExprFunction {
 			expr: expr,
 		}
 	}
 }
-impl<'a> Function for ExprFunction<'a> {
-	fn call<'s>(&self, scope: CowScope<'s>) -> Result<f32, CompileError> {
-		self.expr.eval(scope)
+impl Function for ExprFunction {
+	fn call(&self, scope: CowScope) -> Result<f32, CompileError> {
+		self.expr.call(scope)
 	}
 }
 
@@ -116,215 +108,12 @@ impl<'a> CondFunction<'a> {
 	}
 }
 impl<'a> Function for CondFunction<'a> {
-	fn call<'s>(&self, scope: CowScope<'s>) -> Result<f32, CompileError> {
+	fn call(&self, scope: CowScope) -> Result<f32, CompileError> {
 		if is_truthy(try!(self.cond.call(scope.clone()))) {
 			self.func.call(scope)
 		} else {
 			Ok(0_f32)
 		}
-	}
-}
-
-/// A SumFunction represents the sum of a bunch of other functions.
-pub struct SumFunction<'a> {
-	sum: &'a Sum<'a>
-}
-impl<'a> SumFunction<'a> {
-	pub fn new(sum: &'a Sum<'a>) -> SumFunction<'a> {
-		SumFunction {
-			sum: sum,
-		}
-	}
-}
-impl<'a> Function for SumFunction<'a> {
-	fn call<'s>(&self, scope: CowScope<'s>) -> Result<f32, CompileError> {
-		self.sum.eval(scope)
-	}
-}
-
-/// Represents a function call written in synthizer
-#[deriving(Clone)]
-pub struct SyntFunctionCall<'a> {
-	func: FnId, // the function the call refers to as a scope id
-	args: HashMap<&'a str, ExprFunction<'a>>, // the value of each argument passed is a function
-	name: &'a str,
-}
-impl<'a> SyntFunctionCall<'a> {
-	/// Parse a function call from a token stream. Scope is used to find function definitions
-	pub fn new(tokens: &'a TokenSlice<'a>, scope: CowScope<'a>) -> Result<SyntFunctionCall<'a>, CompileError> {
-		let mut iter = tokens.iter().enumerate();
-
-		let mut args = HashMap::new();
-
-		// Function name
-		let fn_name = try!(expect_value!(iter.next().map(|(_, x)| x),
-			Token::Ident, "expected function name, got `{}`"));
-
-		let fn_id = try!(scope.func_id(fn_name).ok_or(
-				CompileError::new(format!("function `{}` called but not defined in scope", fn_name))));
-
-		// Opening paren
-		try!(expect!(iter.next().map(|(_, x)| x), Token::Symbol('('), "expected `(`, got `{}`"));
-
-		// Parse arguments
-		'outer: loop {
-			let token = iter.next().map(|(_, x)| x);
-			if let Ok(_) = expect!(token, Token::Symbol(')')) {
-				// Got closing paren, end of list
-				break;
-			} else {
-				// Argument name
-				let arg_name = try!(expect_value!(token, Token::Ident, "expected `)` or argument name, got `{}`"));
-
-				// Mark the position of the start of the expression so we can later extract a slice
-				let next = iter.next();
-				let (expr_start, token) = (next.map(|(x, _)| x), next.map(|(_, x)| x));
-
-				// Equals
-				try!(expect!(token, Token::Symbol('='), "expected `=`, got `{}`"));
-
-				loop {
-					let next = iter.next();
-					let (pos, token) = (next.map(|(x, _)| x), next.map(|(_, x)| x));
-
-					// Adds all the tokens we have scanned so far in the inner loop to the args
-					// list
-					let write_arg = || -> Result<(), CompileError> {
-						let slice = tokens[expr_start.unwrap() + 1..pos.unwrap()];
-						let expr = try!(Expression::new(slice, scope.clone()));
-						let expr_func = ExprFunction::new(expr);
-						match args.entry(arg_name) {
-							Entry::Occupied(_) => {
-								return Err(CompileError::new(format!("argument {} has already been defined", arg_name)));
-							}
-							Entry::Vacant(e) => {
-								e.set(expr_func);
-							}
-						}
-						Ok(())
-					};
-
-					match token.map(|x| &x.token) {
-						// Advance to next argument
-						Some(&Token::Symbol(',')) => {
-							try!(write_arg());
-							break;
-						}
-
-						// End of function call
-						Some(&Token::Symbol(')')) => {
-							try!(write_arg());
-							break 'outer;
-						}
-
-						// We need to handle nested parens so we can include parens in the argument
-						// expressions
-						Some(&Token::Symbol('(')) => {
-							try!(parseutil::match_paren(&mut iter, Token::Symbol('('), Token::Symbol(')')));
-						}
-
-						None => {
-							return Err(CompileError::new_static("Expected expression, got EOF"));
-						}
-
-						_ => { }
-					}
-				}
-			}
-		}
-
-		Ok(SyntFunctionCall {
-			func: fn_id,
-			name: fn_name,
-			args: args,
-		})
-	}
-
-	pub fn name(&self) -> &'a str {
-		self.name
-	}
-}
-impl<'a> fmt::Show for SyntFunctionCall<'a> {
-	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		write!(f, "{}", self.name)
-	}
-}
-impl<'a> Function for SyntFunctionCall<'a> {
-	fn call<'s>(&self, scope: CowScope<'s>) -> Result<f32, CompileError> {
-		let mut inner = scope.clone().into_owned();
-		match scope.get_func(self.func) {
-			Some(f) => {
-				for (n, a) in self.args.iter() {
-					inner.define_var(*n, try!(a.call(scope.clone())));
-				}
-				f.call(Cow::Owned(inner))
-			}
-			None => panic!("internal error: function id is invalid!"),
-		}
-	}
-}
-
-/// Represents a function definition written in synthizer
-pub struct SyntFunctionDef<'a> {
-	func: &'a (Function + 'a),
-	args: HashMap<&'a str, Option<f32>>, // Default arguments
-	name: &'a str,
-}
-impl<'a> SyntFunctionDef<'a> {
-	/// Parse a function definition from a token stream. Scope is used to find function definitions
-	pub fn new<'s>(tokens: &'a TokenSlice<'a>, scope: CowScope<'a>) -> Result<SyntFunctionDef<'a>, CompileError> {
-		let mut iter = tokens.iter().enumerate();
-
-		let mut args = HashMap::new();
-
-		let fn_name = try!(expect_value!(iter.next().map(|(_, x)| x), Token::Ident, "expected function name, got `{}`"));
-		try!(expect!(iter.next().map(|(_, x)| x), Token::Symbol('('), "expected `(`, got `{}`"));
-
-		loop {
-			let arg_name = try!(expect_value!(iter.next().map(|(_, x)| x), Token::Ident, "expected argument name, got `{}`"));
-
-			let next = iter.next().map(|(_, x)| x);
-			let (pos, mut token) = (next.map(|x| x.pos), next.map(|x| &x.token));
-			if let Some(&Token::Symbol('='))  = token {
-					let nexttoken = iter.next().map(|(_, x)| x);
-					let value = if let Ok(_) = expect!(nexttoken, Token::Operator("-")) {
-						-try!(expect_value!(iter.next().map(|(_, x)| x), Token::Const, "expected numerical constant, got `{}`"));
-					} else {
-						try!(expect_value!(nexttoken, Token::Const, "expected numerical constant, got `{}`"));
-					};
-					args.insert(arg_name, Some(value));
-					token = iter.next().map(|(_, x)| &x.token);
-			}
-			match token {
-				Some(&Token::Symbol(',')) => {
-					args.insert(arg_name, None);
-				}
-				Some(&Token::Symbol(')')) => {
-					args.insert(arg_name, None);
-					break;
-				}
-				token => {
-					let err = CompileError::new(format!("expected `=`, `,` or `)`, got `{}`", token));
-					return Err(if let Some(pos) = pos {
-						err.with_pos(pos)
-					} else {
-						err
-					})
-				}
-			}
-		}
-		try!(expect!(iter.next().map(|(_, x)| x), Token::Symbol(':'), "expected `:` following function argument declaration, got `{}`"));
-
-		Err(CompileError::new_static(""))
-	}
-
-	pub fn name(&self) -> &'a str {
-		self.name
-	}
-}
-impl<'a> Function for SyntFunctionDef<'a> {
-	fn call(&self, scope: CowScope) -> Result<f32, CompileError> {
-		unimplemented!();
 	}
 }
 
@@ -364,16 +153,4 @@ fn cond_test() {
 	let s = Scope::new();
 	assert_eq!(f_truthy.call(&s).unwrap(), 42_f32);
 	assert_eq!(f_falsey.call(&s).unwrap(), 0_f32);
-}
-
-#[test]
-fn sum_test() {
-	let sum = Sum::new(vec![
-		box ConstFunction::new(1_f32) as Box<Function>,
-		box ConstFunction::new(2_f32) as Box<Function>,
-		box ConstFunction::new(3_f32) as Box<Function>,
-		box ConstFunction::new(4_f32) as Box<Function>]);
-	let f = SumFunction::new(&sum);
-	let s = Scope::new();
-	assert_eq!(f.call(&s).unwrap(), 10_f32);
 }

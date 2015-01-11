@@ -1,28 +1,29 @@
 use std::fmt;
-use std::str;
 use std::borrow::Cow;
+use std::string::CowString;
 
-pub mod parseutil;
-pub mod lexer;
-pub mod expr;
-pub mod scope;
+pub mod parser;
 pub mod function;
-pub mod sum;
+pub mod functioncall;
+pub mod functiondef;
+pub mod expr;
+pub mod lexer;
+pub mod scope;
 
-#[deriving(Clone, Copy)]
+#[derive(Clone, Copy)]
 pub struct SourcePos {
-	pub line: uint,
-	pub col: uint,
+	pub line: usize,
+	pub col: usize,
 }
 
-impl fmt::Show for SourcePos {
+impl fmt::String for SourcePos {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		write!(f, "{}:{}", self.line, self.col)
 	}
 }
 
 pub struct CompileError {
-	pub msg: str::CowString<'static>,
+	pub msg: CowString<'static>,
 	pub pos: Option<SourcePos>,
 }
 
@@ -49,7 +50,7 @@ impl CompileError {
 	}
 }
 
-impl fmt::Show for CompileError {
+impl fmt::String for CompileError {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		match self.pos {
 			Some(pos) => write!(f, "{} :: {}", pos, self.msg),
