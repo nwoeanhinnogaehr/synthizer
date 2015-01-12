@@ -43,9 +43,9 @@ fn main() {
 					let sin = &interpreter::function::SinFunction::new() as &interpreter::function::Function;
 					let sqrt = &interpreter::function::SqrtFunction::new() as &interpreter::function::Function;
 					let abs = &interpreter::function::AbsFunction::new() as &interpreter::function::Function;
-					scope.define_func("~", Rc::new(sin));
-					scope.define_func("sqrt", Rc::new(sqrt));
-					scope.define_func("abs", Rc::new(abs));
+					scope.define_func("~", sin);
+					scope.define_func("sqrt", sqrt);
+					scope.define_func("abs", abs);
 					let res: Result<interpreter::functiondef::FunctionDef, interpreter::CompileError> = interpreter::parser::Parser::parse(tok.as_slice(), Cow::Borrowed(&scope));
 					match res {
 						Ok(_) => {

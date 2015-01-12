@@ -19,8 +19,8 @@ pub struct Scope<'a> {
 	var_values: Vec<f32>, // values of vars by id
 	vars: HashMap<String, VarId>, // map of var name -> var id
 
-	func_values: Vec<Rc<&'a (Function + 'a)>>,
 	funcs: HashMap<String, FnId>,
+	func_values: Vec<&'a (Function + 'static)>,
 }
 
 impl<'a> Scope<'a> {
@@ -92,7 +92,7 @@ impl<'a> Scope<'a> {
 	}
 
 	/// Defines a function in the scope.
-	pub fn define_func(&mut self, name: &'a str, func: Rc<&'a (Function + 'a)>) {
+	pub fn define_func(&mut self, name: &'a str, func: &'a (Function + 'static)) {
 		let nv = self.funcs.len();
 		match self.funcs.entry(name.to_string()) {
 			Entry::Occupied(entry) => {
@@ -106,7 +106,7 @@ impl<'a> Scope<'a> {
 	}
 
 	/// Gets a function previously defined in the scope by id.
-	pub fn get_func(&self, func_id: FnId) -> Option<Rc<&'a (Function + 'a)>> {
+	pub fn get_func(&self, func_id: FnId) -> Option<&'a (Function + 'static)> {
 		if func_id >= self.func_values.len() {
 			None
 		} else {
