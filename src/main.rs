@@ -9,7 +9,6 @@ extern crate docopt;
 #[plugin] extern crate docopt_macros;
 
 use std::io::File;
-use std::rc::Rc;
 use std::borrow::Cow;
 
 pub mod interpreter;
@@ -40,9 +39,9 @@ fn main() {
 			match interpreter::lexer::lex(string.as_slice()) {
 				Ok(tok) => {
 					let mut scope = interpreter::scope::Scope::new();
-					let sin = &interpreter::function::SinFunction::new() as &interpreter::function::Function;
-					let sqrt = &interpreter::function::SqrtFunction::new() as &interpreter::function::Function;
-					let abs = &interpreter::function::AbsFunction::new() as &interpreter::function::Function;
+					let sin = &interpreter::function::SinFunction::new();
+					let sqrt = &interpreter::function::SqrtFunction::new();
+					let abs = &interpreter::function::AbsFunction::new();
 					scope.define_func("~", sin);
 					scope.define_func("sqrt", sqrt);
 					scope.define_func("abs", abs);
