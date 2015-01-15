@@ -9,6 +9,7 @@ pub mod functiondef;
 pub mod expr;
 pub mod lexer;
 pub mod scope;
+pub mod identifier;
 
 #[derive(Clone, Copy)]
 pub struct SourcePos {

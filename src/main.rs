@@ -36,15 +36,16 @@ fn main() {
 	match file.read_to_string() {
 		Err(why) => panic!("couldn't read {}: {}", display, why.desc),
 		Ok(string) => {
-			match interpreter::lexer::lex(string.as_slice()) {
+			let idmap = interpreter::identifier::IdMap::new();
+			match interpreter::lexer::lex(string.as_slice(), &idmap) {
 				Ok(tok) => {
 					let mut scope = interpreter::scope::Scope::new();
-					let sin = &interpreter::function::SinFunction::new();
-					let sqrt = &interpreter::function::SqrtFunction::new();
-					let abs = &interpreter::function::AbsFunction::new();
-					scope.define_func("~", sin);
-					scope.define_func("sqrt", sqrt);
-					scope.define_func("abs", abs);
+					let sin = &interpreter::function::SinFunction::new(&idmap);
+					let sqrt = &interpreter::function::SqrtFunction::new(&idmap);
+					let abs = &interpreter::function::AbsFunction::new(&idmap);
+					scope.set_func(idmap.borrow_mut().define("~"), sin);
+					scope.set_func(idmap.borrow_mut().define("sqrt"), sqrt);
+					scope.set_func(idmap.borrow_mut().define("abs"), abs);
 					let res: Result<interpreter::functiondef::FunctionDef, interpreter::CompileError> = interpreter::parser::Parser::parse(tok.as_slice(), Cow::Borrowed(&scope));
 					match res {
 						Ok(_) => {

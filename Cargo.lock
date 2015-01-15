@@ -28,7 +28,7 @@ dependencies = [
 [[package]]
 name = "regex"
 version = "0.1.10"
-source = "git+https://github.com/rust-lang/regex#094a68530a6550d5158988ec37afea75b95bbac9"
+source = "git+https://github.com/rust-lang/regex#6dc418e71216da04cf5b80c9be95426ccdbe954d"
 
 [[package]]
 name = "regex"
@@ -38,7 +38,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [[package]]
 name = "regex_macros"
 version = "0.1.5"
-source = "git+https://github.com/rust-lang/regex#094a68530a6550d5158988ec37afea75b95bbac9"
+source = "git+https://github.com/rust-lang/regex#6dc418e71216da04cf5b80c9be95426ccdbe954d"
 dependencies = [
  "regex 0.1.10 (git+https://github.com/rust-lang/regex)",
 ]

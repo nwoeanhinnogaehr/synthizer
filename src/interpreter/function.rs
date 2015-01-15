@@ -1,8 +1,9 @@
-use super::expr::Expression;
 use super::{CompileError, is_truthy};
 use super::scope::CowScope;
+use super::identifier::IdMap;
 use std::num::Float;
 use std::f32::consts;
+use std::cell::RefCell;
 
 #[cfg(test)]
 use super::lexer;
@@ -11,25 +12,29 @@ use super::{TRUE, FALSE};
 
 /// Something that can be called with arguments given in the scope
 pub trait Function {
-	fn call(&self, scope: CowScope) -> Result<f32, CompileError>;
+	fn call(&self, scope: CowScope, idmap: &IdMap) -> Result<f32, CompileError>;
 }
 
 macro_rules! bind_function(
-	( $name:ident, $func:ident ( $($arg:ident = $val:expr),* ) ) => (
+	( $name:ident, $func:ident ( $($arg:ident = $val:expr),* ) ) => {
 		#[derive(Copy)]
 		pub struct $name;
 		impl $name {
-			pub fn new() -> $name {
+			pub fn new<'a>(idmap: &'a RefCell<IdMap<'a>>) -> $name {
+			//pub fn new() -> $name {
+				$(
+					idmap.borrow_mut().define(stringify!($arg));
+				)*
 				$name
 			}
 		}
 		impl Function for $name {
 			#[allow(unused_variables)] // Compiler complains that scope is not used on functions with no args.
-			fn call(&self, scope: CowScope) -> Result<f32, CompileError> {
+			fn call(&self, scope: CowScope, idmap: &IdMap) -> Result<f32, CompileError> {
 				Ok($func($(
 					// Insert each argument from the scope
-					match scope.var_id(stringify!($arg)) {
-						Some(id) => scope.get_var(id).unwrap(),
+					match scope.get_var(idmap.id(stringify!($arg)).unwrap()) {
+						Some(val) => val,
 
 						None => match $val {
 							Some(val) => val,
@@ -39,7 +44,7 @@ macro_rules! bind_function(
 				),*))
 			}
 		}
-	);
+	};
 );
 
 fn sin(freq: f32, amp: f32, phase: f32, time: f32) -> f32 {
@@ -71,26 +76,8 @@ impl ConstFunction {
 	}
 }
 impl Function for ConstFunction {
-	fn call(&self, _: CowScope) -> Result<f32, CompileError> {
+	fn call(&self, _: CowScope, _: &IdMap) -> Result<f32, CompileError> {
 		Ok(self.val)
-	}
-}
-
-/// Wraps an expression from the expr module.
-#[derive(Clone)]
-pub struct ExprFunction {
-	expr: Expression,
-}
-impl ExprFunction {
-	pub fn new(expr: Expression) -> ExprFunction {
-		ExprFunction {
-			expr: expr,
-		}
-	}
-}
-impl Function for ExprFunction {
-	fn call(&self, scope: CowScope) -> Result<f32, CompileError> {
-		self.expr.call(scope)
 	}
 }
 
@@ -108,9 +95,9 @@ impl<'a> CondFunction<'a> {
 	}
 }
 impl<'a> Function for CondFunction<'a> {
-	fn call(&self, scope: CowScope) -> Result<f32, CompileError> {
-		if is_truthy(try!(self.cond.call(scope.clone()))) {
-			self.func.call(scope)
+	fn call(&self, scope: CowScope, idmap: &IdMap) -> Result<f32, CompileError> {
+		if is_truthy(try!(self.cond.call(scope.clone(), idmap))) {
+			self.func.call(scope, idmap)
 		} else {
 			Ok(0_f32)
 		}
@@ -121,16 +108,6 @@ impl<'a> Function for CondFunction<'a> {
 fn const_function_test() {
 	let f = ConstFunction::new(42_f32);
 	assert_eq!(f.call(&Scope::new()).unwrap(), 42_f32);
-}
-
-#[test]
-fn expr_function_test() {
-	let mut s = Scope::new();
-	s.define_var("a", 9_f32);
-	let t = lexer::tokenize("5*3+a").unwrap();
-	let e = Expression::new(t.as_slice(), &s).unwrap();
-	let f = ExprFunction::new(e);
-	assert_eq!(f.call(&s).unwrap(), 24_f32);
 }
 
 #[test]

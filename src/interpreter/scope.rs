@@ -1,134 +1,39 @@
-use std::collections::hash_map::{HashMap, Entry};
 use super::function::Function;
-use std::rc::Rc;
+use super::identifier::Identifier;
+use std::collections::VecMap;
 use std::borrow::Cow;
-
-/// Holds a temporary fast reference to a variable defined in a scope. Only valid for the scope it
-/// was leased from and it's children.
-pub type VarId = usize;
-
-/// Holds a temporary fast reference to a function defined in a scope. Only valid for the scope it
-/// was leased from and it's children.
-pub type FnId = usize;
 
 pub type CowScope<'a> = Cow<'a, Scope<'a>, Scope<'a>>;
 
 /// Holds a number of variables, functions and their values.
 #[derive(Clone)]
 pub struct Scope<'a> {
-	var_values: Vec<f32>, // values of vars by id
-	vars: HashMap<String, VarId>, // map of var name -> var id
-
-	funcs: HashMap<String, FnId>,
-	func_values: Vec<&'a (Function + 'static)>,
+	vars: VecMap<f32>,
+	funcs: VecMap<&'a (Function + 'static)>,
 }
 
 impl<'a> Scope<'a> {
 	/// Constructs an empty scope object.
 	pub fn new() -> Scope<'a> {
 		Scope {
-			var_values: Vec::new(),
-			vars: HashMap::new(),
-			func_values: Vec::new(),
-			funcs: HashMap::new(),
+			vars: VecMap::new(),
+			funcs: VecMap::new(),
 		}
 	}
 
-	/// Returns a uint identifier which can be passed to set_var to quickly update the value of a
-	/// variable.
-	pub fn var_id(&self, var: &'a str) -> Option<VarId> {
-		match self.vars.get(var) {
-			Some(v) => Some(*v),
-			None => None,
-		}
+	pub fn set_var(&mut self, id: Identifier, value: f32) {
+		self.vars.insert(id, value);
 	}
 
-	/// Returns the name of a variable from its id.
-	pub fn var_name(&self, var_id: VarId) -> Option<&str> {
-		for (k, v) in self.vars.iter() {
-			if *v == var_id {
-				return Some(k.as_slice());
-			}
-		}
-		None
+	pub fn get_var(&self, id: Identifier) -> Option<f32> {
+		self.vars.get(&id).map(|x| *x)
 	}
 
-	/// Sets a variable to an id retrieved from var_id. Return value indicates whether it was set
-	/// sucessfully or not.
-	pub fn set_var(&mut self, var_id: VarId, value: f32) -> bool {
-		if var_id > self.var_values.len() {
-			return false;
-		}
-		self.var_values[var_id] = value;
-		true
+	pub fn set_func(&mut self, id: Identifier, func: &'a (Function + 'static)) {
+		self.funcs.insert(id, func);
 	}
 
-	/// Returns the value of a variable by id.
-	pub fn get_var(&self, var_id: VarId) -> Option<f32> {
-		if var_id >= self.var_values.len() {
-			None
-		} else {
-			Some(self.var_values[var_id])
-		}
-	}
-
-	/// Sets a variable to a specified value, creating the variable if it does not exist.
-	pub fn define_var(&mut self, var: &str, value: f32) {
-		let nv = self.vars.len();
-		match self.vars.entry(var.to_string()) {
-			Entry::Occupied(entry) => {
-				self.var_values[*entry.get()] = value;
-			},
-			Entry::Vacant(entry) => {
-				entry.insert(nv);
-				self.var_values.push(value);
-			},
-		}
-	}
-
-	/// Returns the number of variables set in the scope.
-	pub fn num_vars(&self) -> usize {
-		self.vars.len()
-	}
-
-	/// Defines a function in the scope.
-	pub fn define_func(&mut self, name: &'a str, func: &'a (Function + 'static)) {
-		let nv = self.funcs.len();
-		match self.funcs.entry(name.to_string()) {
-			Entry::Occupied(entry) => {
-				self.func_values[*entry.get()] = func;
-			},
-			Entry::Vacant(entry) => {
-				entry.insert(nv);
-				self.func_values.push(func);
-			},
-		}
-	}
-
-	/// Gets a function previously defined in the scope by id.
-	pub fn get_func(&self, func_id: FnId) -> Option<&'a (Function + 'static)> {
-		if func_id >= self.func_values.len() {
-			None
-		} else {
-			Some(self.func_values[func_id].clone())
-		}
-	}
-
-	/// Returns the id of a function previously defined in the scope by name.
-	pub fn func_id(&self, name: &'a str) -> Option<FnId> {
-		match self.funcs.get(name) {
-			Some(id) => Some(*id),
-			None => None,
-		}
-	}
-
-	/// Returns the name of a function from its id.
-	pub fn func_name(&self, func_id: FnId) -> Option<&str> {
-		for (k, v) in self.funcs.iter() {
-			if *v == func_id {
-				return Some(k.as_slice());
-			}
-		}
-		None
+	pub fn get_func(&self, id: Identifier) -> Option<&'a (Function + 'static)> {
+		self.funcs.get(&id).map(|x| *x)
 	}
 }

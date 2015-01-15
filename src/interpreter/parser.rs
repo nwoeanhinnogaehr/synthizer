@@ -7,7 +7,7 @@ use std::iter;
 use std::slice;
 
 pub trait Parser<'a> {
-	fn parse(tokens: &'a TokenSlice<'a>, scope: CowScope<'a>) -> Result<Self, CompileError>;
+	fn parse(tokens: &'a TokenSlice, scope: CowScope<'a>) -> Result<Self, CompileError>;
 }
 
 macro_rules! expect_value(
@@ -62,7 +62,7 @@ macro_rules! expect(
 
 // Advances an iterator to the matching parenthesis
 // Assumes the first opening paren was already consumed
-pub fn match_paren<'a> (iter: &mut iter::Enumerate<slice::Iter<'a, SourceToken<'a>>>,
+pub fn match_paren<'a> (iter: &mut iter::Enumerate<slice::Iter<'a, SourceToken>>,
 						open: lexer::Token, close: lexer::Token) -> Result<(), CompileError> {
 	let mut depth = 1i32;
 	while depth > 0 {

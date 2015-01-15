@@ -1,31 +1,115 @@
 use regex::Regex;
 use super::{CompileError, SourcePos};
+use super::identifier::{Identifier, IdMap};
 use std::fmt;
+use std::cell::RefCell;
 
 /// The various types that a token can be
-#[derive(Clone, PartialEq)]
-pub enum Token<'a> {
-	Ident(&'a str),
+#[derive(Copy, PartialEq)]
+pub enum Token {
+	Ident(Identifier),
 	Const(f32),
-	Operator(&'a str),
-	Symbol(char),
+	Operator(Operator),
+	Symbol(Symbol),
 	Newline,
 }
 
-impl<'a> fmt::String for Token<'a> {
+#[derive(Show, Copy, PartialEq)]
+pub enum Operator {
+	Add,
+	Sub,
+	Mul,
+	Div,
+	Exp,
+	Mod,
+	Neg,
+	Less,
+	Greater,
+	Equ,
+	NotEqu,
+	ApproxEqu,
+	Not,
+	And,
+	Or,
+	Xor,
+	GreaterEqual,
+	LessEqual,
+}
+
+impl Operator {
+	fn parse(s: &str) -> Option<Operator> {
+	use self::Operator::*;
+		Some(match s {
+			"+" => Add,
+			"-" => Sub,
+			"*" => Mul,
+			"/" => Div,
+			"^" => Exp,
+			"%" => Mod,
+			"==" => Equ,
+			"!=" => NotEqu,
+			"~=" => ApproxEqu,
+			"<" => Less,
+			">" => Greater,
+			"<=" => LessEqual,
+			">=" => GreaterEqual,
+			"!" => Not,
+			"&&" => And,
+			"||" => Or,
+			"^^" => Xor,
+			_ => return None,
+		})
+	}
+}
+
+#[derive(Show, Copy, PartialEq)]
+pub enum Symbol {
+	Period,
+	Comma,
+	Equals,
+	Colon,
+	LeftParen,
+	RightParen,
+	LeftBrace,
+	RightBrace,
+	LeftBracket,
+	RightBracket,
+}
+
+impl Symbol {
+	fn parse(s: &str) -> Option<Symbol> {
+	use self::Symbol::*;
+		Some(match s {
+			"." => Period,
+			"," => Comma,
+			"=" => Equals,
+			":" => Colon,
+			"(" => LeftParen,
+			")" => RightParen,
+			"{" => LeftBrace,
+			"}" => RightBrace,
+			"[" => LeftBrace,
+			"]" => RightBrace,
+			_ => return None,
+		})
+	}
+}
+
+impl fmt::String for Token {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		use self::Token::*;
 		match *self {
-			Ident(x) | Operator(x) => write!(f, "{}", x),
+			Ident(x) => write!(f, "{}", x),
+			Operator(x) => write!(f, "{:?}", x),
 			Const(x) => write!(f, "{}", x),
-			Symbol(x) => write!(f, "{}", x),
+			Symbol(x) => write!(f, "{:?}", x),
 			Newline => write!(f, "\\n")
 		}
 	}
 }
 
-impl<'a> Token<'a> {
-	fn with_pos(self, pos: SourcePos) -> SourceToken<'a> {
+impl Token {
+	fn with_pos(self, pos: SourcePos) -> SourceToken {
 		SourceToken {
 			token: self,
 			pos: pos,
@@ -34,13 +118,13 @@ impl<'a> Token<'a> {
 }
 
 /// Stores the type and position of a token
-#[derive(Clone)]
-pub struct SourceToken<'a> {
-	pub token: Token<'a>,
+#[derive(Copy)]
+pub struct SourceToken {
+	pub token: Token,
 	pub pos: SourcePos,
 }
 
-impl<'a> fmt::String for SourceToken<'a> {
+impl fmt::String for SourceToken {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		write!(f, "`{}`;{}", self.token, self.pos)
 	}
@@ -54,74 +138,66 @@ static OPERATOR_REGEX: Regex = regex!(r"\^\^|>=|<=|~=|[\+\*/\^><!%-]|&&|\|\||==|
 static SYMBOL_REGEX: Regex = regex!(r"[\.,=:\(\)\{\}\]\[]");
 static COMMENT_REGEX: Regex = regex!(r"//.*");
 
-pub type TokenList<'a> = Vec<SourceToken<'a>>;
-pub type TokenSlice<'a> = [SourceToken<'a>];
+pub type TokenList = Vec<SourceToken>;
+pub type TokenSlice = [SourceToken];
 
-pub fn lex<'a>(string: &'a str) -> Result<TokenList<'a>, CompileError> {
+pub fn lex<'a>(string: &'a str, idmap: &'a RefCell<IdMap<'a>>) -> Result<TokenList, CompileError> {
 	let mut walk = string;
 	let mut tokens = Vec::new();
 	let mut pos = SourcePos { line: 1us, col: 1us };
 
 	while walk.len() > 0 {
 		// Strip comments
-		let comment_match = COMMENT_REGEX.find(walk);
-		if let Some((0, x)) = comment_match {
+		if let Some((0, x)) = COMMENT_REGEX.find(walk) {
 			walk = &walk[x..];
+			// TODO does this advance pos correctly?
 			continue;
 		}
 
 		// Strip whitespace
-		let whitespace_match = WHITESPACE_REGEX.find(walk);
-		if let Some((0, x)) = whitespace_match {
+		if let Some((0, x)) = WHITESPACE_REGEX.find(walk) {
 			walk = &walk[x..];
 			pos.col += x;
 			continue;
 		}
 
-		// Add operators as strings
-		let operator_match = OPERATOR_REGEX.find(walk);
-		if let Some((0, x)) = operator_match {
-			tokens.push(Token::Operator(&walk[0..x]).with_pos(pos));
+		// Add operators
+		if let Some((0, x)) = OPERATOR_REGEX.find(walk) {
+			let op = Operator::parse(&walk[0..x]).unwrap(); // If this fails either the regex or the parser is wrong.
+			tokens.push(Token::Operator(op).with_pos(pos));
 			walk = &walk[x..];
 			pos.col += x;
 			continue;
 		}
 
-		// Add identifiers as strings
-		let ident_match = IDENT_REGEX.find(walk);
-		if let Some((0, x)) = ident_match {
-			tokens.push(Token::Ident(&walk[0..x]).with_pos(pos));
+		// Add identifiers
+		if let Some((0, x)) = IDENT_REGEX.find(walk) {
+			tokens.push(Token::Ident(idmap.borrow_mut().define(&walk[0..x])).with_pos(pos));
 			walk = &walk[x..];
 			pos.col += x;
 			continue;
 		}
 
-		// Add symbols as chars
-		let symbol_match = SYMBOL_REGEX.find(walk);
-		if let Some((0, x)) = symbol_match {
-			assert!(x == 1);
-			tokens.push(Token::Symbol(walk.char_at(0)).with_pos(pos));
+		// Add symbols
+		if let Some((0, x)) = SYMBOL_REGEX.find(walk) {
+			let sym = Symbol::parse(&walk[0..x]).unwrap(); // If this fails either the regex or the parser is wrong.
+			tokens.push(Token::Symbol(sym).with_pos(pos));
 			walk = &walk[x..];
 			pos.col += x;
 			continue;
 		}
 
-		// Add numerical literals as f32
-		let const_match = CONST_REGEX.find(walk);
-		if let Some((0, x)) = const_match {
-			if let Some(v) = walk[0..x].parse() {
-				tokens.push(Token::Const(v).with_pos(pos));
-				walk = &walk[x..];
-				pos.col += x;
-				continue;
-			} else {
-				panic!("internal error: error parsing numerical constant, the lexer is probably broken");
-			}
+		// Add numerical literals as f32 (TODO allow different precision)
+		if let Some((0, x)) = CONST_REGEX.find(walk) {
+			let v = walk[0..x].parse().unwrap(); // If this fails either the regex or the parser is wrong.
+			tokens.push(Token::Const(v).with_pos(pos));
+			walk = &walk[x..];
+			pos.col += x;
+			continue;
 		}
 
 		// Add newline tokens
-		let newline_match = NEWLINE_REGEX.find(walk);
-		if let Some((0, x)) = newline_match {
+		if let Some((0, x)) = NEWLINE_REGEX.find(walk) {
 			tokens.push(Token::Newline.with_pos(pos));
 			walk = &walk[x..];
 			pos.line += x;
