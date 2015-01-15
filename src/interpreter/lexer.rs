@@ -2,7 +2,6 @@ use regex::Regex;
 use super::{CompileError, SourcePos};
 use super::identifier::{Identifier, IdMap};
 use std::fmt;
-use std::cell::RefCell;
 
 /// The various types that a token can be
 #[derive(Copy, PartialEq)]
@@ -141,7 +140,7 @@ static COMMENT_REGEX: Regex = regex!(r"//.*");
 pub type TokenList = Vec<SourceToken>;
 pub type TokenSlice = [SourceToken];
 
-pub fn lex<'a>(string: &'a str, idmap: &'a RefCell<IdMap<'a>>) -> Result<TokenList, CompileError> {
+pub fn lex<'a>(string: &'a str, idmap: &'a IdMap<'a>) -> Result<TokenList, CompileError> {
 	let mut walk = string;
 	let mut tokens = Vec::new();
 	let mut pos = SourcePos { line: 1us, col: 1us };
@@ -172,7 +171,7 @@ pub fn lex<'a>(string: &'a str, idmap: &'a RefCell<IdMap<'a>>) -> Result<TokenLi
 
 		// Add identifiers
 		if let Some((0, x)) = IDENT_REGEX.find(walk) {
-			tokens.push(Token::Ident(idmap.borrow_mut().define(&walk[0..x])).with_pos(pos));
+			tokens.push(Token::Ident(idmap.id(&walk[0..x])).with_pos(pos));
 			walk = &walk[x..];
 			pos.col += x;
 			continue;

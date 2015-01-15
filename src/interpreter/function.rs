@@ -3,7 +3,6 @@ use super::scope::CowScope;
 use super::identifier::IdMap;
 use std::num::Float;
 use std::f32::consts;
-use std::cell::RefCell;
 
 #[cfg(test)]
 use super::lexer;
@@ -20,11 +19,7 @@ macro_rules! bind_function(
 		#[derive(Copy)]
 		pub struct $name;
 		impl $name {
-			pub fn new<'a>(idmap: &'a RefCell<IdMap<'a>>) -> $name {
-			//pub fn new() -> $name {
-				$(
-					idmap.borrow_mut().define(stringify!($arg));
-				)*
+			pub fn new() -> $name {
 				$name
 			}
 		}
@@ -33,7 +28,7 @@ macro_rules! bind_function(
 			fn call(&self, scope: CowScope, idmap: &IdMap) -> Result<f32, CompileError> {
 				Ok($func($(
 					// Insert each argument from the scope
-					match scope.get_var(idmap.id(stringify!($arg)).unwrap()) {
+					match scope.get_var(idmap.id(stringify!($arg))) {
 						Some(val) => val,
 
 						None => match $val {

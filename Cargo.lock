@@ -5,7 +5,7 @@ dependencies = [
  "docopt_macros 0.6.30 (registry+https://github.com/rust-lang/crates.io-index)",
  "regex 0.1.10 (git+https://github.com/rust-lang/regex)",
  "regex_macros 0.1.5 (git+https://github.com/rust-lang/regex)",
- "rustc-serialize 0.2.7 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-serialize 0.2.8 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -14,7 +14,7 @@ version = "0.6.30"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "regex 0.1.10 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustc-serialize 0.2.7 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-serialize 0.2.8 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -28,7 +28,7 @@ dependencies = [
 [[package]]
 name = "regex"
 version = "0.1.10"
-source = "git+https://github.com/rust-lang/regex#6dc418e71216da04cf5b80c9be95426ccdbe954d"
+source = "git+https://github.com/rust-lang/regex#10edff6bb76f1c9f4423f3bb8ad373d0c7a69773"
 
 [[package]]
 name = "regex"
@@ -38,13 +38,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [[package]]
 name = "regex_macros"
 version = "0.1.5"
-source = "git+https://github.com/rust-lang/regex#6dc418e71216da04cf5b80c9be95426ccdbe954d"
+source = "git+https://github.com/rust-lang/regex#10edff6bb76f1c9f4423f3bb8ad373d0c7a69773"
 dependencies = [
  "regex 0.1.10 (git+https://github.com/rust-lang/regex)",
 ]
 
 [[package]]
 name = "rustc-serialize"
-version = "0.2.7"
+version = "0.2.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 

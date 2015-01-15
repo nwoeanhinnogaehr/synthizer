@@ -1,40 +1,38 @@
 use std::collections::hash_map::{HashMap, Entry};
-use std::cell::RefCell;
+use std::collections::VecMap;
+use std::cell::{RefCell, Cell};
 
 pub type Identifier = usize;
 
 pub struct IdMap<'a> {
-	count: Identifier,
-	id_map: HashMap<&'a str, Identifier>,
-	name_map: HashMap<Identifier, &'a str>,
+	count: Cell<Identifier>,
+	id_map: RefCell<HashMap<&'a str, Identifier>>,
+	name_map: RefCell<VecMap<&'a str>>,
 }
 
 impl<'a> IdMap<'a> {
-	pub fn new() -> RefCell<IdMap<'a>> {
-		RefCell::new(IdMap {
-			count: 0,
-			id_map: HashMap::new(),
-			name_map: HashMap::new(),
-		})
+	pub fn new() -> IdMap<'a> {
+		IdMap {
+			count: Cell::new(0),
+			id_map: RefCell::new(HashMap::new()),
+			name_map: RefCell::new(VecMap::new()),
+		}
 	}
 
 	/// Returns a new identifier or an existing one if the name is already in the map
-	pub fn define(&mut self, name: &'a str) -> Identifier {
-		match self.id_map.entry(name) {
+	pub fn id(&self, name: &'a str) -> Identifier {
+		match self.id_map.borrow_mut().entry(name) {
 			Entry::Occupied(ref e) => {
 				*e.get()
 			},
 			Entry::Vacant(e) => {
-				self.count += 1;
-				self.name_map.insert(self.count, name);
-				*e.insert(self.count)
+				self.count.set(self.count.get() + 1);
+				self.name_map.borrow_mut().insert(self.count.get(), name);
+				*e.insert(self.count.get())
 			},
 		}
 	}
-	pub fn id(&self, name: &'a str) -> Option<Identifier> {
-		self.id_map.get(&name).map(|x| *x)
-	}
 	pub fn name(&self, id: Identifier) -> Option<&'a str> {
-		self.name_map.get(&id).map(|x| *x)
+		self.name_map.borrow().get(&id).map(|x| *x)
 	}
 }
