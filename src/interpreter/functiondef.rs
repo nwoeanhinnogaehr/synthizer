@@ -7,6 +7,7 @@ use super::identifier::{IdMap, Identifier};
 use std::collections::VecMap;
 
 /// Represents a function definition written in synthizer
+#[derive(Show)]
 pub struct FunctionDef<'a> {
 	block: Block<'a>,
 	args: VecMap<Option<f32>>, // Default arguments
@@ -23,26 +24,35 @@ impl<'a> Parser<'a> for FunctionDef<'a> {
 		try!(expect!(iter.next().map(|(_, x)| x), Token::Symbol(Symbol::LeftParen), "expected `(`, got `{}`"));
 
 		loop {
-			let arg_ident = try!(expect_value!(iter.next().map(|(_, x)| x), Token::Ident, "expected argument name, got `{}`"));
+			let next = iter.next().map(|(_, x)| x);
+			let pos = next.map(|x| x.pos);
+			let arg_ident = try!(expect_value!(next, Token::Ident, "expected argument name, got `{}`"));
+			if args.contains_key(&arg_ident) {
+				return Err(CompileError::new(format!("argument {} defined twice", arg_ident)).with_pos(pos.unwrap()));
+			}
 
 			let next = iter.next().map(|(_, x)| x);
 			let (pos, mut token) = (next.map(|x| x.pos), next.map(|x| &x.token));
 			if let Some(&Token::Symbol(Symbol::Equals))  = token {
-					let nexttoken = iter.next().map(|(_, x)| x);
-					let value = if let Ok(_) = expect!(nexttoken, Token::Operator(Operator::Sub)) {
-						-try!(expect_value!(iter.next().map(|(_, x)| x), Token::Const, "expected numerical constant, got `{}`"))
-					} else {
-						try!(expect_value!(nexttoken, Token::Const, "expected numerical constant, got `{}`"))
-					};
-					args.insert(arg_ident, Some(value));
-					token = iter.next().map(|(_, x)| &x.token);
+				let nexttoken = iter.next().map(|(_, x)| x);
+				let value = if let Ok(_) = expect!(nexttoken, Token::Operator(Operator::Sub)) {
+					-try!(expect_value!(iter.next().map(|(_, x)| x), Token::Const, "expected numerical constant, got `{}`"))
+				} else {
+					try!(expect_value!(nexttoken, Token::Const, "expected numerical constant, got `{}`"))
+				};
+				args.insert(arg_ident, Some(value));
+				token = iter.next().map(|(_, x)| &x.token);
 			}
 			match token {
 				Some(&Token::Symbol(Symbol::Comma)) => {
-					args.insert(arg_ident, None);
+					if !args.contains_key(&arg_ident) {
+						args.insert(arg_ident, None);
+					}
 				}
 				Some(&Token::Symbol(Symbol::RightParen)) => {
-					args.insert(arg_ident, None);
+					if !args.contains_key(&arg_ident) {
+						args.insert(arg_ident, None);
+					}
 					break;
 				}
 				Some(token) => return Err(CompileError::new(format!("expected `=`, `,` or `)`, got `{}`", token)).with_pos(pos.unwrap())),
@@ -70,10 +80,36 @@ impl<'a> Function for FunctionDef<'a> {
 	}
 }
 
-struct Block<'a>;
+#[derive(Show)]
+struct Block<'a> {
+	statements: Vec<(Operator, Statement<'a>)>,
+}
+
 impl<'a> Parser<'a> for Block<'a> {
-	fn parse(tokens: &TokenSlice, scope: CowScope<'a>) -> Result<Block<'a>, CompileError> {
-		unimplemented!();
+	fn parse(tokens: &'a TokenSlice, scope: CowScope<'a>) -> Result<Block<'a>, CompileError> {
+		let mut iter = tokens.iter();
+		let mut statements = Vec::new();
+		match expect!(iter.next(), Token::Symbol(Symbol::LeftBrace)) {
+			// If it starts with `{` it's a block
+			Ok(_) => {
+				loop {
+					// if `[`
+					//	condition -> operator -> statement
+					// if operator
+					//  operator -> statement
+					// else
+					//  statement
+				}
+			}
+
+			// otherwise it's a statement
+			Err(_) => {
+				statements.push((Operator::Add, try!(Parser::parse(tokens, scope))));
+			}
+		}
+		Ok(Block {
+			statements: statements,
+		})
 	}
 }
 impl<'a> Function for Block<'a> {
@@ -82,10 +118,11 @@ impl<'a> Function for Block<'a> {
 	}
 }
 
+#[derive(Show)]
 struct Statement<'a>;
 impl<'a> Parser<'a> for Statement<'a> {
-	fn parse(tokens: &TokenSlice, scope: CowScope<'a>) -> Result<Statement<'a>, CompileError> {
-		unimplemented!();
+	fn parse(tokens: &'a TokenSlice, scope: CowScope<'a>) -> Result<Statement<'a>, CompileError> {
+		Ok(Statement)
 	}
 }
 impl<'a> Function for Statement<'a> {
