@@ -11,6 +11,7 @@ use std::collections::VecMap;
 use std::borrow::Cow;
 
 /// Represents a function call written in synthizer
+#[derive(Show)]
 pub struct FunctionCall {
 	pub func: Identifier, // the function the call refers to as a scope id
 	args: VecMap<Expression>,
@@ -99,12 +100,6 @@ impl<'a> Parser<'a> for FunctionCall {
 			func: fn_ident,
 			args: args,
 		})
-	}
-}
-
-impl fmt::Show for FunctionCall {
-	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		write!(f, "{}", self.func)
 	}
 }
 

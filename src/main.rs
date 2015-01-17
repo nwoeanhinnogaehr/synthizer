@@ -46,13 +46,14 @@ fn main() {
 					scope.set_func(idmap.id("~"), sin);
 					scope.set_func(idmap.id("sqrt"), sqrt);
 					scope.set_func(idmap.id("abs"), abs);
+					println!("identifier map: {:?}", idmap);
 					let res: Result<interpreter::functiondef::FunctionDef, interpreter::CompileError> = interpreter::parser::Parser::parse(tok.as_slice(), Cow::Borrowed(&scope));
 					match res {
 						Ok(x) => {
 							println!("{:?}", x);
 						},
 						Err(e) => {
-							println!("Error parsing expr: {}", e);
+							println!("{}", e);
 						},
 					}
 				},

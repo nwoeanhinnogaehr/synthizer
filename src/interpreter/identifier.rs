@@ -1,6 +1,7 @@
 use std::collections::hash_map::{HashMap, Entry};
 use std::collections::VecMap;
 use std::cell::{RefCell, Cell};
+use std::fmt;
 
 pub type Identifier = usize;
 
@@ -8,6 +9,12 @@ pub struct IdMap<'a> {
 	count: Cell<Identifier>,
 	id_map: RefCell<HashMap<&'a str, Identifier>>,
 	name_map: RefCell<VecMap<&'a str>>,
+}
+
+impl<'a> fmt::Show for IdMap<'a> {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		write!(f, "{:?}", self.name_map.borrow())
+	}
 }
 
 impl<'a> IdMap<'a> {

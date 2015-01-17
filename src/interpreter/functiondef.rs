@@ -4,18 +4,20 @@ use super::lexer::{Token, TokenSlice, Symbol, Operator};
 use super::function::Function;
 use super::parser::Parser;
 use super::identifier::{IdMap, Identifier};
+use super::expr::Expression;
+use super::functioncall::FunctionCall;
 use std::collections::VecMap;
 
 /// Represents a function definition written in synthizer
 #[derive(Show)]
-pub struct FunctionDef<'a> {
-	block: Block<'a>,
+pub struct FunctionDef {
+	statement: Statement,
 	args: VecMap<Option<f32>>, // Default arguments
 	pub ident: Identifier,
 }
-impl<'a> Parser<'a> for FunctionDef<'a> {
+impl<'a> Parser<'a> for FunctionDef {
 	/// Parse a function definition from a token stream. Scope is used to find function definitions
-	fn parse(tokens: &'a TokenSlice, scope: CowScope<'a>) -> Result<FunctionDef<'a>, CompileError> {
+	fn parse(tokens: &'a TokenSlice, scope: CowScope<'a>) -> Result<FunctionDef, CompileError> {
 		let mut iter = tokens.iter().enumerate();
 
 		let mut args = VecMap::new();
@@ -59,74 +61,93 @@ impl<'a> Parser<'a> for FunctionDef<'a> {
 				None => return Err(CompileError::new_static("expected `=`, `,` or `)`, got EOF")),
 			}
 		}
-		try!(expect!(iter.next().map(|(_, x)| x), Token::Symbol(Symbol::Colon), "expected `:` following function argument declaration, got `{}`"));
+		//try!(expect!(iter.next().map(|(_, x)| x), Token::Symbol(Symbol::Colon), "expected `:` following function argument declaration, got `{}`"));
 
 		let pos = iter.next().map(|(x, _)| x);
-		let block = match pos {
+		let statement = match pos {
 			Some(pos) => try!(Parser::parse(&tokens[pos..], scope)),
 			None => return Err(CompileError::new_static("expected block, got EOF")),
 		};
 
 		Ok(FunctionDef {
-			block: block,
+			statement: statement,
 			args: args,
 			ident: fn_ident,
 		})
 	}
 }
-impl<'a> Function for FunctionDef<'a> {
+impl Function for FunctionDef {
 	fn call(&self, scope: CowScope, idmap: &IdMap) -> Result<f32, CompileError> {
 		unimplemented!();
 	}
 }
 
 #[derive(Show)]
-struct Block<'a> {
-	statements: Vec<(Operator, Statement<'a>)>,
+enum Statement {
+	Block(Vec<(Option<Expression>, Operator, Statement)>),
+	Expr(Expression),
+	Func(FunctionCall)
 }
 
-impl<'a> Parser<'a> for Block<'a> {
-	fn parse(tokens: &'a TokenSlice, scope: CowScope<'a>) -> Result<Block<'a>, CompileError> {
+impl<'a> Parser<'a> for Statement {
+	fn parse(tokens: &'a TokenSlice, scope: CowScope<'a>) -> Result<Statement, CompileError> {
 		let mut iter = tokens.iter();
 		let mut statements = Vec::new();
 		match expect!(iter.next(), Token::Symbol(Symbol::LeftBrace)) {
 			// If it starts with `{` it's a block
 			Ok(_) => {
 				loop {
+					let token = iter.next();
 					// if `[`
 					//	condition -> operator -> statement
 					// if operator
 					//  operator -> statement
+					// if `}`
+					//  break
 					// else
 					//  statement
+					match token.map(|x| x.token) {
+						Some(Token::Symbol(Symbol::LeftBracket)) => {
+
+						}
+						Some(Token::Operator(op)) => {
+
+						}
+						Some(Token::Symbol(Symbol::RightBrace)) => {
+							break;
+						}
+						Some(token) => {
+
+						}
+						None => {
+							return Err(CompileError::new_static("expected block, expression, or function, got EOF"));
+						}
+					}
 				}
 			}
 
-			// otherwise it's a statement
+			// otherwise it's a expression or function
 			Err(_) => {
-				statements.push((Operator::Add, try!(Parser::parse(tokens, scope))));
+				match Parser::parse(tokens, scope.clone()) { // Try to parse it as a function
+					Ok(call) =>
+						return Ok(Statement::Func(call)),
+					Err(e) => // If that fails, try as an expression.
+					{println!("{}", e);
+						return Ok(Statement::Expr(try!(Parser::parse(tokens, scope))))},
+				}
 			}
 		}
-		Ok(Block {
-			statements: statements,
-		})
+		Ok(Statement::Block(statements))
 	}
 }
-impl<'a> Function for Block<'a> {
+impl Function for Statement {
 	fn call(&self, scope: CowScope, idmap: &IdMap) -> Result<f32, CompileError> {
-		unimplemented!();
-	}
-}
-
-#[derive(Show)]
-struct Statement<'a>;
-impl<'a> Parser<'a> for Statement<'a> {
-	fn parse(tokens: &'a TokenSlice, scope: CowScope<'a>) -> Result<Statement<'a>, CompileError> {
-		Ok(Statement)
-	}
-}
-impl<'a> Function for Statement<'a> {
-	fn call(&self, scope: CowScope, idmap: &IdMap) -> Result<f32, CompileError> {
-		unimplemented!();
+		match self {
+			&Statement::Func(ref x) =>
+				x.call(scope, idmap),
+			&Statement::Expr(ref x) =>
+				x.call(scope, idmap),
+			_ => unimplemented!(),
+		}
 	}
 }

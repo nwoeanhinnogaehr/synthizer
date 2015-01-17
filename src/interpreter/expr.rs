@@ -6,6 +6,7 @@ use super::function::Function;
 use super::identifier::{Identifier, IdMap};
 use std::num::Float;
 
+#[derive(Show)]
 pub struct Expression {
 	rpn: Vec<ExprToken>,
 }
