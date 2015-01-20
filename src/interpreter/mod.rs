@@ -17,7 +17,7 @@ pub struct SourcePos {
 	pub col: usize,
 }
 
-impl fmt::String for SourcePos {
+impl fmt::Show for SourcePos {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		write!(f, "{}:{}", self.line, self.col)
 	}
@@ -54,7 +54,7 @@ impl CompileError {
 impl fmt::String for CompileError {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		match self.pos {
-			Some(pos) => write!(f, "{} :: {}", pos, self.msg),
+			Some(pos) => write!(f, "{:?} :: {}", pos, self.msg),
 			None => write!(f, "{}", self.msg),
 		}
 	}

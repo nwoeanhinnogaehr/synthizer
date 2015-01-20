@@ -4,7 +4,7 @@ use super::identifier::{Identifier, IdMap};
 use std::fmt;
 
 /// The various types that a token can be
-#[derive(Copy, PartialEq)]
+#[derive(Show, Copy, PartialEq)]
 pub enum Token {
 	Ident(Identifier),
 	Const(f32),
@@ -87,8 +87,8 @@ impl Symbol {
 			")" => RightParen,
 			"{" => LeftBrace,
 			"}" => RightBrace,
-			"[" => LeftBrace,
-			"]" => RightBrace,
+			"[" => LeftBracket,
+			"]" => RightBracket,
 			_ => return None,
 		})
 	}
@@ -117,7 +117,7 @@ impl Token {
 }
 
 /// Stores the type and position of a token
-#[derive(Copy)]
+#[derive(Copy, Show)]
 pub struct SourceToken {
 	pub token: Token,
 	pub pos: SourcePos,
@@ -125,7 +125,7 @@ pub struct SourceToken {
 
 impl fmt::String for SourceToken {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		write!(f, "`{}`;{}", self.token, self.pos)
+		write!(f, "`{}`;{:?}", self.token, self.pos)
 	}
 }
 

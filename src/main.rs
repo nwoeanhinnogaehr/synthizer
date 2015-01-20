@@ -5,8 +5,8 @@
 extern crate regex;
 #[plugin] extern crate regex_macros;
 extern crate "rustc-serialize" as rustc_serialize;
-extern crate docopt;
 #[plugin] extern crate docopt_macros;
+extern crate docopt;
 
 use std::io::File;
 use std::borrow::Cow;
@@ -39,6 +39,7 @@ fn main() {
 			let idmap = interpreter::identifier::IdMap::new();
 			match interpreter::lexer::lex(string.as_slice(), &idmap) {
 				Ok(tok) => {
+					println!("{:?}", tok);
 					let mut scope = interpreter::scope::Scope::new();
 					let sin = &interpreter::function::SinFunction::new();
 					let sqrt = &interpreter::function::SqrtFunction::new();
