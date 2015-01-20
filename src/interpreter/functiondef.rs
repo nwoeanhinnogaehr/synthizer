@@ -22,8 +22,9 @@ impl<'a> Parser<'a> for FunctionDef {
 
 		let mut args = VecMap::new();
 
+		try!(expect!(iter.next().map(|(_, x)| x), Token::Symbol(Symbol::LeftBracket), "expected `[`, got `{}`"));
+
 		let fn_ident = try!(expect_value!(iter.next().map(|(_, x)| x), Token::Ident, "expected function name, got `{}`"));
-		try!(expect!(iter.next().map(|(_, x)| x), Token::Symbol(Symbol::LeftParen), "expected `(`, got `{}`"));
 
 		loop {
 			let next = iter.next().map(|(_, x)| x);
@@ -51,14 +52,14 @@ impl<'a> Parser<'a> for FunctionDef {
 						args.insert(arg_ident, None);
 					}
 				}
-				Some(&Token::Symbol(Symbol::RightParen)) => {
+				Some(&Token::Symbol(Symbol::RightBracket)) => {
 					if !args.contains_key(&arg_ident) {
 						args.insert(arg_ident, None);
 					}
 					break;
 				}
-				Some(token) => return Err(CompileError::new(format!("expected `=`, `,` or `)`, got `{}`", token)).with_pos(pos.unwrap())),
-				None => return Err(CompileError::new_static("expected `=`, `,` or `)`, got EOF")),
+				Some(token) => return Err(CompileError::new(format!("expected `=`, `,` or `]`, got `{}`", token)).with_pos(pos.unwrap())),
+				None => return Err(CompileError::new_static("expected `=`, `,` or `]`, got EOF")),
 			}
 		}
 		//try!(expect!(iter.next().map(|(_, x)| x), Token::Symbol(Symbol::Colon), "expected `:` following function argument declaration, got `{}`"));

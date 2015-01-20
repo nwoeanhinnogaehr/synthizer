@@ -23,12 +23,12 @@ impl<'a> Parser<'a> for FunctionCall {
 
 		let mut args = VecMap::new();
 
+		// Opening bracket
+		try!(expect!(iter.next().map(|(_, x)| x), Token::Symbol(Symbol::LeftBracket), "expected `[`, got `{}`"));
+
 		// Function name
 		let fn_ident = try!(expect_value!(iter.next().map(|(_, x)| x),
 			Token::Ident, "expected function name, got `{}`"));
-
-		// Opening paren
-		try!(expect!(iter.next().map(|(_, x)| x), Token::Symbol(Symbol::LeftParen), "expected `(`, got `{}`"));
 
 		// Parse arguments
 		'outer: loop {
@@ -75,15 +75,15 @@ impl<'a> Parser<'a> for FunctionCall {
 						}
 
 						// End of function call
-						Some(&Token::Symbol(Symbol::RightParen)) => {
+						Some(&Token::Symbol(Symbol::RightBracket)) => {
 							try!(write_arg());
 							break 'outer;
 						}
 
 						// We need to handle nested parens so we can include parens in the argument
 						// expressions
-						Some(&Token::Symbol(Symbol::LeftParen)) => {
-							try!(parser::match_paren(&mut iter, Token::Symbol(Symbol::LeftParen), Token::Symbol(Symbol::RightParen)));
+						Some(&Token::Symbol(Symbol::LeftBracket)) => {
+							try!(parser::match_paren(&mut iter, Token::Symbol(Symbol::LeftBracket), Token::Symbol(Symbol::RightBracket)));
 						}
 
 						None => {
