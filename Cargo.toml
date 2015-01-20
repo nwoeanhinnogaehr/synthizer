@@ -6,6 +6,7 @@ authors = ["Noah Weninger"]
 
 [dependencies]
 rustc-serialize = "*"
+docopt = "*"
 docopt_macros = "*"
 
 [dependencies.regex]
