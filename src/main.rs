@@ -15,11 +15,13 @@ pub mod interpreter;
 
 docopt!(Args, "
 Usage:
-  synthizer <file>
+  synthizer [--tokens] [--idmap] <file>
   synthizer --help
 
 Options:
   -h, --help       Show this message.
+  -t, --tokens     Show tokens
+  -i, --idmap      Show identifier map
 ");
 
 fn main() {
@@ -39,7 +41,13 @@ fn main() {
 			let idmap = interpreter::identifier::IdMap::new();
 			match interpreter::lexer::lex(string.as_slice(), &idmap) {
 				Ok(tok) => {
-					println!("{:?}", tok);
+					if args.flag_tokens {
+						println!("\nTokens:");
+						for t in tok.iter() {
+							println!("\t{}", t);
+						}
+						println!("");
+					}
 					let mut scope = interpreter::scope::Scope::new();
 					let sin = &interpreter::function::SinFunction::new();
 					let sqrt = &interpreter::function::SqrtFunction::new();
@@ -47,7 +55,13 @@ fn main() {
 					scope.set_func(idmap.id("~"), sin);
 					scope.set_func(idmap.id("sqrt"), sqrt);
 					scope.set_func(idmap.id("abs"), abs);
-					println!("identifier map: {:?}", idmap);
+					if args.flag_idmap {
+						println!("Identifier map:");
+						for (v, n) in idmap.name_map.borrow().iter() {
+							println!("\t{} -> {}", v, n);
+						}
+						println!("");
+					}
 					let res: Result<interpreter::functiondef::FunctionDef, interpreter::CompileError> = interpreter::parser::Parser::parse(tok.as_slice(), Cow::Borrowed(&scope));
 					match res {
 						Ok(x) => {

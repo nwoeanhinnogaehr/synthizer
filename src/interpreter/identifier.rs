@@ -8,7 +8,7 @@ pub type Identifier = usize;
 pub struct IdMap<'a> {
 	count: Cell<Identifier>,
 	id_map: RefCell<HashMap<&'a str, Identifier>>,
-	name_map: RefCell<VecMap<&'a str>>,
+	pub name_map: RefCell<VecMap<&'a str>>,
 }
 
 impl<'a> fmt::Show for IdMap<'a> {

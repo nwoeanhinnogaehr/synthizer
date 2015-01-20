@@ -98,11 +98,11 @@ impl fmt::String for Token {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		use self::Token::*;
 		match *self {
-			Ident(x) => write!(f, "{}", x),
+			Ident(x) => write!(f, "Id({})", x),
 			Operator(x) => write!(f, "{:?}", x),
-			Const(x) => write!(f, "{}", x),
+			Const(x) => write!(f, "Const({})", x),
 			Symbol(x) => write!(f, "{:?}", x),
-			Newline => write!(f, "\\n")
+			Newline => write!(f, "Newline")
 		}
 	}
 }
@@ -125,7 +125,7 @@ pub struct SourceToken {
 
 impl fmt::String for SourceToken {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		write!(f, "`{}`;{:?}", self.token, self.pos)
+		write!(f, "{:?}\t`{}`", self.pos, self.token)
 	}
 }
 
