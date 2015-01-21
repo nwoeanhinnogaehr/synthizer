@@ -78,7 +78,7 @@ impl<'a> Parser<'a> for FunctionDef {
 	}
 }
 impl Function for FunctionDef {
-	fn call(&self, scope: CowScope, idmap: &IdMap) -> Result<f32, CompileError> {
+	fn call(&self, _: CowScope, _: &IdMap) -> Result<f32, CompileError> {
 		unimplemented!();
 	}
 }

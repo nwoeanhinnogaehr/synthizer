@@ -3,8 +3,6 @@
 use super::CompileError;
 use super::lexer::{self, Token, SourceToken};
 use super::scope::CowScope;
-use std::iter;
-use std::slice;
 
 pub trait Parser<'a> {
 	fn parse(tokens: TokenStream<'a>, scope: CowScope<'a>) -> Result<Self, CompileError>;
@@ -49,15 +47,19 @@ impl<'a> TokenStream<'a> {
 		}
 	}
 
+	fn offset(&self, offset: isize) -> usize {
+		((self.pos as isize) + offset) as usize //really?
+	}
+
 	pub fn seek(&mut self, offset: isize) {
-		self.pos = ((self.pos as isize) + offset) as usize; //really?
+		self.pos = self.offset(offset);
 	}
 
 	pub fn peek(&self, offset: isize) -> Option<SourceToken> {
 		if self.pos >= self.tokens.len() {
 			None
 		} else {
-			Some(self.tokens[self.pos])
+			Some(self.tokens[self.offset(offset)])
 		}
 	}
 }
@@ -132,8 +134,4 @@ pub fn match_paren<'a>(tokens: TokenStream, open: lexer::Token, close: lexer::To
 		}
 	}
 	Ok(tokens)
-}
-
-//TODO
-pub fn eat_newlines<'a>(iter: &mut iter::Enumerate<slice::Iter<'a, SourceToken>>) {
 }

@@ -3,10 +3,8 @@ use super::CompileError;
 use super::parser::{Parser, TokenStream};
 use super::expr::Expression;
 use super::function::Function;
-use super::parser;
 use super::lexer::{Token, Symbol};
 use super::identifier::{Identifier, IdMap};
-use std::fmt;
 use std::collections::VecMap;
 use std::borrow::Cow;
 
