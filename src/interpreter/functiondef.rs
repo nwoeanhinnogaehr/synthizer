@@ -2,7 +2,7 @@ use super::scope::CowScope;
 use super::CompileError;
 use super::lexer::{Token, Symbol, Operator};
 use super::function::Function;
-use super::parser::{Parser, TokenStream};
+use super::parser::{self, Parser, TokenStream};
 use super::identifier::{IdMap, Identifier};
 use super::expr::Expression;
 use std::collections::VecMap;
@@ -94,33 +94,48 @@ impl<'a> Parser<'a> for Statement {
 		match expect!(tokens.peek(0), Token::Symbol(Symbol::LeftBrace)) {
 			// If it starts with `{` it's a block
 			Ok(_) => {
+				tokens.next(); // consume brace
 				loop {
-					let token = tokens.next();
-					// if `[`
-					//	condition -> operator -> statement
-					// if operator
-					//  operator -> statement
-					// if `}`
-					//  break
-					// else
-					//  statement
-					match token.map(|x| x.token) {
-						Some(Token::Symbol(Symbol::LeftBracket)) => {
-
-						}
-						Some(Token::Operator(op)) => {
-
-						}
-						Some(Token::Symbol(Symbol::RightBrace)) => {
-							break;
-						}
-						Some(token) => {
-
-						}
-						None => {
-							return Err(CompileError::new_static("expected block, expression, or function, got EOF"));
+					let operator = match tokens.next().map(|x| x.token) {
+						Some(Token::Operator(op)) => op,
+						Some(Token::Newline) => continue,
+						Some(Token::Symbol(Symbol::RightBrace)) => break,
+						Some(x) =>
+							return Err(CompileError::new(format!("expected operator, newline or }}, got {}", x)).with_pos(tokens.peek(0).map(|x| x.pos).unwrap())),
+						None =>
+							return Err(CompileError::new_static("expected operator, newline or `}`, got EOF"))
+					};
+					let mut condition = None;
+					let start_pos = tokens.pos();
+					let mut pos;
+					loop {
+						pos = tokens.pos();
+						match tokens.next().map(|x| x.token) {
+							Some(Token::Newline) => break,
+							Some(Token::Symbol(Symbol::QuestionMark)) => {
+								let start_pos = pos;
+								let mut pos;
+								loop {
+									pos = tokens.pos();
+									match tokens.next().map(|x| x.token) {
+										Some(Token::Newline) => break,
+										Some(_) => { },
+										None => return Err(CompileError::new_static("expected newline to end condition, got EOF")),
+									}
+								}
+								condition = Some(try!(Parser::parse(tokens.slice(start_pos+1, pos), scope.clone())));
+								break;
+							}
+							Some(_) => { }
+							None =>
+								return Err(CompileError::new_static("expected newline or `?` to end expression, got EOF")),
 						}
 					}
+					let statement = try!(Parser::parse(tokens.slice(start_pos, pos), scope.clone()));
+					//if let Some(Token::Symbol(Symbol::LeftBrace)) = tokens.peek(0).map(|x| x.token) {
+						//tokens = try!(parser::match_paren(tokens, Token::Symbol(Symbol::LeftBrace), Token::Symbol(Symbol::RightBrace)));
+					//}
+					statements.push((condition, operator, statement));
 				}
 			}
 

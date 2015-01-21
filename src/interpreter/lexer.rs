@@ -67,6 +67,7 @@ pub enum Symbol {
 	Comma,
 	Equals,
 	Colon,
+	QuestionMark,
 	LeftParen,
 	RightParen,
 	LeftBrace,
@@ -83,6 +84,7 @@ impl Symbol {
 			"," => Comma,
 			"=" => Equals,
 			":" => Colon,
+			"?" => QuestionMark,
 			"(" => LeftParen,
 			")" => RightParen,
 			"{" => LeftBrace,
@@ -134,7 +136,7 @@ static WHITESPACE_REGEX: Regex = regex!(r"[ \t]+");
 static NEWLINE_REGEX: Regex = regex!(r"[\n]+");
 static CONST_REGEX: Regex = regex!(r"([0-9]+\.?[0-9]*|[0-9]*\.?[0-9]+)([eE]-?[0-9]+)?");
 static OPERATOR_REGEX: Regex = regex!(r"\^\^|>=|<=|~=|[\+\*/\^><!%-]|&&|\|\||==|!=");
-static SYMBOL_REGEX: Regex = regex!(r"[\.,=:\(\)\{\}\]\[]");
+static SYMBOL_REGEX: Regex = regex!(r"[\.,=:\?\(\)\{\}\]\[]");
 static COMMENT_REGEX: Regex = regex!(r"//.*");
 
 pub fn lex<'a>(string: &'a str, idmap: &'a IdMap<'a>) -> Result<Vec<SourceToken>, CompileError> {
