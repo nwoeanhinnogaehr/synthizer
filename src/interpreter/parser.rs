@@ -1,13 +1,65 @@
 #![macro_use]
 
 use super::CompileError;
-use super::lexer::{self, Token, TokenSlice, SourceToken};
+use super::lexer::{self, Token, SourceToken};
 use super::scope::CowScope;
 use std::iter;
 use std::slice;
 
 pub trait Parser<'a> {
-	fn parse(tokens: &'a TokenSlice, scope: CowScope<'a>) -> Result<Self, CompileError>;
+	fn parse(tokens: TokenStream<'a>, scope: CowScope<'a>) -> Result<Self, CompileError>;
+}
+
+#[derive(Copy)]
+pub struct TokenStream<'a> {
+	tokens: &'a [SourceToken],
+	pos: usize,
+}
+
+impl<'a> TokenStream<'a> {
+	pub fn new(tokens: &'a [SourceToken]) -> TokenStream<'a> {
+		TokenStream {
+			tokens: tokens,
+			pos: 0
+		}
+	}
+
+	pub fn next(&mut self) -> Option<SourceToken> {
+		let res = self.peek(0);
+		self.pos += 1;
+		res
+	}
+
+	pub fn is_empty(&self) -> bool {
+		self.pos >= self.tokens.len()
+	}
+
+	pub fn pos(&self) -> usize {
+		self.pos
+	}
+
+	pub fn len(&self) -> usize {
+		self.tokens.len()
+	}
+
+	pub fn slice(&self, from: usize, to: usize) -> TokenStream<'a> {
+		TokenStream {
+			tokens: &self.tokens[from..to],
+			pos: 0,
+		}
+	}
+
+	pub fn seek(&mut self, offset: isize) {
+		self.pos = ((self.pos as isize) + offset) as usize; //really?
+	}
+
+	pub fn peek(&self, offset: isize) -> Option<SourceToken> {
+		if self.pos >= self.tokens.len() {
+			None
+		} else {
+			Some(self.tokens[self.pos])
+		}
+	}
 }
 
 macro_rules! expect_value(
@@ -40,7 +92,7 @@ macro_rules! expect(
 		match $token {
 			Some(t) => {
 				match t.token {
-					$ty => Ok(&t.token),
+					$ty => Ok(t.token),
 					ref x => Err(CompileError::new(format!($err, x)).with_pos(t.pos))
 				}
 			},
@@ -51,7 +103,7 @@ macro_rules! expect(
 		match $token {
 			Some(t) => {
 				match t.token {
-					$ty => Ok(&t.token),
+					$ty => Ok(t.token),
 					_ => Err(())
 				}
 			},
@@ -62,16 +114,15 @@ macro_rules! expect(
 
 // Advances an iterator to the matching parenthesis
 // Assumes the first opening paren was already consumed
-pub fn match_paren<'a>(iter: &mut iter::Enumerate<slice::Iter<'a, SourceToken>>,
-                       open: lexer::Token, close: lexer::Token) -> Result<(), CompileError> {
+pub fn match_paren<'a>(tokens: TokenStream, open: lexer::Token, close: lexer::Token) -> Result<TokenStream, CompileError> {
+	let mut tokens = tokens;
 	let mut depth = 1i32;
 	while depth > 0 {
-		let next = iter.next();
-		match next.map(|(_, x)| &x.token) {
-			Some(x) if *x == open => {
+		match tokens.next().map(|x| x.token) {
+			Some(x) if x == open => {
 				depth += 1;
 			}
-			Some(x) if *x == close => {
+			Some(x) if x == close => {
 				depth -= 1;
 			}
 			None => {
@@ -80,7 +131,7 @@ pub fn match_paren<'a>(iter: &mut iter::Enumerate<slice::Iter<'a, SourceToken>>,
 			_ => { }
 		}
 	}
-	Ok(())
+	Ok(tokens)
 }
 
 //TODO

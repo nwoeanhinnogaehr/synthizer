@@ -1,5 +1,5 @@
-use super::parser::Parser;
-use super::lexer::{Token, TokenSlice, Symbol, Operator};
+use super::parser::{Parser, TokenStream};
+use super::lexer::{Token, Symbol, Operator};
 use super::{CompileError, from_bool, is_truthy};
 use super::scope::CowScope;
 use super::function::Function;
@@ -12,7 +12,7 @@ pub struct Expression {
 }
 
 impl<'a> Parser<'a> for Expression {
-	fn parse(tokens: &TokenSlice, _: CowScope<'a>) -> Result<Expression, CompileError> {
+	fn parse(tokens: TokenStream<'a>, _: CowScope<'a>) -> Result<Expression, CompileError> {
 		let out = try!(to_expr_tokens(tokens));
 		let out = try!(shunting_yard(out));
 
@@ -96,16 +96,17 @@ impl ExprOperator {
 
 // Converts tokens from the lexer into ExprTokens, which are simplified to drop any strings and
 // contain only information understandable by the expression parser.
-fn to_expr_tokens<'a>(tokens: &TokenSlice) -> Result<Vec<ExprToken>, CompileError> {
+fn to_expr_tokens<'a>(tokens: TokenStream<'a>) -> Result<Vec<ExprToken>, CompileError> {
+	let mut tokens = tokens;
+
 	if tokens.is_empty() {
 		return Err(CompileError::new_static("empty expression in file"));
 	}
 
 	let mut out = Vec::new();
-	let mut iter = tokens.iter().peekable();
 
 	loop {
-		let sourcetoken = match iter.next() {
+		let sourcetoken = match tokens.next() {
 			Some(v) => v,
 			None => break,
 		};

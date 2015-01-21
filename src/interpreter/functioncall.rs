@@ -1,10 +1,10 @@
 use super::scope::{CowScope};
 use super::CompileError;
-use super::parser::Parser;
+use super::parser::{Parser, TokenStream};
 use super::expr::Expression;
 use super::function::Function;
 use super::parser;
-use super::lexer::{Token, TokenSlice, Symbol};
+use super::lexer::{Token, Symbol};
 use super::identifier::{Identifier, IdMap};
 use std::fmt;
 use std::collections::VecMap;
@@ -18,21 +18,20 @@ pub struct FunctionCall {
 }
 impl<'a> Parser<'a> for FunctionCall {
 	/// Parse a function call from a token stream. Scope is used to find function definitions
-	fn parse(tokens: &'a TokenSlice, scope: CowScope<'a>) -> Result<FunctionCall, CompileError> {
-		let mut iter = tokens.iter().enumerate();
-
+	fn parse(tokens: TokenStream<'a>, scope: CowScope<'a>) -> Result<FunctionCall, CompileError> {
+		let mut tokens = tokens;
 		let mut args = VecMap::new();
 
 		// Opening bracket
-		try!(expect!(iter.next().map(|(_, x)| x), Token::Symbol(Symbol::LeftBracket), "expected `[`, got `{}`"));
+		try!(expect!(tokens.next(), Token::Symbol(Symbol::LeftBracket), "expected `[`, got `{}`"));
 
 		// Function name
-		let fn_ident = try!(expect_value!(iter.next().map(|(_, x)| x),
+		let fn_ident = try!(expect_value!(tokens.next(),
 			Token::Ident, "expected function name, got `{}`"));
 
 		// Parse arguments
 		'outer: loop {
-			let token = iter.next().map(|(_, x)| x);
+			let token = tokens.next();
 			if let Ok(_) = expect!(token, Token::Symbol(Symbol::RightParen)) {
 				// Got closing paren, end of list
 				break;
@@ -40,21 +39,19 @@ impl<'a> Parser<'a> for FunctionCall {
 				// Argument name
 				let arg_ident = try!(expect_value!(token, Token::Ident, "expected `)` or argument name, got `{}`"));
 
-				// Mark the position of the start of the expression so we can later extract a slice
-				let next = iter.next();
-				let (expr_start, token) = (next.map(|(x, _)| x), next.map(|(_, x)| x));
-
 				// Equals
-				try!(expect!(token, Token::Symbol(Symbol::Equals), "expected `=`, got `{}`"));
+				try!(expect!(tokens.next(), Token::Symbol(Symbol::Equals), "expected `=`, got `{}`"));
+
+				// Mark the position of the start of the expression so we can later extract a slice
+				let expr_start = tokens.pos();
 
 				loop {
-					let next = iter.next();
-					let (pos, token) = (next.map(|(x, _)| x), next.map(|(_, x)| x));
+					let token = tokens.next();
 
 					// Adds all the tokens we have scanned so far in the inner loop to the args
 					// list
-					let mut write_arg = |&mut :| -> Result<(), CompileError> {
-						let slice = &tokens[expr_start.unwrap() + 1..pos.unwrap()];
+					let mut write_arg = |&mut:| -> Result<(), CompileError> {
+						let slice = tokens.slice(expr_start, tokens.pos() - 1);
 						let expr = try!(Parser::parse(slice, scope.clone()));
 						match args.get(&arg_ident) {
 							Some(_) => {
@@ -67,23 +64,24 @@ impl<'a> Parser<'a> for FunctionCall {
 						Ok(())
 					};
 
-					match token.map(|x| &x.token) {
+					match token.map(|x| x.token) {
 						// Advance to next argument
-						Some(&Token::Symbol(Symbol::Comma)) => {
+						Some(Token::Symbol(Symbol::Comma)) => {
 							try!(write_arg());
 							break;
 						}
 
 						// End of function call
-						Some(&Token::Symbol(Symbol::RightBracket)) => {
+						Some(Token::Symbol(Symbol::RightBracket)) => {
 							try!(write_arg());
 							break 'outer;
 						}
 
 						// We need to handle nested parens so we can include parens in the argument
 						// expressions
-						Some(&Token::Symbol(Symbol::LeftBracket)) => {
-							try!(parser::match_paren(&mut iter, Token::Symbol(Symbol::LeftBracket), Token::Symbol(Symbol::RightBracket)));
+						Some(Token::Symbol(Symbol::LeftBracket)) => {
+							//TODO borrowing issues with the closure above, need to rewrite it out.
+							//tokens = try!(parser::match_paren(tokens, Token::Symbol(Symbol::LeftBracket), Token::Symbol(Symbol::RightBracket)));
 						}
 
 						None => {

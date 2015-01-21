@@ -137,10 +137,7 @@ static OPERATOR_REGEX: Regex = regex!(r"\^\^|>=|<=|~=|[\+\*/\^><!%-]|&&|\|\||==|
 static SYMBOL_REGEX: Regex = regex!(r"[\.,=:\(\)\{\}\]\[]");
 static COMMENT_REGEX: Regex = regex!(r"//.*");
 
-pub type TokenList = Vec<SourceToken>;
-pub type TokenSlice = [SourceToken];
-
-pub fn lex<'a>(string: &'a str, idmap: &'a IdMap<'a>) -> Result<TokenList, CompileError> {
+pub fn lex<'a>(string: &'a str, idmap: &'a IdMap<'a>) -> Result<Vec<SourceToken>, CompileError> {
 	let mut walk = string;
 	let mut tokens = Vec::new();
 	let mut pos = SourcePos { line: 1us, col: 1us };

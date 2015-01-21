@@ -1,5 +1,5 @@
 use super::function::Function;
-use super::identifier::Identifier;
+use super::identifier::{Identifier, IdMap};
 use std::collections::VecMap;
 use std::borrow::Cow;
 
