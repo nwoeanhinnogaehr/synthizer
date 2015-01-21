@@ -30,12 +30,12 @@ impl<'a> Parser<'a> for FunctionCall {
 		// Parse arguments
 		'outer: loop {
 			let token = tokens.next();
-			if let Ok(_) = expect!(token, Token::Symbol(Symbol::RightParen)) {
+			if let Ok(_) = expect!(token, Token::Symbol(Symbol::RightBracket)) {
 				// Got closing paren, end of list
 				break;
 			} else {
 				// Argument name
-				let arg_ident = try!(expect_value!(token, Token::Ident, "expected `)` or argument name, got `{}`"));
+				let arg_ident = try!(expect_value!(token, Token::Ident, "expected `]` or argument name, got `{}`"));
 
 				// Equals
 				try!(expect!(tokens.next(), Token::Symbol(Symbol::Equals), "expected `=`, got `{}`"));
