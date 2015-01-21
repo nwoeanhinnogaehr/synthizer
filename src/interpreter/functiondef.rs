@@ -5,7 +5,6 @@ use super::function::Function;
 use super::parser::{Parser, TokenStream};
 use super::identifier::{IdMap, Identifier};
 use super::expr::Expression;
-use super::functioncall::FunctionCall;
 use std::collections::VecMap;
 
 /// Represents a function definition written in synthizer
@@ -64,7 +63,6 @@ impl<'a> Parser<'a> for FunctionDef {
 		//try!(expect!(iter.next().map(|(_, x)| x), Token::Symbol(Symbol::Colon), "expected `:` following function argument declaration, got `{}`"));
 
 		let statement = if !tokens.is_empty() {
-			tokens.seek(-1);
 			try!(Parser::parse(tokens, scope))
 		} else {
 			return Err(CompileError::new_static("expected block, got EOF"));
@@ -87,14 +85,13 @@ impl Function for FunctionDef {
 enum Statement {
 	Block(Vec<(Option<Expression>, Operator, Statement)>),
 	Expr(Expression),
-	Func(FunctionCall)
 }
 
 impl<'a> Parser<'a> for Statement {
 	fn parse(tokens: TokenStream<'a>, scope: CowScope<'a>) -> Result<Statement, CompileError> {
 		let mut tokens = tokens;
 		let mut statements = Vec::new();
-		match expect!(tokens.next(), Token::Symbol(Symbol::LeftBrace)) {
+		match expect!(tokens.peek(0), Token::Symbol(Symbol::LeftBrace)) {
 			// If it starts with `{` it's a block
 			Ok(_) => {
 				loop {
@@ -127,14 +124,9 @@ impl<'a> Parser<'a> for Statement {
 				}
 			}
 
-			// otherwise it's a expression or function
+			// otherwise it's an expression
 			Err(_) => {
-				match Parser::parse(tokens, scope.clone()) { // Try to parse it as a function
-					Ok(call) =>
-						return Ok(Statement::Func(call)),
-					Err(e) => // If that fails, try as an expression.
-						return Ok(Statement::Expr(try!(Parser::parse(tokens, scope)))),
-				}
+				return Ok(Statement::Expr(try!(Parser::parse(tokens, scope))));
 			}
 		}
 		Ok(Statement::Block(statements))
@@ -143,8 +135,6 @@ impl<'a> Parser<'a> for Statement {
 impl Function for Statement {
 	fn call(&self, scope: CowScope, idmap: &IdMap) -> Result<f32, CompileError> {
 		match self {
-			&Statement::Func(ref x) =>
-				x.call(scope, idmap),
 			&Statement::Expr(ref x) =>
 				x.call(scope, idmap),
 			_ => unimplemented!(),

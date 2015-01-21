@@ -9,7 +9,7 @@ use std::collections::VecMap;
 use std::borrow::Cow;
 
 /// Represents a function call written in synthizer
-#[derive(Show)]
+#[derive(Show, Clone)]
 pub struct FunctionCall {
 	pub func: Identifier, // the function the call refers to as a scope id
 	args: VecMap<Expression>,

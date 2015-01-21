@@ -13,7 +13,7 @@ pub enum Token {
 	Newline,
 }
 
-#[derive(Show, Copy, PartialEq)]
+#[derive(Show, Copy, PartialEq, Clone)]
 pub enum Operator {
 	Add,
 	Sub,
@@ -61,7 +61,7 @@ impl Operator {
 	}
 }
 
-#[derive(Show, Copy, PartialEq)]
+#[derive(Show, Copy, PartialEq, Clone)]
 pub enum Symbol {
 	Period,
 	Comma,

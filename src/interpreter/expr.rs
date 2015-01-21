@@ -4,16 +4,18 @@ use super::{CompileError, from_bool, is_truthy};
 use super::scope::CowScope;
 use super::function::Function;
 use super::identifier::{Identifier, IdMap};
+use super::functioncall::FunctionCall;
+use super::parser;
 use std::num::Float;
 
-#[derive(Show)]
+#[derive(Show, Clone)]
 pub struct Expression {
 	rpn: Vec<ExprToken>,
 }
 
 impl<'a> Parser<'a> for Expression {
-	fn parse(tokens: TokenStream<'a>, _: CowScope<'a>) -> Result<Expression, CompileError> {
-		let out = try!(to_expr_tokens(tokens));
+	fn parse(tokens: TokenStream<'a>, scope: CowScope<'a>) -> Result<Expression, CompileError> {
+		let out = try!(to_expr_tokens(tokens, scope));
 		let out = try!(shunting_yard(out));
 
 		Ok(Expression {
@@ -46,13 +48,14 @@ impl Function for Expression {
 	}
 }
 
-#[derive(Show, Copy)]
+#[derive(Show, Clone)]
 enum ExprToken {
 	Op(Operator),
 	Value(f32),
 	Var(Identifier),
 	LParen,
 	RParen,
+	Func(FunctionCall),
 }
 
 
@@ -96,7 +99,7 @@ impl ExprOperator {
 
 // Converts tokens from the lexer into ExprTokens, which are simplified to drop any strings and
 // contain only information understandable by the expression parser.
-fn to_expr_tokens<'a>(tokens: TokenStream<'a>) -> Result<Vec<ExprToken>, CompileError> {
+fn to_expr_tokens<'a>(tokens: TokenStream<'a>, scope: CowScope<'a>) -> Result<Vec<ExprToken>, CompileError> {
 	let mut tokens = tokens;
 
 	if tokens.is_empty() {
@@ -117,6 +120,12 @@ fn to_expr_tokens<'a>(tokens: TokenStream<'a>) -> Result<Vec<ExprToken>, Compile
 
 			Token::Operator(v) => {
 				out.push(ExprToken::Op(v))
+			},
+
+			Token::Symbol(Symbol::LeftBracket) => {
+				tokens.seek(-1);
+				out.push(ExprToken::Func(try!(Parser::parse(tokens, scope.clone()))));
+				tokens = try!(parser::match_paren(tokens, Token::Symbol(Symbol::LeftBracket), Token::Symbol(Symbol::RightBracket)));
 			},
 
 			Token::Symbol(v) => {
@@ -159,13 +168,13 @@ fn shunting_yard<'a>(tokens: Vec<ExprToken>) -> Result<Vec<ExprToken>, CompileEr
 
 	for token in tokens.iter() {
 		match token {
-			&ExprToken::Value(_) | &ExprToken::Var(_) => {
-				out.push(*token);
+			&ExprToken::Value(_) | &ExprToken::Var(_) | &ExprToken::Func(_) => {
+				out.push(token.clone());
 			},
 
 			&ExprToken::Op(ref op1) => {
 				while stack.len() > 0 {
-					let top = *stack.last().unwrap(); // unwrap() can't fail, see condition on while loop
+					let top = stack.last().unwrap().clone(); // unwrap() can't fail, see condition on while loop
 					match top {
 						ExprToken::Op(op2) => {
 							if op1.associativity() == Associativity::Left && op1.precedence() <= op2.precedence()
@@ -179,11 +188,11 @@ fn shunting_yard<'a>(tokens: Vec<ExprToken>) -> Result<Vec<ExprToken>, CompileEr
 						_ => break
 					}
 				}
-				stack.push(*token);
+				stack.push(token.clone());
 			},
 
 			&ExprToken::LParen => {
-				stack.push(*token);
+				stack.push(token.clone());
 			},
 
 			&ExprToken::RParen => {
@@ -209,7 +218,7 @@ fn shunting_yard<'a>(tokens: Vec<ExprToken>) -> Result<Vec<ExprToken>, CompileEr
 	}
 
 	while stack.len() > 0 {
-		let top = stack[stack.len()-1];
+		let top = stack[stack.len()-1].clone();
 		match top {
 			ExprToken::Op(_) => {
 				stack.pop();

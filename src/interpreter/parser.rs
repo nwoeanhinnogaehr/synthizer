@@ -115,11 +115,11 @@ macro_rules! expect(
 );
 
 // Advances an iterator to the matching parenthesis
-// Assumes the first opening paren was already consumed
+// Expects tokens to be pointing at a token equal to `open`
 pub fn match_paren<'a>(tokens: TokenStream, open: lexer::Token, close: lexer::Token) -> Result<TokenStream, CompileError> {
 	let mut tokens = tokens;
 	let mut depth = 1i32;
-	while depth > 0 {
+	loop {
 		match tokens.next().map(|x| x.token) {
 			Some(x) if x == open => {
 				depth += 1;
@@ -128,9 +128,12 @@ pub fn match_paren<'a>(tokens: TokenStream, open: lexer::Token, close: lexer::To
 				depth -= 1;
 			}
 			None => {
-				return Err(CompileError::new(format!("expected `{}`, got EOF", open)));
+				return Err(CompileError::new(format!("expected `{}`, got EOF", close)));
 			}
 			_ => { }
+		}
+		if depth <= 1 {
+			break;
 		}
 	}
 	Ok(tokens)
