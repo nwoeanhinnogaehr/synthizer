@@ -108,11 +108,15 @@ impl<'a> Parser<'a> for Statement {
 					let mut condition = None;
 					let start_pos = tokens.pos();
 					let mut pos;
+					if let Some(Token::Symbol(Symbol::LeftBrace)) = tokens.peek(0).map(|x| x.token) {
+						tokens = try!(parser::match_paren(tokens, Token::Symbol(Symbol::LeftBrace), Token::Symbol(Symbol::RightBrace)));
+					}
 					loop {
 						pos = tokens.pos();
 						match tokens.next().map(|x| x.token) {
 							Some(Token::Newline) => break,
 							Some(Token::Symbol(Symbol::QuestionMark)) => {
+								// parse condition
 								let start_pos = pos;
 								let mut pos;
 								loop {
@@ -132,9 +136,6 @@ impl<'a> Parser<'a> for Statement {
 						}
 					}
 					let statement = try!(Parser::parse(tokens.slice(start_pos, pos), scope.clone()));
-					//if let Some(Token::Symbol(Symbol::LeftBrace)) = tokens.peek(0).map(|x| x.token) {
-						//tokens = try!(parser::match_paren(tokens, Token::Symbol(Symbol::LeftBrace), Token::Symbol(Symbol::RightBrace)));
-					//}
 					statements.push((condition, operator, statement));
 				}
 			}
