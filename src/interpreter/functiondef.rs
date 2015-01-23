@@ -26,6 +26,9 @@ impl<'a> Parser<'a> for FunctionDef {
 
 		loop {
 			let next = tokens.next();
+			if expect!(next, Token::Symbol(Symbol::RightBracket)).is_ok() {
+				break;
+			}
 			let pos = next.map(|x| x.pos);
 			let arg_ident = try!(expect_value!(next, Token::Ident, "expected argument name, got `{}`"));
 			if args.contains_key(&arg_ident) {
