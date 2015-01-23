@@ -4,11 +4,6 @@ use super::identifier::IdMap;
 use std::num::Float;
 use std::f32::consts;
 
-#[cfg(test)]
-use super::lexer;
-#[cfg(test)]
-use super::{TRUE, FALSE};
-
 /// Something that can be called with arguments given in the scope
 pub trait Function {
 	fn call(&self, scope: CowScope, idmap: &IdMap) -> Result<f32, CompileError>;
@@ -97,32 +92,4 @@ impl<'a> Function for CondFunction<'a> {
 			Ok(0_f32)
 		}
 	}
-}
-
-#[test]
-fn const_function_test() {
-	let f = ConstFunction::new(42_f32);
-	assert_eq!(f.call(&Scope::new()).unwrap(), 42_f32);
-}
-
-#[test]
-fn sin_test() {
-	let mut s = Scope::new();
-	s.define_var("freq", 440_f32);
-	s.define_var("time", 0_f32);
-	s.define_var("amp", 0.5_f32);
-	let f = SinFunction::new();
-	assert_eq!(f.call(&s).unwrap(), 0_f32);
-}
-
-#[test]
-fn cond_test() {
-	let cond_truthy = ConstFunction::new(TRUE);
-	let cond_falsey = ConstFunction::new(FALSE);
-	let expr = ConstFunction::new(42_f32);
-	let f_truthy = CondFunction::new(&cond_truthy, &expr);
-	let f_falsey = CondFunction::new(&cond_falsey, &expr);
-	let s = Scope::new();
-	assert_eq!(f_truthy.call(&s).unwrap(), 42_f32);
-	assert_eq!(f_falsey.call(&s).unwrap(), 0_f32);
 }
