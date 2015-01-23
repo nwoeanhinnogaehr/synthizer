@@ -11,6 +11,9 @@ pub mod lexer;
 pub mod scope;
 pub mod identifier;
 
+#[cfg(test)]
+mod test;
+
 #[derive(Clone, Copy)]
 pub struct SourcePos {
 	pub line: usize,

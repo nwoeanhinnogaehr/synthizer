@@ -1,0 +1,6 @@
+{
+	"compile": true
+}
+###
+[foo bar]
+	bar() + ()bar + (()bar())

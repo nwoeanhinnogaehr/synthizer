@@ -1,0 +1,6 @@
+{
+	"compile": false
+}
+###
+[foo bar, baz]
+	(bar + (baz)
