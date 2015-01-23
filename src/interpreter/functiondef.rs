@@ -63,7 +63,6 @@ impl<'a> Parser<'a> for FunctionDef {
 				None => return Err(CompileError::new_static("expected `=`, `,` or `]`, got EOF")),
 			}
 		}
-		//try!(expect!(iter.next().map(|(_, x)| x), Token::Symbol(Symbol::Colon), "expected `:` following function argument declaration, got `{}`"));
 
 		let statement = if !tokens.is_empty() {
 			try!(Parser::parse(tokens, scope))
