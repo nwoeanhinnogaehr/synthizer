@@ -1,0 +1,6 @@
+{
+	"compile": true
+}
+###
+[foo x=2, y=-3, z, w=-0]
+	x+y+z+w
