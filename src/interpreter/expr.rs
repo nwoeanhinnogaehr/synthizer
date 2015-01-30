@@ -141,9 +141,6 @@ fn to_expr_tokens<'a>(tokens: TokenStream<'a>, scope: CowScope<'a>) -> Result<Ve
 			Token::Ident(v) => {
 				out.push(ExprToken::Var(v))
 			},
-
-			// Discard newlines
-			Token::Newline => { },
 		}
 	}
 

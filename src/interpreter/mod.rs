@@ -14,13 +14,27 @@ pub mod identifier;
 #[cfg(test)]
 mod test;
 
+pub struct Program<'a> {
+	id_map: identifier::IdMap<'a>,
+	scope: scope::Scope<'a>,
+}
+
+impl<'a> Program<'a> {
+	pub fn compile(source: &'a str) -> Result<Program<'a>, CompileError> {
+		let id_map = identifier::IdMap::new();
+		let mut scope = scope::Scope::new();
+		let tokens = try!(lexer::lex(source, &id_map));
+		unimplemented!();
+	}
+}
+
 #[derive(Clone, Copy)]
 pub struct SourcePos {
 	pub line: usize,
 	pub col: usize,
 }
 
-impl fmt::Show for SourcePos {
+impl fmt::Display for SourcePos {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		write!(f, "{}:{}", self.line, self.col)
 	}
@@ -54,10 +68,10 @@ impl CompileError {
 	}
 }
 
-impl fmt::String for CompileError {
+impl fmt::Display for CompileError {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		match self.pos {
-			Some(pos) => write!(f, "{:?} :: {}", pos, self.msg),
+			Some(pos) => write!(f, "{} :: {}", pos, self.msg),
 			None => write!(f, "{}", self.msg),
 		}
 	}

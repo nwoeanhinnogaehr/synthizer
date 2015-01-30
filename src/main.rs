@@ -1,6 +1,4 @@
-#![feature(slicing_syntax)]
-#![feature(plugin)]
-#![allow(unstable)]
+#![feature(slicing_syntax, plugin, core, io, std_misc, path, collections)]
 
 extern crate regex;
 #[plugin] extern crate regex_macros;
@@ -8,7 +6,7 @@ extern crate "rustc-serialize" as rustc_serialize;
 #[plugin] extern crate docopt_macros;
 extern crate docopt;
 
-use std::io::File;
+use std::old_io::File;
 use std::borrow::Cow;
 
 pub mod interpreter;
@@ -48,13 +46,14 @@ fn main() {
 						}
 						println!("");
 					}
-					let mut scope = interpreter::scope::Scope::new();
-					let sin = &interpreter::function::SinFunction::new();
-					let sqrt = &interpreter::function::SqrtFunction::new();
-					let abs = &interpreter::function::AbsFunction::new();
-					scope.set_func(idmap.id("~"), sin);
-					scope.set_func(idmap.id("sqrt"), sqrt);
-					scope.set_func(idmap.id("abs"), abs);
+					let (mut scope, sin, sqrt, abs);
+					scope = interpreter::scope::Scope::new();
+					sin = interpreter::function::SinFunction::new();
+					sqrt = interpreter::function::SqrtFunction::new();
+					abs = interpreter::function::AbsFunction::new();
+					scope.set_func(idmap.id("~"), &sin);
+					scope.set_func(idmap.id("sqrt"), &sqrt);
+					scope.set_func(idmap.id("abs"), &abs);
 					if args.flag_idmap {
 						println!("Identifier map:");
 						for (v, n) in idmap.name_map.borrow().iter() {

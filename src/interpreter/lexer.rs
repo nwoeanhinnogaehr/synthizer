@@ -10,7 +10,6 @@ pub enum Token {
 	Const(f32),
 	Operator(Operator),
 	Symbol(Symbol),
-	Newline,
 }
 
 #[derive(Show, Copy, PartialEq, Clone)]
@@ -67,6 +66,7 @@ pub enum Symbol {
 	Comma,
 	Equals,
 	Colon,
+	Semicolon,
 	QuestionMark,
 	LeftParen,
 	RightParen,
@@ -84,6 +84,7 @@ impl Symbol {
 			"," => Comma,
 			"=" => Equals,
 			":" => Colon,
+			";" => Semicolon,
 			"?" => QuestionMark,
 			"(" => LeftParen,
 			")" => RightParen,
@@ -96,7 +97,7 @@ impl Symbol {
 	}
 }
 
-impl fmt::String for Token {
+impl fmt::Display for Token {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		use self::Token::*;
 		match *self {
@@ -104,7 +105,6 @@ impl fmt::String for Token {
 			Operator(x) => write!(f, "{:?}", x),
 			Const(x) => write!(f, "Const({})", x),
 			Symbol(x) => write!(f, "{:?}", x),
-			Newline => write!(f, "Newline")
 		}
 	}
 }
@@ -119,24 +119,23 @@ impl Token {
 }
 
 /// Stores the type and position of a token
-#[derive(Copy, Show)]
+#[derive(Copy)]
 pub struct SourceToken {
 	pub token: Token,
 	pub pos: SourcePos,
 }
 
-impl fmt::String for SourceToken {
+impl fmt::Display for SourceToken {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		write!(f, "{:?}\t`{}`", self.pos, self.token)
+		write!(f, "{}\t`{}`", self.pos, self.token)
 	}
 }
 
 static IDENT_REGEX: Regex = regex!(r"[a-zA-Z_~']+[a-zA-Z_~0-9']*");
-static WHITESPACE_REGEX: Regex = regex!(r"[ \t]+");
-static NEWLINE_REGEX: Regex = regex!(r"[\n]+");
+static WHITESPACE_REGEX: Regex = regex!(r"[ \t\n]+");
 static CONST_REGEX: Regex = regex!(r"([0-9]+\.?[0-9]*|[0-9]*\.?[0-9]+)([eE]-?[0-9]+)?");
 static OPERATOR_REGEX: Regex = regex!(r"\^\^|>=|<=|~=|[\+\*/\^><!%-]|&&|\|\||==|!=");
-static SYMBOL_REGEX: Regex = regex!(r"[\.,=:\?\(\)\{\}\]\[]");
+static SYMBOL_REGEX: Regex = regex!(r"[\.,=:;\?\(\)\{\}\]\[]");
 static COMMENT_REGEX: Regex = regex!(r"//.*");
 
 pub fn lex<'a>(string: &'a str, idmap: &'a IdMap<'a>) -> Result<Vec<SourceToken>, CompileError> {
@@ -191,15 +190,6 @@ pub fn lex<'a>(string: &'a str, idmap: &'a IdMap<'a>) -> Result<Vec<SourceToken>
 			tokens.push(Token::Const(v).with_pos(pos));
 			walk = &walk[x..];
 			pos.col += x;
-			continue;
-		}
-
-		// Add newline tokens
-		if let Some((0, x)) = NEWLINE_REGEX.find(walk) {
-			tokens.push(Token::Newline.with_pos(pos));
-			walk = &walk[x..];
-			pos.line += x;
-			pos.col = 1;
 			continue;
 		}
 

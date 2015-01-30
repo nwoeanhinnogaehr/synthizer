@@ -100,12 +100,12 @@ impl<'a> Parser<'a> for Statement {
 				loop {
 					let operator = match tokens.next().map(|x| x.token) {
 						Some(Token::Operator(op)) => op,
-						Some(Token::Newline) => continue,
+						Some(Token::Symbol(Symbol::Semicolon)) => continue,
 						Some(Token::Symbol(Symbol::RightBrace)) => break,
 						Some(x) =>
-							return Err(CompileError::new(format!("expected operator, newline or }}, got {}", x)).with_pos(tokens.peek(0).map(|x| x.pos).unwrap())),
+							return Err(CompileError::new(format!("expected operator, `;` or `}}`, got {}", x)).with_pos(tokens.peek(0).map(|x| x.pos).unwrap())),
 						None =>
-							return Err(CompileError::new_static("expected operator, newline or `}`, got EOF"))
+							return Err(CompileError::new_static("expected operator, ';' or `}`, got EOF"))
 					};
 					let mut condition = None;
 					let start_pos = tokens.pos();
@@ -116,7 +116,7 @@ impl<'a> Parser<'a> for Statement {
 					loop {
 						pos = tokens.pos();
 						match tokens.next().map(|x| x.token) {
-							Some(Token::Newline) => break,
+							Some(Token::Symbol(Symbol::Semicolon)) => break,
 							Some(Token::Symbol(Symbol::QuestionMark)) => {
 								// parse condition
 								let start_pos = pos;
@@ -124,9 +124,9 @@ impl<'a> Parser<'a> for Statement {
 								loop {
 									pos = tokens.pos();
 									match tokens.next().map(|x| x.token) {
-										Some(Token::Newline) => break,
+										Some(Token::Symbol(Symbol::Semicolon)) => break,
 										Some(_) => { },
-										None => return Err(CompileError::new_static("expected newline to end condition, got EOF")),
+										None => return Err(CompileError::new_static("expected `;` to end condition, got EOF")),
 									}
 								}
 								condition = Some(try!(Parser::parse(tokens.slice(start_pos+1, pos), scope.clone())));
@@ -134,7 +134,7 @@ impl<'a> Parser<'a> for Statement {
 							}
 							Some(_) => { }
 							None =>
-								return Err(CompileError::new_static("expected newline or `?` to end expression, got EOF")),
+								return Err(CompileError::new_static("expected `;` or `?` to end expression, got EOF")),
 						}
 					}
 					let statement = try!(Parser::parse(tokens.slice(start_pos, pos), scope.clone()));
