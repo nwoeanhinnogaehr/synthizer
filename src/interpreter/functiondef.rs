@@ -8,7 +8,7 @@ use super::expr::Expression;
 use std::collections::VecMap;
 
 /// Represents a function definition written in synthizer
-#[derive(Show)]
+#[derive(Debug)]
 pub struct FunctionDef {
 	statement: Statement,
 	args: VecMap<Option<f32>>, // Default arguments
@@ -83,7 +83,7 @@ impl Function for FunctionDef {
 	}
 }
 
-#[derive(Show)]
+#[derive(Debug)]
 enum Statement {
 	Block(Vec<(Option<Expression>, Operator, Statement)>),
 	Expr(Expression),

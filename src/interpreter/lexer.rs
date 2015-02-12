@@ -4,7 +4,7 @@ use super::identifier::{Identifier, IdMap};
 use std::fmt;
 
 /// The various types that a token can be
-#[derive(Show, Copy, PartialEq)]
+#[derive(Debug, Copy, PartialEq)]
 pub enum Token {
 	Ident(Identifier),
 	Const(f32),
@@ -12,7 +12,7 @@ pub enum Token {
 	Symbol(Symbol),
 }
 
-#[derive(Show, Copy, PartialEq, Clone)]
+#[derive(Debug, Copy, PartialEq, Clone)]
 pub enum Operator {
 	Add,
 	Sub,
@@ -60,7 +60,7 @@ impl Operator {
 	}
 }
 
-#[derive(Show, Copy, PartialEq, Clone)]
+#[derive(Debug, Copy, PartialEq, Clone)]
 pub enum Symbol {
 	Period,
 	Comma,

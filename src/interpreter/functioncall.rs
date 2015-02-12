@@ -9,7 +9,7 @@ use std::collections::VecMap;
 use std::borrow::Cow;
 
 /// Represents a function call written in synthizer
-#[derive(Show, Clone)]
+#[derive(Debug, Clone)]
 pub struct FunctionCall {
 	pub func: Identifier, // the function the call refers to as a scope id
 	args: VecMap<Expression>,
@@ -48,7 +48,7 @@ impl<'a> Parser<'a> for FunctionCall {
 
 					// Adds all the tokens we have scanned so far in the inner loop to the args
 					// list
-					let mut write_arg = |&mut:| -> Result<(), CompileError> {
+					let mut write_arg = || -> Result<(), CompileError> {
 						let slice = tokens.slice(expr_start, tokens.pos() - 1);
 						let expr = try!(Parser::parse(slice, scope.clone()));
 						match args.get(&arg_ident) {

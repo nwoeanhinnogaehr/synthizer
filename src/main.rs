@@ -1,9 +1,10 @@
-#![feature(slicing_syntax, plugin, core, io, std_misc, path, collections)]
+#![feature(slicing_syntax, plugin, core, io, path)]
+#![plugin(regex_macros, docopt_macros)]
 
 extern crate regex;
-#[plugin] extern crate regex_macros;
+extern crate regex_macros;
 extern crate "rustc-serialize" as rustc_serialize;
-#[plugin] extern crate docopt_macros;
+extern crate docopt_macros;
 extern crate docopt;
 
 use std::old_io::File;

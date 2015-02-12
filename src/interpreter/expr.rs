@@ -8,7 +8,7 @@ use super::functioncall::FunctionCall;
 use super::parser;
 use std::num::Float;
 
-#[derive(Show, Clone)]
+#[derive(Debug, Clone)]
 pub struct Expression {
 	rpn: Vec<ExprToken>,
 }
@@ -48,7 +48,7 @@ impl Function for Expression {
 	}
 }
 
-#[derive(Show, Clone)]
+#[derive(Debug, Clone)]
 enum ExprToken {
 	Op(Operator),
 	Value(f32),
