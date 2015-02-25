@@ -11,21 +11,48 @@ use std::borrow::Cow;
 /// Represents a function call written in synthizer
 #[derive(Debug, Clone)]
 pub struct FunctionCall {
-	pub func: Identifier, // the function the call refers to as a scope id
+	func: Option<Identifier>, // the function the call refers to as a scope id
 	args: VecMap<Expression>,
 }
+
+impl FunctionCall {
+    pub fn new() -> FunctionCall {
+        FunctionCall {
+            func: None,
+            args: VecMap::new(),
+        }
+    }
+
+    pub fn set_func(&mut self, ident: Identifier) {
+        self.func = Some(ident);
+    }
+
+    pub fn func(&self) -> Identifier {
+        self.func.expect("this function call is not complete! (no function was attached)")
+    }
+
+    /// If the argument is already defined, returns the expression it is set to.
+    pub fn add_arg(&mut self, ident: Identifier, expr: Expression) -> Option<Expression> {
+        self.args.insert(ident, expr)
+    }
+
+    pub fn arg(&mut self, ident: Identifier) -> Option<&mut Expression> {
+        self.args.get_mut(&ident)
+    }
+}
+
 impl<'a> Parser<'a> for FunctionCall {
 	/// Parse a function call from a token stream. Scope is used to find function definitions
 	fn parse(tokens: TokenStream<'a>, scope: CowScope<'a>) -> Result<FunctionCall, CompileError> {
 		let mut tokens = tokens;
-		let mut args = VecMap::new();
+        let mut call = FunctionCall::new();
 
 		// Opening bracket
 		try!(expect!(tokens.next(), Token::Symbol(Symbol::LeftBracket), "expected `[`, got `{}`"));
 
 		// Function name
-		let fn_ident = try!(expect_value!(tokens.next(),
-			Token::Ident, "expected function name, got `{}`"));
+		call.set_func(try!(expect_value!(tokens.next(),
+			Token::Ident, "expected function name, got `{}`")));
 
 		// Parse arguments
 		'outer: loop {
@@ -51,13 +78,11 @@ impl<'a> Parser<'a> for FunctionCall {
 					let mut write_arg = || -> Result<(), CompileError> {
 						let slice = tokens.slice(expr_start, tokens.pos() - 1);
 						let expr = try!(Parser::parse(slice, scope.clone()));
-						match args.get(&arg_ident) {
-							Some(_) => {
-								return Err(CompileError::new(format!("argument {} has already been defined", arg_ident)));
+						match call.add_arg(arg_ident, expr) {
+							Some(x) => {
+								return Err(CompileError::new(format!("argument {} has already been defined as {:?}", arg_ident, x)));
 							}
-							None => {
-								args.insert(arg_ident, expr);
-							}
+							None => { }
 						}
 						Ok(())
 					};
@@ -92,17 +117,14 @@ impl<'a> Parser<'a> for FunctionCall {
 			}
 		}
 
-		Ok(FunctionCall {
-			func: fn_ident,
-			args: args,
-		})
+		Ok(call)
 	}
 }
 
 impl Function for FunctionCall {
 	fn call(&self, scope: CowScope, idmap: &IdMap) -> Result<f32, CompileError> {
 		let mut inner = scope.clone().into_owned();
-		match scope.get_func(self.func) {
+		match scope.get_func(self.func()) {
 			Some(f) => {
 				for (n, a) in self.args.iter() {
 					inner.set_var(n, try!(a.call(scope.clone(), idmap)));
