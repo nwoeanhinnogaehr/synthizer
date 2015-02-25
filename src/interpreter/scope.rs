@@ -9,7 +9,7 @@ enum Value<'a> {
 	Function(&'a (Function + 'static)),
 }
 
-pub type CowScope<'a> = Cow<'a, Scope<'a>, Scope<'a>>;
+pub type CowScope<'a> = Cow<'a, Scope<'a>>;
 
 /// Holds a number of variables, functions and their values.
 #[derive(Clone)]

@@ -132,16 +132,17 @@ impl fmt::Display for SourceToken {
 }
 
 static IDENT_REGEX: Regex = regex!(r"[a-zA-Z_~']+[a-zA-Z_~0-9']*");
-static WHITESPACE_REGEX: Regex = regex!(r"[ \t\n]+");
+static WHITESPACE_REGEX: Regex = regex!(r"[ \t]+");
 static CONST_REGEX: Regex = regex!(r"([0-9]+\.?[0-9]*|[0-9]*\.?[0-9]+)([eE]-?[0-9]+)?");
 static OPERATOR_REGEX: Regex = regex!(r"\^\^|>=|<=|~=|[\+\*/\^><!%-]|&&|\|\||==|!=");
 static SYMBOL_REGEX: Regex = regex!(r"[\.,=:;\?\(\)\{\}\]\[]");
 static COMMENT_REGEX: Regex = regex!(r"//.*");
+static NEWLINE_REGEX: Regex = regex!(r"[\n\r]");
 
 pub fn lex<'a>(string: &'a str, idmap: &'a IdMap<'a>) -> Result<Vec<SourceToken>, CompileError> {
 	let mut walk = string;
 	let mut tokens = Vec::new();
-	let mut pos = SourcePos { line: 1us, col: 1us };
+	let mut pos = SourcePos { line: 1, col: 1 };
 
 	while walk.len() > 0 {
 		// Strip comments
@@ -155,6 +156,14 @@ pub fn lex<'a>(string: &'a str, idmap: &'a IdMap<'a>) -> Result<Vec<SourceToken>
 		if let Some((0, x)) = WHITESPACE_REGEX.find(walk) {
 			walk = &walk[x..];
 			pos.col += x;
+			continue;
+		}
+
+		// Strip newlines
+		if let Some((0, x)) = NEWLINE_REGEX.find(walk) {
+			walk = &walk[x..];
+			pos.line += 1;
+            pos.col = 0;
 			continue;
 		}
 

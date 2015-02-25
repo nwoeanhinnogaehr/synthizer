@@ -1,6 +1,5 @@
 use std::fmt;
 use std::borrow::Cow;
-use std::string::CowString;
 
 pub mod parser;
 pub mod function;
@@ -41,7 +40,7 @@ impl fmt::Display for SourcePos {
 }
 
 pub struct CompileError {
-	pub msg: CowString<'static>,
+	pub msg: Cow<'static, str>,
 	pub pos: Option<SourcePos>,
 }
 

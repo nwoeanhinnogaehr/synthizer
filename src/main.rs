@@ -1,13 +1,12 @@
-#![feature(slicing_syntax, plugin, core, io, path)]
+#![feature(plugin, core, fs, io, collections, std_misc)]
 #![plugin(regex_macros, docopt_macros)]
 
 extern crate regex;
-extern crate regex_macros;
 extern crate "rustc-serialize" as rustc_serialize;
-extern crate docopt_macros;
 extern crate docopt;
 
-use std::old_io::File;
+use std::fs::File;
+use std::io::Read;
 use std::borrow::Cow;
 
 pub mod interpreter;
@@ -25,20 +24,20 @@ Options:
 
 fn main() {
 	let args: Args = Args::docopt().decode().unwrap_or_else(|e| e.exit());
-	let path = Path::new(args.arg_file);
-	let display = path.display();
-	println!("input file: {}", display);
+	let filename = args.arg_file;
+	println!("input file: {}", filename);
 
-	let mut file = match File::open(&path) {
-		Err(why) => panic!("couldn't open {}: {}", display, why.desc),
+	let mut file = match File::open(&filename) {
+		Err(why) => panic!("couldn't open {}: {}", filename, why.description()),
 		Ok(file) => file,
 	};
 
-	match file.read_to_string() {
-		Err(why) => panic!("couldn't read {}: {}", display, why.desc),
-		Ok(string) => {
+	let mut code = String::new();
+	match file.read_to_string(&mut code) {
+		Err(why) => panic!("couldn't read {}: {}", filename, why.description()),
+		Ok(_) => {
 			let idmap = interpreter::identifier::IdMap::new();
-			match interpreter::lexer::lex(string.as_slice(), &idmap) {
+			match interpreter::lexer::lex(code.as_slice(), &idmap) {
 				Ok(tok) => {
 					if args.flag_tokens {
 						println!("\nTokens:");
