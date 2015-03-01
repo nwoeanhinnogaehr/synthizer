@@ -18,6 +18,5 @@ for file in files:
     print('let program = "{}";'.format(synt))
     print("let idmap = identifier::IdMap::new();")
     print("let tokens = lexer::lex(program, &idmap).unwrap_or_else(|x| panic!(format!(\"{}\", x)));")
-    print("let scope = scope::Scope::new();")
-    print("let _: functiondef::FunctionDef = parser::Parser::parse(parser::TokenStream::new(tokens.as_slice()), Cow::Borrowed(&scope)).unwrap_or_else(|x| panic!(format!(\"{}\", x)));")
+    print("let _: functiondef::FunctionDef = parser::Parser::parse(parser::TokenStream::new(tokens.as_slice())).unwrap_or_else(|x| panic!(format!(\"{}\", x)));")
     print("}")
