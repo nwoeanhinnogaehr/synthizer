@@ -2,10 +2,9 @@
 
 use super::{CompileError, SourcePos};
 use super::lexer::{self, Token, SourceToken};
-use super::scope::CowScope;
 
 pub trait Parser<'a> {
-    fn parse(tokens: TokenStream<'a>, scope: CowScope<'a>) -> Result<Self, CompileError>;
+    fn parse(tokens: TokenStream<'a>) -> Result<Self, CompileError>;
 }
 
 #[derive(Copy)]

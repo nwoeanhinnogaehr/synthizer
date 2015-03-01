@@ -5,7 +5,7 @@ use super::expr::Expression;
 use super::function::Function;
 use super::lexer::{Token, Symbol};
 use super::identifier::{Identifier, IdMap};
-use std::collections::{vec_map, VecMap};
+use std::collections::VecMap;
 use std::borrow::Cow;
 
 /// Represents a function call written in synthizer
@@ -42,7 +42,7 @@ impl FunctionCall {
 
 impl<'a> Parser<'a> for FunctionCall {
     /// Parse a function call from a token stream. Scope is used to find function definitions
-    fn parse(tokens: TokenStream<'a>, scope: CowScope<'a>) -> Result<FunctionCall, CompileError> {
+    fn parse(tokens: TokenStream<'a>) -> Result<FunctionCall, CompileError> {
         let mut tokens = tokens;
         let mut call = FunctionCall::new();
 
@@ -77,7 +77,7 @@ impl<'a> Parser<'a> for FunctionCall {
                     // list
                     let mut write_arg = |tokens: &TokenStream<'a>| -> Result<(), CompileError> {
                         let slice = tokens.slice(expr_start, tokens.pos() - 1);
-                        let expr = try!(Parser::parse(slice, scope.clone()));
+                        let expr = try!(Parser::parse(slice));
                         match call.args_mut().insert(arg_ident, expr) {
                             Some(x) => {
                                 return Err(CompileError::new(format!(

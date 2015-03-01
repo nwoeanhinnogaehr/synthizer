@@ -14,8 +14,8 @@ pub struct Expression {
 }
 
 impl<'a> Parser<'a> for Expression {
-    fn parse(tokens: TokenStream<'a>, scope: CowScope<'a>) -> Result<Expression, CompileError> {
-        let out = try!(to_expr_tokens(tokens, scope));
+    fn parse(tokens: TokenStream<'a>) -> Result<Expression, CompileError> {
+        let out = try!(to_expr_tokens(tokens));
         let out = try!(shunting_yard(out));
 
         Ok(Expression {
@@ -99,7 +99,7 @@ impl ExprOperator {
 
 // Converts tokens from the lexer into ExprTokens, which are simplified to drop any strings and
 // contain only information understandable by the expression parser.
-fn to_expr_tokens<'a>(tokens: TokenStream<'a>, scope: CowScope<'a>) -> Result<Vec<ExprToken>, CompileError> {
+fn to_expr_tokens<'a>(tokens: TokenStream<'a>) -> Result<Vec<ExprToken>, CompileError> {
     let mut tokens = tokens;
 
     if tokens.is_empty() {
@@ -124,7 +124,7 @@ fn to_expr_tokens<'a>(tokens: TokenStream<'a>, scope: CowScope<'a>) -> Result<Ve
 
             Token::Symbol(Symbol::LeftBracket) => {
                 tokens.seek(-1);
-                out.push(ExprToken::Func(try!(Parser::parse(tokens, scope.clone()))));
+                out.push(ExprToken::Func(try!(Parser::parse(tokens))));
                 tokens = try!(parser::match_paren(tokens, Token::Symbol(Symbol::LeftBracket), Token::Symbol(Symbol::RightBracket)));
             },
 

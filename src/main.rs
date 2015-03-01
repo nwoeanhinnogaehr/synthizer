@@ -7,7 +7,6 @@ extern crate docopt;
 
 use std::fs::File;
 use std::io::Read;
-use std::borrow::Cow;
 
 pub mod interpreter;
 
@@ -62,7 +61,7 @@ fn main() {
 						println!("");
 					}
 					let res: Result<interpreter::functiondef::FunctionDef, interpreter::CompileError>
-						= interpreter::parser::Parser::parse(interpreter::parser::TokenStream::new(tok.as_slice()), Cow::Borrowed(&scope));
+						= interpreter::parser::Parser::parse(interpreter::parser::TokenStream::new(tok.as_slice()));
 					match res {
 						Ok(x) => {
 							println!("{:?}", x);

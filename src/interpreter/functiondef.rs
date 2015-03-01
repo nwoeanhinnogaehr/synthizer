@@ -55,7 +55,7 @@ impl FunctionDef {
 
 impl<'a> Parser<'a> for FunctionDef {
     /// Parse a function definition from a token stream. Scope is used to find function definitions
-    fn parse(tokens: TokenStream<'a>, scope: CowScope<'a>) -> Result<FunctionDef, CompileError> {
+    fn parse(tokens: TokenStream<'a>) -> Result<FunctionDef, CompileError> {
         let mut tokens = tokens;
         let mut def = FunctionDef::new();
 
@@ -110,7 +110,7 @@ impl<'a> Parser<'a> for FunctionDef {
 
         def.set_statement(
             if !tokens.is_empty() {
-                try!(Parser::parse(tokens, scope))
+                try!(Parser::parse(tokens))
             } else {
                 return Err(CompileError::new_static("expected block, got EOF")
                            .with_pos(tokens.end_source_pos()));
@@ -132,7 +132,7 @@ pub enum Statement {
 }
 
 impl<'a> Parser<'a> for Statement {
-    fn parse(tokens: TokenStream<'a>, scope: CowScope<'a>) -> Result<Statement, CompileError> {
+    fn parse(tokens: TokenStream<'a>) -> Result<Statement, CompileError> {
         let mut tokens = tokens;
         let mut statements = Vec::new();
         match expect!(tokens.peek(0), Token::Symbol(Symbol::LeftBrace)) {
@@ -178,8 +178,7 @@ impl<'a> Parser<'a> for Statement {
                                     }
                                 }
                                 condition = Some(try!(Parser::parse(
-                                            tokens.slice(start_pos+1, pos),
-                                            scope.clone())));
+                                            tokens.slice(start_pos+1, pos))));
                                 break;
                             }
                             Some(_) => { }
@@ -189,14 +188,14 @@ impl<'a> Parser<'a> for Statement {
                                     .with_pos(tokens.end_source_pos())),
                         }
                     }
-                    let statement = try!(Parser::parse(tokens.slice(start_pos, pos), scope.clone()));
+                    let statement = try!(Parser::parse(tokens.slice(start_pos, pos)));
                     statements.push((condition, operator, statement));
                 }
             }
 
             // otherwise it's an expression
             Err(_) => {
-                return Ok(Statement::Expr(try!(Parser::parse(tokens, scope))));
+                return Ok(Statement::Expr(try!(Parser::parse(tokens))));
             }
         }
         Ok(Statement::Block(statements))
