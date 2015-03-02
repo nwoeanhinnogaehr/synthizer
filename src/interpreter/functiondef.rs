@@ -11,7 +11,7 @@ use std::collections::VecMap;
 #[derive(Debug)]
 pub struct FunctionDef {
     statement: Option<Statement>,
-    args: VecMap<Option<f32>>, // Default arguments
+    args: VecMap<Option<Expression>>, // Default arguments
     ident: Option<Identifier>,
 }
 
@@ -44,11 +44,11 @@ impl FunctionDef {
         self.statement.as_mut().expect("incomplete function definition! no statement was attached")
     }
 
-    pub fn args(&self) -> &VecMap<Option<f32>> {
+    pub fn args(&self) -> &VecMap<Option<Expression>> {
         &self.args
     }
 
-    pub fn args_mut(&mut self) -> &mut VecMap<Option<f32>> {
+    pub fn args_mut(&mut self) -> &mut VecMap<Option<Expression>> {
         &mut self.args
     }
 }
@@ -63,49 +63,77 @@ impl<'a> Parser<'a> for FunctionDef {
 
         def.set_ident(try!(expect_value!(tokens.next(), Token::Ident, "expected function name, got `{}`")));
 
-        loop {
+        // Find arguments
+        'outer: loop {
             let mut args = def.args_mut();
             let next = tokens.next();
+
+            // If we hit a right bracket, the argument list is finished
             if expect!(next, Token::Symbol(Symbol::RightBracket)).is_ok() {
                 break;
             }
-            let pos = next.map(|x| x.pos);
+
+            // Get argument name
             let arg_ident = try!(expect_value!(next, Token::Ident, "expected argument name, got `{}`"));
             if args.contains_key(&arg_ident) {
                 return Err(CompileError::new(format!("argument {} defined twice", arg_ident))
-                           .with_pos(pos.unwrap()));
+                           .with_pos(next.unwrap().pos));
             }
 
             let next = tokens.next();
-            let (pos, mut token) = (next.map(|x| x.pos), next.map(|x| x.token));
-            if let Some(Token::Symbol(Symbol::Equals)) = token {
-                let nexttoken = tokens.next();
-                let value = if let Ok(_) = expect!(nexttoken, Token::Operator(Operator::Sub)) {
-                    -try!(expect_value!(tokens.next(), Token::Const, "expected numerical constant, got `{}`"))
-                } else {
-                    try!(expect_value!(nexttoken, Token::Const, "expected numerical constant, got `{}`"))
-                };
-                args.insert(arg_ident, Some(value));
-                token = tokens.next().map(|x| x.token);
-            }
-            match token {
+            match next.map(|x| x.token) {
                 Some(Token::Symbol(Symbol::Comma)) => {
-                    if !args.contains_key(&arg_ident) {
-                        args.insert(arg_ident, None);
-                    }
-                }
+                    args.insert(arg_ident, None);
+                },
+
                 Some(Token::Symbol(Symbol::RightBracket)) => {
-                    if !args.contains_key(&arg_ident) {
-                        args.insert(arg_ident, None);
+                    args.insert(arg_ident, None);
+                    break 'outer;
+                },
+
+                Some(Token::Symbol(Symbol::Equals)) => {
+                    let expr_start = tokens.pos();
+                    loop {
+                        let next = tokens.next();
+                        match next.map(|x| x.token) {
+                            Some(Token::Symbol(Symbol::LeftBracket)) => {
+                                tokens.seek(-1);
+                                tokens = try!(parser::match_paren(tokens,
+                                                                  Token::Symbol(Symbol::LeftBracket),
+                                                                  Token::Symbol(Symbol::RightBracket)));
+                            }
+
+                            Some(Token::Symbol(Symbol::Comma)) => {
+                                args.insert(arg_ident,
+                                        Some(try!(Parser::parse(
+                                            tokens.slice(expr_start, tokens.pos()-1)))));
+                                break;
+                            },
+
+                            Some(Token::Symbol(Symbol::RightBracket)) => {
+                                args.insert(arg_ident,
+                                        Some(try!(Parser::parse(
+                                            tokens.slice(expr_start, tokens.pos()-1)))));
+                                break 'outer;
+                            },
+
+                            None => return Err(CompileError::new_static(
+                                    "expected expression, got EOF").with_pos(tokens.end_source_pos())),
+
+                            Some(_) => { }
+                        }
                     }
-                    break;
                 }
-                Some(token) => return Err(CompileError::new(format!(
-                            "expected `=`, `,` or `]`, got `{}`", token))
-                            .with_pos(pos.unwrap())),
-                None => return Err(CompileError::new_static("expected `=`, `,` or `]`, got EOF")
-                                   .with_pos(tokens.end_source_pos())),
+
+                None => return Err(CompileError::new_static(
+                        "expected `,`, `]`, or `=` following argument identifier, got EOF")
+                    .with_pos(tokens.end_source_pos())),
+
+                Some(x) => return Err(CompileError::new(format!(
+                        "expected `,`, `]`, or `=` following argument identifier, got `{:?}`", x))
+                    .with_pos(next.unwrap().pos)),
             }
+
         }
 
         def.set_statement(
