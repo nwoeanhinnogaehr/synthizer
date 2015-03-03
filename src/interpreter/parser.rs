@@ -3,8 +3,16 @@
 use super::{CompileError, SourcePos};
 use super::lexer::{self, Token, SourceToken};
 
+pub type ParseResult<T> = Result<ParseData<T>, CompileError>;
+
+#[derive(Debug)]
+pub struct ParseData<T> {
+    pub ast: T,
+    pub token_offset: usize,
+}
+
 pub trait Parser<'a> {
-    fn parse(tokens: TokenStream<'a>) -> Result<Self, CompileError>;
+    fn parse(tokens: TokenStream<'a>) -> ParseResult<Self>;
 }
 
 #[derive(Copy)]
@@ -48,6 +56,10 @@ impl<'a> TokenStream<'a> {
 
     fn offset(&self, offset: isize) -> usize {
         ((self.pos as isize) + offset) as usize //really?
+    }
+
+    pub fn set_pos(&mut self, pos: usize) {
+        self.pos = pos;
     }
 
     pub fn seek(&mut self, offset: isize) {

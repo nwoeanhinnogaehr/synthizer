@@ -1,6 +1,6 @@
 use super::scope::{CowScope};
 use super::CompileError;
-use super::parser::{self, Parser, TokenStream};
+use super::parser::{self, Parser, TokenStream, ParseResult, ParseData};
 use super::expr::Expression;
 use super::function::Function;
 use super::lexer::{Token, Symbol};
@@ -42,7 +42,7 @@ impl FunctionCall {
 
 impl<'a> Parser<'a> for FunctionCall {
     /// Parse a function call from a token stream. Scope is used to find function definitions
-    fn parse(tokens: TokenStream<'a>) -> Result<FunctionCall, CompileError> {
+    fn parse(tokens: TokenStream<'a>) -> ParseResult<FunctionCall> {
         let mut tokens = tokens;
         let mut call = FunctionCall::new();
 
@@ -77,7 +77,7 @@ impl<'a> Parser<'a> for FunctionCall {
                     // list
                     let mut write_arg = |tokens: &TokenStream<'a>| -> Result<(), CompileError> {
                         let slice = tokens.slice(expr_start, tokens.pos() - 1);
-                        let expr = try!(Parser::parse(slice));
+                        let expr = try!(Parser::parse(slice)).ast;
                         match call.args_mut().insert(arg_ident, expr) {
                             Some(x) => {
                                 return Err(CompileError::new(format!(
@@ -119,7 +119,10 @@ impl<'a> Parser<'a> for FunctionCall {
             }
         }
 
-        Ok(call)
+        Ok(ParseData {
+            ast: call,
+            token_offset: tokens.pos(),
+        })
     }
 }
 

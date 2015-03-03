@@ -2,7 +2,7 @@ use super::scope::CowScope;
 use super::CompileError;
 use super::lexer::{Token, Symbol, Operator};
 use super::function::Function;
-use super::parser::{self, Parser, TokenStream};
+use super::parser::{self, Parser, TokenStream, ParseResult, ParseData};
 use super::identifier::{IdMap, Identifier};
 use super::expr::Expression;
 use std::collections::VecMap;
@@ -55,7 +55,7 @@ impl FunctionDef {
 
 impl<'a> Parser<'a> for FunctionDef {
     /// Parse a function definition from a token stream. Scope is used to find function definitions
-    fn parse(tokens: TokenStream<'a>) -> Result<FunctionDef, CompileError> {
+    fn parse(tokens: TokenStream<'a>) -> ParseResult<FunctionDef> {
         let mut tokens = tokens;
         let mut def = FunctionDef::new();
 
@@ -106,14 +106,14 @@ impl<'a> Parser<'a> for FunctionDef {
                             Some(Token::Symbol(Symbol::Comma)) => {
                                 args.insert(arg_ident,
                                         Some(try!(Parser::parse(
-                                            tokens.slice(expr_start, tokens.pos()-1)))));
+                                            tokens.slice(expr_start, tokens.pos()-1))).ast));
                                 break;
                             },
 
                             Some(Token::Symbol(Symbol::RightBracket)) => {
                                 args.insert(arg_ident,
                                         Some(try!(Parser::parse(
-                                            tokens.slice(expr_start, tokens.pos()-1)))));
+                                            tokens.slice(expr_start, tokens.pos()-1))).ast));
                                 break 'outer;
                             },
 
@@ -138,13 +138,18 @@ impl<'a> Parser<'a> for FunctionDef {
 
         def.set_statement(
             if !tokens.is_empty() {
-                try!(Parser::parse(tokens))
+                let res = try!(Parser::parse(tokens));
+                tokens.set_pos(res.token_offset);
+                res.ast
             } else {
                 return Err(CompileError::new_static("expected block, got EOF")
                            .with_pos(tokens.end_source_pos()));
             });
 
-        Ok(def)
+        Ok(ParseData {
+            ast: def,
+            token_offset: tokens.pos(),
+        })
     }
 }
 impl Function for FunctionDef {
@@ -154,18 +159,25 @@ impl Function for FunctionDef {
 }
 
 #[derive(Debug)]
+pub struct BlockStatement {
+    pub condition: Option<Expression>,
+    pub operator: Operator,
+    pub statement: Statement,
+}
+
+#[derive(Debug)]
 pub enum Statement {
-    Block(Vec<(Option<Expression>, Operator, Statement)>),
+    Block(Vec<BlockStatement>),
     Expr(Expression),
 }
 
 impl<'a> Parser<'a> for Statement {
-    fn parse(tokens: TokenStream<'a>) -> Result<Statement, CompileError> {
+    fn parse(tokens: TokenStream<'a>) -> ParseResult<Statement> {
         let mut tokens = tokens;
-        let mut statements = Vec::new();
-        match expect!(tokens.peek(0), Token::Symbol(Symbol::LeftBrace)) {
+        let statement = match expect!(tokens.peek(0), Token::Symbol(Symbol::LeftBrace)) {
             // If it starts with `{` it's a block
             Ok(_) => {
+                let mut statements = Vec::new();
                 tokens.next(); // consume brace
                 loop {
                     let operator = match tokens.next().map(|x| x.token) {
@@ -206,7 +218,7 @@ impl<'a> Parser<'a> for Statement {
                                     }
                                 }
                                 condition = Some(try!(Parser::parse(
-                                            tokens.slice(start_pos+1, pos))));
+                                            tokens.slice(start_pos+1, pos))).ast);
                                 break;
                             }
                             Some(_) => { }
@@ -216,17 +228,27 @@ impl<'a> Parser<'a> for Statement {
                                     .with_pos(tokens.end_source_pos())),
                         }
                     }
-                    let statement = try!(Parser::parse(tokens.slice(start_pos, pos)));
-                    statements.push((condition, operator, statement));
+                    let res = try!(Parser::parse(tokens.slice(start_pos, pos)));
+                    statements.push(BlockStatement {
+                        condition: condition,
+                        operator: operator,
+                        statement: res.ast,
+                    });
                 }
+                Statement::Block(statements)
             }
 
             // otherwise it's an expression
             Err(_) => {
-                return Ok(Statement::Expr(try!(Parser::parse(tokens))));
+                let res = try!(Parser::parse(tokens));
+                tokens.set_pos(res.token_offset);
+                Statement::Expr(res.ast)
             }
-        }
-        Ok(Statement::Block(statements))
+        };
+        Ok(ParseData {
+            ast: statement,
+            token_offset: tokens.pos(),
+        })
     }
 }
 impl Function for Statement {

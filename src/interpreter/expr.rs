@@ -1,11 +1,10 @@
-use super::parser::{Parser, TokenStream};
+use super::parser::{Parser, TokenStream, ParseData, ParseResult};
 use super::lexer::{Token, Symbol, Operator};
 use super::{CompileError, from_bool, is_truthy};
 use super::scope::CowScope;
 use super::function::Function;
 use super::identifier::{Identifier, IdMap};
 use super::functioncall::FunctionCall;
-use super::parser;
 use std::num::Float;
 
 #[derive(Debug, Clone)]
@@ -14,12 +13,16 @@ pub struct Expression {
 }
 
 impl<'a> Parser<'a> for Expression {
-    fn parse(tokens: TokenStream<'a>) -> Result<Expression, CompileError> {
-        let out = try!(to_expr_tokens(tokens));
+    fn parse(tokens: TokenStream<'a>) -> ParseResult<Expression> {
+        let mut tokens = tokens;
+        let out = try!(to_expr_tokens(&mut tokens));
         let out = try!(shunting_yard(out));
 
-        Ok(Expression {
-            rpn: out,
+        Ok(ParseData {
+            ast: Expression {
+                rpn: out,
+            },
+            token_offset: tokens.pos(),
         })
     }
 }
@@ -99,9 +102,7 @@ impl ExprOperator {
 
 // Converts tokens from the lexer into ExprTokens, which are simplified to drop any strings and
 // contain only information understandable by the expression parser.
-fn to_expr_tokens<'a>(tokens: TokenStream<'a>) -> Result<Vec<ExprToken>, CompileError> {
-    let mut tokens = tokens;
-
+fn to_expr_tokens<'a>(tokens: &mut TokenStream<'a>) -> Result<Vec<ExprToken>, CompileError> {
     if tokens.is_empty() {
         return Err(CompileError::new_static("empty expression in file"));
     }
@@ -124,8 +125,9 @@ fn to_expr_tokens<'a>(tokens: TokenStream<'a>) -> Result<Vec<ExprToken>, Compile
 
             Token::Symbol(Symbol::LeftBracket) => {
                 tokens.seek(-1);
-                out.push(ExprToken::Func(try!(Parser::parse(tokens))));
-                tokens = try!(parser::match_paren(tokens, Token::Symbol(Symbol::LeftBracket), Token::Symbol(Symbol::RightBracket)));
+                let res = try!(Parser::parse(*tokens));
+                tokens.set_pos(res.token_offset);
+                out.push(ExprToken::Func(res.ast));
             },
 
             Token::Symbol(v) => {

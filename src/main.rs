@@ -40,7 +40,7 @@ fn main() {
             match interpreter::lexer::lex(code.as_slice(), &idmap) {
                 Ok(tok) => {
                     if args.flag_tokens {
-                        println!("\nTokens:");
+                        println!("\nTokens (n={})", tok.len());
                         for t in tok.iter() {
                             println!("\t{}", t);
                         }
@@ -61,16 +61,20 @@ fn main() {
                         }
                         println!("");
                     }
-                    let res: Result<interpreter::functiondef::FunctionDef, interpreter::CompileError>
-                        = interpreter::parser::Parser::parse(
-                            interpreter::parser::TokenStream::new(tok.as_slice()));
-                    match res {
-                        Ok(x) => {
-                            println!("{:?}", x);
-                        },
-                        Err(e) => {
-                            println!("{}", e);
-                        },
+                    let mut tok_str = interpreter::parser::TokenStream::new(tok.as_slice());
+                    while !tok_str.is_empty() {
+                        let res: interpreter::parser::ParseResult<interpreter::functiondef::FunctionDef>
+                            = interpreter::parser::Parser::parse(tok_str);
+                        match res {
+                            Ok(x) => {
+                                println!("{:?}", x);
+                                tok_str.set_pos(x.token_offset);
+                            },
+                            Err(e) => {
+                                println!("{}", e);
+                                break;
+                            },
+                        }
                     }
                 },
                 Err(e) => {
