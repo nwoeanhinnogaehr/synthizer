@@ -1,7 +1,0 @@
-{
-	"compile": true
-}
-###
-[foo x] {
-	+ [foo x=[foo]];
-}

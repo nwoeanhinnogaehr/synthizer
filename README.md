@@ -1,11 +1,13 @@
 # Synthizer
-A simple, experimental functional language for real time additive audio synthesis.
+A simple, experimental functional language for real time additive audio synthesis specialized for the creation of unique mathematical sounds.
 
 ## What works so far
-- Expression parsing and evaluation (minus support for functions)
+- Lexing
+- Parsing the language into an AST
 
 ## Todo
-- Parse and interpret the full language
+- Interpret the language
+- Optimization
 - Audio output
 - GUI
 - Real time audio output

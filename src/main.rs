@@ -1,4 +1,4 @@
-#![feature(plugin, core, fs, io, collections, std_misc)]
+#![feature(plugin, core, collections, std_misc)]
 #![plugin(regex_macros, docopt_macros)]
 
 extern crate regex;
@@ -9,6 +9,9 @@ use std::fs::File;
 use std::io::Read;
 
 pub mod interpreter;
+
+use interpreter::issue::IssueTracker;
+use interpreter::parser::Parser;
 
 docopt!(Args, "
 Usage:
@@ -27,18 +30,20 @@ fn main() {
     //println!("input file: {}", filename);
 
     let mut file = match File::open(&filename) {
-        Err(why) => panic!("couldn't open {}: {}", filename, why.description()),
+        Err(why) => panic!("couldn't open {}: {}", filename, why),
         Ok(file) => file,
     };
 
     // This is all temporary testing cruft. Don't read it.
     let mut code = String::new();
     match file.read_to_string(&mut code) {
-        Err(why) => panic!("couldn't read {}: {}", filename, why.description()),
+        Err(why) => panic!("couldn't read {}: {}", filename, why),
         Ok(_) => {
-            let idmap = interpreter::identifier::IdMap::new();
-            match interpreter::lexer::lex(code.as_slice(), &idmap) {
-                Ok(tok) => {
+            let (issues, idmap);
+            issues = IssueTracker::new(&filename, &code);
+            idmap = interpreter::identifier::IdMap::new();
+            match interpreter::lexer::lex(&issues, code.as_slice(), &idmap) {
+                Some(tok) => {
                     if args.flag_tokens {
                         println!("\nTokens (n={})", tok.len());
                         for t in tok.iter() {
@@ -46,14 +51,6 @@ fn main() {
                         }
                         println!("");
                     }
-                    let (mut scope, sin, sqrt, abs);
-                    scope = interpreter::scope::Scope::new();
-                    sin = interpreter::function::SinFunction::new();
-                    sqrt = interpreter::function::SqrtFunction::new();
-                    abs = interpreter::function::AbsFunction::new();
-                    scope.set_func(idmap.id("~"), &sin);
-                    scope.set_func(idmap.id("sqrt"), &sqrt);
-                    scope.set_func(idmap.id("abs"), &abs);
                     if args.flag_idmap {
                         println!("Identifier map:");
                         for (v, n) in idmap.name_map.borrow().iter() {
@@ -61,25 +58,17 @@ fn main() {
                         }
                         println!("");
                     }
-                    let mut tok_str = interpreter::parser::TokenStream::new(tok.as_slice());
-                    while !tok_str.is_empty() {
-                        let res: interpreter::parser::ParseResult<interpreter::functiondef::FunctionDef>
-                            = interpreter::parser::Parser::parse(tok_str);
-                        match res {
-                            Ok(x) => {
-                                println!("{:?}", x);
-                                tok_str.set_pos(x.token_offset);
-                            },
-                            Err(e) => {
-                                println!("{}", e);
-                                break;
-                            },
-                        }
-                    }
+
+                    let mut parser = Parser::new(tok, &issues);
+                    let ast = parser.parse();
+                    println!("{:?}", ast);
                 },
-                Err(e) => {
-                    println!("Error lexing: {}", e);
-                }
+                None => { }
+            }
+
+            println!("{}", issues);
+            if !issues.is_ok() {
+                return;
             }
         }
     };

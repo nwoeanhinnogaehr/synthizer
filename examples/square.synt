@@ -1,7 +1,30 @@
-[square freq, k=1] {
-    + [~ freq=(2*k-1)*freq,
-         amp=4/pi/(2*k-1)];
-    + [square k=k+1];
+pi = 3.141592653589;
+
+lowpass ~, freq, cutoff {
+    ~[] if freq < cutoff;
 }
 
-[square freq=440]
+highpass ~, freq, cutoff {
+    ~[] if freq > cutoff;
+}
+
+square ~, freq, k=1, scale=1 {
+    freq = (2*k-1)*freq;
+    amp = 4/pi/(2*k-1);
+    ~ (freq, amp);
+    square [k=k+1];
+}
+
+layer ~, scale, n=10, k=1 {
+    ~ [];
+    layer [scale=scale*2, k=k+1] if k < n;
+}
+
+// Square wave @ 220Hz with 6000Hz lowpass, 1000Hz highpass
+main {
+    layer (freq=220, scale=1.01,
+           square{
+           lowpass{cutoff=6000,
+           highpass{cutoff=1000,
+           ~}}});
+}

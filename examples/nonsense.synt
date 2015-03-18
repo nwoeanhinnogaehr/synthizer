@@ -1,0 +1,10 @@
+a=300;
+hello a, b=5, c=3.14 {
+	closure = \a, b {a^b};
+	c*(b-a) + {
+		a-b;
+	} + 5*d{a=5, 6, d};
+	k = closure{2} if a > 20 else closure{b=2};
+	k[];
+}
+
