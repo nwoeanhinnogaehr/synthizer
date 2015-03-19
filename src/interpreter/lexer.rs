@@ -2,12 +2,15 @@ use regex::Regex;
 use super::issue::{Level, IssueTracker};
 use super::identifier::{Identifier, IdMap};
 use std::fmt;
+use std::ops::Deref;
+
+pub type Number = f32;
 
 /// The various types that a token can be
 #[derive(Debug, Copy, PartialEq, Clone)]
 pub enum Token {
     Ident(Identifier),
-    Const(f32),
+    Const(Number),
     Operator(Operator),
     Symbol(Symbol),
 }
@@ -212,53 +215,54 @@ impl fmt::Display for SourcePos {
     }
 }
 
+///PW/PowWrapper holds an arbitrary object along with a position
 #[derive(Copy, Clone, Debug)]
-pub struct MetaToken {
-    token: Token,
-    pos: SourcePos,
-}
+pub struct PW<T: Copy + Clone>(T, SourcePos);
 
-impl MetaToken {
-    pub fn new(token: Token, pos: SourcePos) -> MetaToken {
-        MetaToken {
-            token: token,
-            pos: pos,
-        }
+pub trait ToPW<T> {
+    fn pw(self, pos: SourcePos) -> PW<T>;
+}
+impl<T: Copy + Clone> ToPW<T> for T {
+    fn pw(self, pos: SourcePos) -> PW<T> {
+        PW(self, pos)
     }
 }
-
-pub trait MetaTokenGetter {
-    type T;
-    type S;
-    fn token(&self) -> Self::T;
-    fn pos(&self) -> Self::S;
+pub trait PWImpl {
+    type Token;
+    type Pos;
+    fn token(self) -> <Self as PWImpl>::Token;
+    fn pos(self) -> <Self as PWImpl>::Pos;
 }
-
-impl MetaTokenGetter for MetaToken {
-    type T = Token;
-    type S = SourcePos;
-    fn token(&self) -> Token {
-        self.token
+impl<T: Copy + Clone> PWImpl for PW<T> {
+    type Token = T;
+    type Pos = SourcePos;
+    fn token(self) -> T {
+        self.0
     }
-    fn pos(&self) -> SourcePos {
-        self.pos
+    fn pos(self) -> SourcePos {
+        self.1
     }
 }
-
-impl MetaTokenGetter for Option<MetaToken> {
-    type T = Option<Token>;
-    type S = Option<SourcePos>;
-    fn token(&self) -> Option<Token> {
-        self.map(|x| x.token)
+impl<T: Copy + Clone> PWImpl for Option<PW<T>> {
+    type Token = Option<T>;
+    type Pos = Option<SourcePos>;
+    fn token(self) -> Option<T> {
+        self.map(|x| x.0)
     }
-    fn pos(&self) -> Option<SourcePos> {
-        self.map(|x| x.pos)
+    fn pos(self) -> Option<SourcePos> {
+        self.map(|x| x.1)
     }
 }
+impl<T: Copy + Clone> Deref for PW<T> {
+    type Target = T;
 
-impl fmt::Display for MetaToken {
+    fn deref<'a>(&'a self) -> &'a T {
+        &self.0
+    }
+}
+impl<T: fmt::Debug + Copy + Clone> fmt::Display for PW<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.token)
+        write!(f, "{:?}@{}", self.0, self.1)
     }
 }
 
@@ -272,7 +276,7 @@ static NEWLINE_REGEX: Regex = regex!(r"[\n\r]");
 
 pub fn lex<'a>(issues: &'a IssueTracker<'a>,
                string: &'a str,
-               idmap: &'a IdMap<'a>) -> Option<Vec<MetaToken>> {
+               idmap: &'a IdMap<'a>) -> Option<Vec<PW<Token>>> {
 
     let mut walk = string;
     let mut tokens = Vec::new();
@@ -303,7 +307,7 @@ pub fn lex<'a>(issues: &'a IssueTracker<'a>,
         // Add symbols
         if let Some((0, x)) = SYMBOL_REGEX.find(walk) {
             let sym = Symbol::parse(&walk[0..x]).unwrap(); // If this fails either the regex or the parser is wrong.
-            tokens.push(MetaToken::new(Token::Symbol(sym), pos));
+            tokens.push(Token::Symbol(sym).pw(pos));
             walk = &walk[x..];
             pos.add_chars(x);
             continue;
@@ -311,7 +315,7 @@ pub fn lex<'a>(issues: &'a IssueTracker<'a>,
 
         // Add identifiers
         if let Some((0, x)) = IDENT_REGEX.find(walk) {
-            tokens.push(MetaToken::new(Token::Ident(idmap.id(&walk[0..x])), pos));
+            tokens.push(Token::Ident(idmap.id(&walk[0..x])).pw(pos));
             walk = &walk[x..];
             pos.add_chars(x);
             continue;
@@ -320,16 +324,15 @@ pub fn lex<'a>(issues: &'a IssueTracker<'a>,
         // Add operators
         if let Some((0, x)) = OPERATOR_REGEX.find(walk) {
             let op = Operator::parse(&walk[0..x]).unwrap(); // If this fails either the regex or the parser is wrong.
-            tokens.push(MetaToken::new(Token::Operator(op), pos));
+            tokens.push(Token::Operator(op).pw(pos));
             walk = &walk[x..];
             pos.add_chars(x);
             continue;
         }
 
-        // Add numerical literals as f32 (TODO allow different precision)
         if let Some((0, x)) = CONST_REGEX.find(walk) {
             let v = walk[0..x].parse().unwrap(); // If this fails either the regex or the parser is wrong.
-            tokens.push(MetaToken::new(Token::Const(v), pos));
+            tokens.push(Token::Const(v).pw(pos));
             walk = &walk[x..];
             pos.add_chars(x);
             continue;

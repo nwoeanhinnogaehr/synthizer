@@ -1,7 +1,7 @@
 #![macro_use]
 
 use super::issue::{IssueTracker, Level};
-use super::lexer::{SourcePos, Token, MetaToken, MetaTokenGetter, Symbol, Bracket, Operator, Associativity};
+use super::lexer::{Number, SourcePos, Token, PW, PWImpl, ToPW, Symbol, Bracket, Operator, Associativity};
 use super::identifier::Identifier;
 use std::borrow::{IntoCow, Cow};
 
@@ -14,12 +14,11 @@ macro_rules! try_opt(
     }
 );
 
-
 macro_rules! expect_value(
     ( $tokens:ident, $ty:path ) => {
-        $tokens.next_token().and_then(|x| {
-            match x {
-                $ty(x) => Some(x),
+        $tokens.next().and_then(|t| {
+            match t.token() {
+                $ty(v) => Some(v.pw(t.pos())),
                 _ => None
             }
         })
@@ -28,8 +27,8 @@ macro_rules! expect_value(
 
 macro_rules! expect(
     ( $tokens:ident, $ty:pat ) => {
-        $tokens.next_token().and_then(|x| {
-            match x {
+        $tokens.next().and_then(|x| {
+            match x.token() {
                 $ty => Some(x),
                 _ => None,
             }
@@ -71,14 +70,14 @@ macro_rules! find_next_skip_brackets(
 
 #[derive(Clone, Debug)]
 pub struct Parser<'a> {
-    tokens: Cow<'a, [MetaToken]>,
+    tokens: Cow<'a, [PW<Token>]>,
     issues: &'a IssueTracker<'a>,
     sub_stack: Vec<(usize, usize, usize)>,
 }
 
 impl<'a> Parser<'a> {
     pub fn new<U>(tokens: U, issues: &'a IssueTracker<'a>) -> Parser<'a>
-            where U: IntoCow<'a, [MetaToken]> {
+            where U: IntoCow<'a, [PW<Token>]> {
         let ctokens = tokens.into_cow();
         let len = ctokens.len();
         Parser {
@@ -88,7 +87,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    pub fn next(&mut self) -> Option<MetaToken> {
+    pub fn next(&mut self) -> Option<PW<Token>> {
         self.seek(1);
         self.peek(-1)
     }
@@ -163,7 +162,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    pub fn peek(&self, offset: isize) -> Option<MetaToken> {
+    pub fn peek(&self, offset: isize) -> Option<PW<Token>> {
         let index = self.offset(offset);
         if self.in_bounds(index) {
             self.peek_index(index)
@@ -172,7 +171,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    pub fn peek_index(&self, index: usize) -> Option<MetaToken> {
+    pub fn peek_index(&self, index: usize) -> Option<PW<Token>> {
         if self.in_bounds(index) {
             Some(self.tokens[index])
         } else {
@@ -259,25 +258,26 @@ impl<'a> Parser<'a> {
     // Implements a Pratt parser for parsing expressions
     fn pratt_expression(&mut self, rbp: i32) -> Option<Expression> {
         //println!("expr {}", rbp);
-        let mut token = self.next_token();
+        let mut token = self.next();
         let mut left = try_opt!(self.pratt_nud(token));
-        let mut next = self.next_token();
+        let mut next = self.next();
         while rbp < try_opt!(self.pratt_lbp(next)) {
             token = next;
             left = try_opt!(self.pratt_led(left, token));
-            next = self.next_token();
+            next = self.next();
         }
         self.seek(-1); // when we break out of the loop, next hasn't been consumed yet, so we need to step back
         Some(left)
     }
 
-    fn pratt_nud(&mut self, token: Option<Token>) -> Option<Expression> {
+    fn pratt_nud(&mut self, token: Option<PW<Token>>) -> Option<Expression> {
         //println!("nud {:?}", token);
-        match token {
-            Some(Token::Const(v)) => Some(Expression::Constant(v)),
-            Some(Token::Ident(id)) => Some(Expression::Variable(id)),
+        match token.token() {
+            Some(Token::Const(v)) => Some(Expression::Constant(v.pw(token.pos().unwrap()))),
+            Some(Token::Ident(id)) => Some(Expression::Variable(id.pw(token.pos().unwrap()))),
             Some(Token::Operator(Operator::Sub)) =>
-                Some(Expression::Prefix(Operator::Sub, Box::new(try_opt!(self.pratt_expression(100))))),
+                Some(Expression::Prefix(Operator::Sub.pw(token.pos().unwrap()),
+                        Box::new(try_opt!(self.pratt_expression(100))))),
 
             Some(Token::Symbol(Symbol::LeftBracket(Bracket::Round))) => {
                 let expr = try_opt!(self.pratt_expression(1));
@@ -305,13 +305,13 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn pratt_led(&mut self, left: Expression, right: Option<Token>) -> Option<Expression> {
+    fn pratt_led(&mut self, left: Expression, right: Option<PW<Token>>) -> Option<Expression> {
         //println!("led {:?} {:?}", left, right);
-        match right {
+        match right.token() {
             Some(Token::Operator(op)) => {
                 let precedence = op.precedence() -
                     if op.associativity() == Associativity::Right { 1 } else { 0 };
-                Some(Expression::Infix(op,
+                Some(Expression::Infix(op.pw(right.pos().unwrap()),
                                        Box::new(left),
                                        Box::new(try_opt!(self.pratt_expression(precedence)))))
             }
@@ -350,9 +350,9 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn pratt_lbp(&mut self, token: Option<Token>) -> Option<i32> {
+    fn pratt_lbp(&mut self, token: Option<PW<Token>>) -> Option<i32> {
         //println!("lbp {:?}", token);
-        match token {
+        match token.token() {
             Some(Token::Operator(op)) => Some(op.precedence()),
             Some(Token::Symbol(Symbol::If)) => Some(2),
             Some(Token::Symbol(Symbol::Else)) => Some(0),
@@ -387,7 +387,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    pub fn parse_ident(&mut self) -> Option<Identifier> {
+    pub fn parse_ident(&mut self) -> Option<PW<Identifier>> {
         match expect_value!(self, Token::Ident) {
             None => {
                 self.new_issue(Level::Error, "expected identifier");
@@ -528,10 +528,11 @@ impl<'a> Parser<'a> {
     // if def_type, expression only args are not allowed, if not then identifier only args are
     // parsed as rhs expressions rather than the lhs
     pub fn parse_arg(&mut self, def_type: bool) -> Option<Argument> {
-        match (self.next_token(), self.next_token()) {
+        let (one, two) = (self.next(), self.next());
+        match (one.token(), two.token()) {
             (Some(Token::Ident(id)), Some(Token::Symbol(Symbol::Equals))) => {
                 let expr = try_opt!(self.parse_expression());
-                Some((Some(id), Some(expr)))
+                Some((Some(id.pw(one.pos().unwrap())), Some(expr)))
             }
             (Some(Token::Ident(id)), None) => {
                 if !def_type { //it's actually an expression containing a single identifier
@@ -539,7 +540,7 @@ impl<'a> Parser<'a> {
                     let expr = try_opt!(self.parse_expression());
                     Some((None, Some(expr)))
                 } else {
-                    Some((Some(id), None))
+                    Some((Some(id.pw(one.pos().unwrap())), None))
                 }
             }
             _ => {
@@ -603,7 +604,7 @@ pub enum Statement {
 
 #[derive(Debug)]
 pub struct FunctionDef {
-    ident: Identifier,
+    ident: PW<Identifier>,
     func: Function,
 }
 
@@ -617,7 +618,7 @@ pub struct Function {
 
 #[derive(Debug)]
 pub struct FunctionCall {
-    ident: Identifier,
+    ident: PW<Identifier>,
     args: ArgumentList,
     ty: CallType,
 }
@@ -629,7 +630,7 @@ pub enum CallType {
     Partial,
 }
 
-pub type Argument = (Option<Identifier>, Option<Expression>); // At most one of the two can be None
+pub type Argument = (Option<PW<Identifier>>, Option<Expression>); // At most one of the two can be None
 pub type ArgumentList = Vec<Argument>;
 
 #[derive(Debug)]
@@ -640,7 +641,7 @@ pub enum Item {
 
 #[derive(Debug)]
 pub struct Assignment {
-    ident: Identifier,
+    ident: PW<Identifier>,
     expr: Expression,
 }
 
@@ -653,11 +654,11 @@ pub struct Conditional {
 
 #[derive(Debug)]
 pub enum Expression {
-    Constant(f32),
-    Infix(Operator, Box<Expression>, Box<Expression>),
-    Prefix(Operator, Box<Expression>),
+    Constant(PW<Number>),
+    Infix(PW<Operator>, Box<Expression>, Box<Expression>),
+    Prefix(PW<Operator>, Box<Expression>),
     Negate(Box<Expression>),
-    Variable(Identifier),
+    Variable(PW<Identifier>),
     Block(Block),
     FunctionCall(FunctionCall),
     Conditional(Box<Conditional>),
