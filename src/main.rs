@@ -47,7 +47,7 @@ fn main() {
                     if args.flag_tokens {
                         println!("\nTokens (n={})", tok.len());
                         for t in tok.iter() {
-                            println!("\t{}", t);
+                            println!("\t{:?}", t);
                         }
                         println!("");
                     }

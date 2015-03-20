@@ -2,7 +2,6 @@ use regex::Regex;
 use super::issue::{Level, IssueTracker};
 use super::identifier::{Identifier, IdMap};
 use std::fmt;
-use std::ops::Deref;
 
 pub type Number = f32;
 
@@ -178,7 +177,7 @@ pub enum Bracket {
     Curly,
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone)]
 pub struct SourcePos {
     pub line: usize,
     pub column: usize,
@@ -215,25 +214,22 @@ impl fmt::Display for SourcePos {
     }
 }
 
-///PW/PowWrapper holds an arbitrary object along with a position
-#[derive(Copy, Clone, Debug)]
-pub struct PW<T: Copy + Clone>(T, SourcePos);
-
-pub trait ToPW<T> {
-    fn pw(self, pos: SourcePos) -> PW<T>;
-}
-impl<T: Copy + Clone> ToPW<T> for T {
-    fn pw(self, pos: SourcePos) -> PW<T> {
-        PW(self, pos)
+impl fmt::Debug for SourcePos {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}:{}", self.line, self.column)
     }
 }
+
+///PW/PowWrapper holds an arbitrary object along with a position
+pub type PW<T> = (T, SourcePos);
+
 pub trait PWImpl {
     type Token;
     type Pos;
     fn token(self) -> <Self as PWImpl>::Token;
     fn pos(self) -> <Self as PWImpl>::Pos;
 }
-impl<T: Copy + Clone> PWImpl for PW<T> {
+impl<T: Clone> PWImpl for PW<T> {
     type Token = T;
     type Pos = SourcePos;
     fn token(self) -> T {
@@ -243,7 +239,7 @@ impl<T: Copy + Clone> PWImpl for PW<T> {
         self.1
     }
 }
-impl<T: Copy + Clone> PWImpl for Option<PW<T>> {
+impl<T: Clone> PWImpl for Option<PW<T>> {
     type Token = Option<T>;
     type Pos = Option<SourcePos>;
     fn token(self) -> Option<T> {
@@ -251,18 +247,6 @@ impl<T: Copy + Clone> PWImpl for Option<PW<T>> {
     }
     fn pos(self) -> Option<SourcePos> {
         self.map(|x| x.1)
-    }
-}
-impl<T: Copy + Clone> Deref for PW<T> {
-    type Target = T;
-
-    fn deref<'a>(&'a self) -> &'a T {
-        &self.0
-    }
-}
-impl<T: fmt::Debug + Copy + Clone> fmt::Display for PW<T> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:?}@{}", self.0, self.1)
     }
 }
 
@@ -307,7 +291,7 @@ pub fn lex<'a>(issues: &'a IssueTracker<'a>,
         // Add symbols
         if let Some((0, x)) = SYMBOL_REGEX.find(walk) {
             let sym = Symbol::parse(&walk[0..x]).unwrap(); // If this fails either the regex or the parser is wrong.
-            tokens.push(Token::Symbol(sym).pw(pos));
+            tokens.push((Token::Symbol(sym), pos));
             walk = &walk[x..];
             pos.add_chars(x);
             continue;
@@ -315,7 +299,7 @@ pub fn lex<'a>(issues: &'a IssueTracker<'a>,
 
         // Add identifiers
         if let Some((0, x)) = IDENT_REGEX.find(walk) {
-            tokens.push(Token::Ident(idmap.id(&walk[0..x])).pw(pos));
+            tokens.push((Token::Ident(idmap.id(&walk[0..x])), pos));
             walk = &walk[x..];
             pos.add_chars(x);
             continue;
@@ -324,7 +308,7 @@ pub fn lex<'a>(issues: &'a IssueTracker<'a>,
         // Add operators
         if let Some((0, x)) = OPERATOR_REGEX.find(walk) {
             let op = Operator::parse(&walk[0..x]).unwrap(); // If this fails either the regex or the parser is wrong.
-            tokens.push(Token::Operator(op).pw(pos));
+            tokens.push((Token::Operator(op), pos));
             walk = &walk[x..];
             pos.add_chars(x);
             continue;
@@ -332,7 +316,7 @@ pub fn lex<'a>(issues: &'a IssueTracker<'a>,
 
         if let Some((0, x)) = CONST_REGEX.find(walk) {
             let v = walk[0..x].parse().unwrap(); // If this fails either the regex or the parser is wrong.
-            tokens.push(Token::Const(v).pw(pos));
+            tokens.push((Token::Const(v), pos));
             walk = &walk[x..];
             pos.add_chars(x);
             continue;
