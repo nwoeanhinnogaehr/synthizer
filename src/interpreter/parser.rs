@@ -1,8 +1,9 @@
 #![macro_use]
 
 use super::issue::{IssueTracker, Level};
-use super::lexer::{Number, SourcePos, Token, PW, PWImpl, Symbol, Bracket, Operator, Associativity};
-use super::identifier::Identifier;
+use super::lexer::{SourcePos, Token, Symbol, Bracket, Associativity};
+use super::symbol::Identifier;
+use super::ast::*;
 use std::borrow::{IntoCow, Cow};
 
 macro_rules! try_opt(
@@ -17,8 +18,8 @@ macro_rules! try_opt(
 macro_rules! expect_value(
     ( $tokens:ident, $ty:path ) => {
         $tokens.next().and_then(|t| {
-            match t.token() {
-                $ty(v) => Some((v, t.pos())),
+            match t.item() {
+                &$ty(v) => Some(Node(v, t.pos())),
                 _ => None
             }
         })
@@ -28,8 +29,8 @@ macro_rules! expect_value(
 macro_rules! expect(
     ( $tokens:ident, $ty:pat ) => {
         $tokens.next().and_then(|x| {
-            match x.token() {
-                $ty => Some(x),
+            match x.item() {
+                &$ty => Some(x),
                 _ => None,
             }
         })
@@ -68,16 +69,48 @@ macro_rules! find_next_skip_brackets(
     }
 );
 
+macro_rules! find_next_skip_brackets1(
+    ( $parser:ident, $( $token:expr ),+ ) => {
+        {
+            let start_idx = $parser.index();
+            let out;
+            loop {
+                let token = $parser.next_token();
+                match token {
+                    $(Some(x) if x == $token => {
+                        out = token;
+                        break;
+                    }),+
+                    Some(Token::Symbol(Symbol::LeftBracket(_))) => {
+                        if !$parser.match_bracket() {
+                            out = None;
+                            break;
+                        }
+                        $parser.seek(-1);
+                    },
+                    None => {
+                        out = None;
+                        break;
+                    },
+                    _ => { }
+                }
+            }
+            let index = $parser.index();
+            $parser.set_index(start_idx);
+            (out, index)
+        }
+    }
+);
 #[derive(Clone, Debug)]
 pub struct Parser<'a> {
-    tokens: Cow<'a, [PW<Token>]>,
+    tokens: Cow<'a, [Node<Token>]>,
     issues: &'a IssueTracker<'a>,
     sub_stack: Vec<(usize, usize, usize)>,
 }
 
 impl<'a> Parser<'a> {
     pub fn new<U>(tokens: U, issues: &'a IssueTracker<'a>) -> Parser<'a>
-            where U: IntoCow<'a, [PW<Token>]> {
+            where U: IntoCow<'a, [Node<Token>]> {
         let ctokens = tokens.into_cow();
         let len = ctokens.len();
         Parser {
@@ -87,14 +120,14 @@ impl<'a> Parser<'a> {
         }
     }
 
-    pub fn next(&mut self) -> Option<PW<Token>> {
+    pub fn next(&mut self) -> Option<Node<Token>> {
         self.seek(1);
         self.peek(-1)
     }
 
     pub fn next_token(&mut self) -> Option<Token> {
         self.seek(1);
-        self.peek(-1).token()
+        self.peek(-1).item()
     }
 
     pub fn source_pos(&self) -> Option<SourcePos> {
@@ -162,7 +195,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    pub fn peek(&self, offset: isize) -> Option<PW<Token>> {
+    pub fn peek(&self, offset: isize) -> Option<Node<Token>> {
         let index = self.offset(offset);
         if self.in_bounds(index) {
             self.peek_index(index)
@@ -171,7 +204,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    pub fn peek_index(&self, index: usize) -> Option<PW<Token>> {
+    pub fn peek_index(&self, index: usize) -> Option<Node<Token>> {
         if self.in_bounds(index) {
             Some(self.tokens[index])
         } else {
@@ -180,7 +213,7 @@ impl<'a> Parser<'a> {
     }
 
     pub fn peek_token(&self, offset: isize) -> Option<Token> {
-        self.peek(offset).token()
+        self.peek(offset).item()
     }
 
     pub fn peek_source_pos(&self, offset: isize) -> Option<SourcePos> {
@@ -276,15 +309,22 @@ impl<'a> Parser<'a> {
 
     fn pratt_nud(&mut self, token: Option<Node<Token>>) -> Option<Expression> {
         //println!("nud {:?}", token);
-        match token.token() {
-            Some(Token::Const(v)) => Some(Expression::Constant((v, token.pos().unwrap()))),
-            Some(Token::Ident(id)) => Some(Expression::Variable((id, token.pos().unwrap()))),
-            Some(Token::Operator(Operator::Sub)) => {
-                Some(Expression::Prefix(Box::new((Prefix {
-                    op: (Operator::Sub, token.pos().unwrap()),
+        match token.item() {
+            Some(Token::Const(v)) => Some(Expression::Constant(Node(v, token.pos().unwrap()))),
+
+            Some(Token::Boolean(v)) => Some(Expression::Boolean(Node(v, token.pos().unwrap()))),
+
+            Some(Token::Ident(id)) => Some(Expression::Variable(Node(id, token.pos().unwrap()))),
+
+            // unary operator
+            Some(Token::Operator(op)) if op.num_args() == 1 => {
+                Some(Expression::Prefix(Box::new(Node(Prefix {
+                    op: Node(op, token.pos().unwrap()),
                     expr: try_opt!(self.pratt_expression(100))
                 }, token.pos().unwrap()))))
             }
+
+            // start of group
             Some(Token::Symbol(Symbol::LeftBracket(Bracket::Round))) => {
                 let expr = try_opt!(self.pratt_expression(1));
                 if expect!(self, Token::Symbol(Symbol::RightBracket(Bracket::Round))).is_none() {
@@ -293,15 +333,12 @@ impl<'a> Parser<'a> {
                 }
                 Some(expr)
             }
+
+            // start of block
             Some(Token::Symbol(Symbol::LeftBracket(Bracket::Curly))) => {
                 self.seek(-1);
                 let block = try_opt!(self.parse_block());
                 Some(Expression::Block(block))
-            }
-            Some(Token::Symbol(Symbol::Backslash)) => {
-                self.seek(-1);
-                let closure = try_opt!(self.parse_closure());
-                Some(Expression::Closure(closure))
             }
 
             _ => {
@@ -313,44 +350,60 @@ impl<'a> Parser<'a> {
 
     fn pratt_led(&mut self, left: Expression, right: Option<Node<Token>>) -> Option<Expression> {
         //println!("led {:?} {:?}", left, right);
-        match right.token() {
+        match right.item() {
+            // binary operator
             Some(Token::Operator(op)) => {
+                if op.num_args() != 2 {
+                    self.new_issue(Level::Error,
+                                   "expected binary operator");
+                    return None;
+                }
                 let precedence = op.precedence() -
                     if op.associativity() == Associativity::Right { 1 } else { 0 };
-                Some(Expression::Infix(Box::new((Infix {
-                    op: (op, right.pos().unwrap()),
+                let pos = left.pos();
+                Some(Expression::Infix(Box::new(Node(Infix {
+                    op: Node(op, right.pos().unwrap()),
                     left: left,
                     right: try_opt!(self.pratt_expression(precedence)),
-                }, right.pos().unwrap()))))
+                }, pos))))
             }
+
+            // extra closing paren
             Some(Token::Symbol(Symbol::RightBracket(Bracket::Round))) => {
                 self.new_issue(Level::Error, "unexpected `)`");
                 return None;
             }
-            Some(Token::Symbol(Symbol::LeftBracket(_))) => {
+
+            // function call
+            Some(Token::Symbol(Symbol::LeftBracket(Bracket::Round))) |
+            Some(Token::Symbol(Symbol::LeftBracket(Bracket::Square))) => {
                 self.seek(-2);
                 let call = try_opt!(self.parse_function_call());
                 Some(Expression::FunctionCall(call))
             }
+
+            // if
             Some(Token::Symbol(Symbol::If)) => {
+                let pos = left.pos();
                 let then = left;
                 let cond = try_opt!(self.pratt_expression(1));
                 if let Some(Token::Symbol(Symbol::Else)) = self.next_token() {
                     let els = try_opt!(self.pratt_expression(1));
-                    Some(Expression::Conditional(Box::new((Conditional {
+                    Some(Expression::Conditional(Box::new(Node(Conditional {
                         cond: cond,
                         then: then,
                         els: Some(els),
-                    }, right.pos().unwrap()))))
+                    }, pos))))
                 } else {
                     self.seek(-1);
-                    Some(Expression::Conditional(Box::new((Conditional {
+                    Some(Expression::Conditional(Box::new(Node(Conditional {
                         cond: cond,
                         then: then,
                         els: None,
-                    }, right.pos().unwrap()))))
+                    }, pos))))
                 }
             }
+
             _ => {
                 self.new_issue(Level::Error, "(internal error: unreachable) expected left denotation");
                 return None;
@@ -360,12 +413,19 @@ impl<'a> Parser<'a> {
 
     fn pratt_lbp(&mut self, token: Option<Node<Token>>) -> Option<i32> {
         //println!("lbp {:?}", token);
-        match token.token() {
+        match token.item() {
             Some(Token::Operator(op)) => Some(op.precedence()),
+
             Some(Token::Symbol(Symbol::If)) => Some(2),
             Some(Token::Symbol(Symbol::Else)) => Some(0),
+
+            // end of group
             Some(Token::Symbol(Symbol::RightBracket(Bracket::Round))) => Some(1),
-            Some(Token::Symbol(Symbol::LeftBracket(_))) => Some(1000),
+
+            // function call
+            Some(Token::Symbol(Symbol::LeftBracket(Bracket::Round))) |
+            Some(Token::Symbol(Symbol::LeftBracket(Bracket::Square))) => Some(1000),
+
             None => Some(0),
             _ => {
                 self.new_issue(Level::Error, "expected binary operator");
@@ -380,9 +440,9 @@ impl<'a> Parser<'a> {
         try_opt!(self.parse_symbol(Symbol::Equals));
         let expr = try_opt!(self.parse_expression());
 
-        Some((Assignment {
+        Some(Node(Assignment {
             ident: ident,
-            expr: expr,
+            expr: expr
         }, pos))
     }
 
@@ -410,25 +470,24 @@ impl<'a> Parser<'a> {
         let pos = self.peek_source_pos_or_end(0);
         let ident = try_opt!(self.parse_ident());
         let func = try_opt!(self.parse_function());
-        Some((FunctionDef {
+        Some(Node(FunctionDef {
             ident: ident,
             func: func,
         }, pos))
     }
 
-    pub fn parse_closure(&mut self) -> Option<Node<Closure>> {
-        let pos = self.peek_source_pos_or_end(0);
-        try_opt!(self.parse_symbol(Symbol::Backslash));
-        Some((try_opt!(self.parse_function()).0, pos))
-    }
-
     fn parse_function(&mut self) -> Option<Node<Function>> {
         let pos = self.peek_source_pos_or_end(0);
-        let (brace, brace_idx) = find_next_skip_brackets!(self, Token::Symbol(Symbol::LeftBracket(Bracket::Curly)));
+
+        // find the start of the block
+        let (brace, brace_idx) = find_next_skip_brackets!(
+            self, Token::Symbol(Symbol::LeftBracket(Bracket::Curly)));
         if brace.is_none() {
             self.new_issue_at(Level::Error, self.end_source_pos(), "expected `{`");
             return None;
         }
+
+        // parse arg list (everything until start of block)
         let idx = self.index();
         self.enter_subsection(idx, brace_idx-1);
         let args = try_opt!(self.parse_arg_list(true));
@@ -436,7 +495,7 @@ impl<'a> Parser<'a> {
 
         let block = try_opt!(self.parse_block());
 
-        Some((Function {
+        Some(Node(Function {
             args: args,
             block: block,
         }, pos))
@@ -445,7 +504,8 @@ impl<'a> Parser<'a> {
     pub fn parse_block(&mut self) -> Option<Node<Block>> {
         let pos = self.peek_source_pos_or_end(0);
         try_opt!(self.parse_symbol(Symbol::LeftBracket(Bracket::Curly)));
-        let (brace, brace_idx) = find_next_skip_brackets!(self, Token::Symbol(Symbol::RightBracket(Bracket::Curly)));
+        let (brace, brace_idx) = find_next_skip_brackets!(self,
+                                    Token::Symbol(Symbol::RightBracket(Bracket::Curly)));
         if brace.is_none() {
             self.new_issue_at(Level::Error, self.end_source_pos(), "expected `}`");
             return None;
@@ -470,7 +530,7 @@ impl<'a> Parser<'a> {
         }
         self.integrate_subsection();
         self.seek(1);
-        Some((stmts, pos))
+        Some(Node(stmts, pos))
     }
 
     pub fn parse_statement(&mut self) -> Option<Statement> {
@@ -522,21 +582,21 @@ impl<'a> Parser<'a> {
         let pos = self.peek_source_pos_or_end(0);
         let mut args = Vec::new();
         if self.len() == 0 {
-            return Some((args, pos))
+            return Some(Node(args, pos))
         }
         loop {
-            let (comma, comma_idx) = find_next_skip_brackets!(self, Token::Symbol(Symbol::Comma));
+            let (token, token_idx) = find_next_skip_brackets!(self, Token::Symbol(Symbol::Comma));
             let idx = self.index();
-            self.enter_subsection(idx, comma_idx-1);
+            self.enter_subsection(idx, token_idx-1);
             let arg = try_opt!(self.parse_arg(def_type));
             args.push(arg);
             self.integrate_subsection();
-            if comma.is_none() {
+            if token.is_none() {
                 break;
             }
         }
         self.seek(-1); // no comma on the last one
-        Some((args, pos))
+        Some(Node(args, pos))
     }
 
     // if def_type, expression only args are not allowed, if not then identifier only args are
@@ -544,18 +604,18 @@ impl<'a> Parser<'a> {
     pub fn parse_arg(&mut self, def_type: bool) -> Option<Node<Argument>> {
         let pos = self.peek_source_pos_or_end(0);
         let (one, two) = (self.next(), self.next());
-        match (one.token(), two.token()) {
+        match (one.item(), two.item()) {
             (Some(Token::Ident(id)), Some(Token::Symbol(Symbol::Equals))) => {
                 let expr = try_opt!(self.parse_expression());
-                Some(((Some((id, one.pos().unwrap())), Some(expr)), pos))
+                Some(Node(Argument(Some(Node(id, one.pos().unwrap())), Some(expr)), pos))
             }
             (Some(Token::Ident(id)), None) => {
                 if !def_type { //it's actually an expression containing a single identifier
                     self.seek(-2);
                     let expr = try_opt!(self.parse_expression());
-                    Some(((None, Some(expr)), pos))
+                    Some(Node(Argument(None, Some(expr)), pos))
                 } else {
-                    Some(((Some((id, one.pos().unwrap())), None), pos))
+                    Some(Node(Argument(Some(Node(id, one.pos().unwrap())), None), pos))
                 }
             }
             _ => {
@@ -566,7 +626,7 @@ impl<'a> Parser<'a> {
                 } else {
                     self.seek(-1);
                     let expr = try_opt!(self.parse_expression());
-                    Some(((None, Some(expr)), pos))
+                    Some(Node(Argument(None, Some(expr)), pos))
                 }
             }
         }
@@ -580,7 +640,7 @@ impl<'a> Parser<'a> {
                 let ty = match brace {
                     Bracket::Round => CallType::Explicit,
                     Bracket::Square => CallType::Implicit,
-                    Bracket::Curly => CallType::Partial,
+                    _ => unreachable!(),
                 };
 
                 let (end, end_idx) = find_next_skip_brackets!(self, Token::Symbol(Symbol::RightBracket(brace)));
@@ -594,7 +654,7 @@ impl<'a> Parser<'a> {
                 let args = try_opt!(self.parse_arg_list(false));
                 self.integrate_subsection();
                 self.seek(1); //consume closing brace
-                Some((FunctionCall {
+                Some(Node(FunctionCall {
                     ident: ident,
                     args: args,
                     ty: ty,
@@ -606,93 +666,4 @@ impl<'a> Parser<'a> {
             }
         }
     }
-}
-
-pub type Node<T> = PW<T>;
-
-#[derive(Clone, Debug)]
-pub enum Item {
-    Assignment(Node<Assignment>),
-    FunctionDef(Node<FunctionDef>),
-}
-
-#[derive(Clone, Debug)]
-pub enum Statement {
-    Assignment(Node<Assignment>),
-    Expression(Expression),
-}
-
-pub type Ident = Identifier;
-
-pub type Root = Vec<Item>;
-
-pub type Block = Vec<Statement>;
-
-#[derive(Clone, Debug)]
-pub struct FunctionDef {
-    ident: Node<Ident>,
-    func: Node<Function>,
-}
-
-pub type Closure = Function;
-
-#[derive(Clone, Debug)]
-pub struct Function {
-    args: Node<ArgumentList>,
-    block: Node<Block>,
-}
-
-#[derive(Clone, Debug)]
-pub struct FunctionCall {
-    ident: Node<Ident>,
-    args: Node<ArgumentList>,
-    ty: CallType,
-}
-
-#[derive(Clone, Debug)]
-pub enum CallType {
-    Explicit,
-    Implicit,
-    Partial,
-}
-
-pub type Argument = (Option<Node<Ident>>, Option<Expression>); // At most one of the two can be None
-pub type ArgumentList = Vec<Node<Argument>>;
-
-#[derive(Clone, Debug)]
-pub struct Assignment {
-    ident: Node<Ident>,
-    expr: Expression,
-}
-
-#[derive(Clone, Debug)]
-pub struct Conditional {
-    cond: Expression,
-    then: Expression,
-    els: Option<Expression>,
-}
-
-#[derive(Clone, Debug)]
-pub struct Infix {
-    op: Node<Operator>,
-    left: Expression,
-    right: Expression,
-}
-
-#[derive(Clone, Debug)]
-pub struct Prefix {
-    op: Node<Operator>,
-    expr: Expression,
-}
-
-#[derive(Clone, Debug)]
-pub enum Expression {
-    Constant(Node<Number>),
-    Infix(Box<Node<Infix>>),
-    Prefix(Box<Node<Prefix>>),
-    Variable(Node<Ident>),
-    Block(Node<Block>),
-    FunctionCall(Node<FunctionCall>),
-    Conditional(Box<Node<Conditional>>),
-    Closure(Node<Closure>),
 }

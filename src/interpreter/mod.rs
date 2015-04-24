@@ -1,4 +1,6 @@
 pub mod parser;
 pub mod lexer;
-pub mod identifier;
+pub mod symbol;
 pub mod issue;
+pub mod ast;
+pub mod typecheck;

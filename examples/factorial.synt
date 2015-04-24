@@ -1,0 +1,5 @@
+fact n {
+	n*fact(n-1) if n>1 else 1
+}
+
+x = fact(6);

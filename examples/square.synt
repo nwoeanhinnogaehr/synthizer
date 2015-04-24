@@ -1,24 +1,5 @@
-pi = 3.141592653589;
-
-lowpass ~, freq, cutoff {
-    ~[] if freq < cutoff;
+square a {
+	a*a
 }
 
-highpass ~, freq, cutoff {
-    ~[] if freq > cutoff;
-}
-
-square ~, freq, k=1, scale=1 {
-    freq = (2*k-1)*freq;
-    amp = 4/pi/(2*k-1);
-    ~ (freq, amp);
-    square [k=k+1];
-}
-
-// Square wave @ 220Hz with 6000Hz lowpass, 1000Hz highpass
-main {
-    square (freq=220,
-           lowpass{cutoff=6000,
-           highpass{cutoff=1000,
-           ~}});
-}
+x = square(5);

@@ -1,8 +1,8 @@
-#![feature(plugin, core, collections, std_misc)]
+#![feature(plugin, collections, into_cow, debug_builders)]
 #![plugin(regex_macros, docopt_macros)]
 
 extern crate regex;
-extern crate "rustc-serialize" as rustc_serialize;
+extern crate rustc_serialize;
 extern crate docopt;
 
 use std::fs::File;
@@ -39,33 +39,27 @@ fn main() {
     match file.read_to_string(&mut code) {
         Err(why) => panic!("couldn't read {}: {}", filename, why),
         Ok(_) => {
-            let (issues, idmap);
+            let (issues, symtab, ast);
             issues = IssueTracker::new(&filename, &code);
-            idmap = interpreter::identifier::IdMap::new();
-            match interpreter::lexer::lex(&issues, code.as_slice(), &idmap) {
-                Some(tok) => {
-                    if args.flag_tokens {
-                        println!("\nTokens (n={})", tok.len());
-                        for t in tok.iter() {
-                            println!("\t{:?}", t);
-                        }
-                        println!("");
+            symtab = interpreter::symbol::SymbolTable::new();
+            if let Some(tok) = interpreter::lexer::lex(&issues, &code, &symtab) {
+                println!("lex: true");
+                let mut parser = Parser::new(tok, &issues);
+                match parser.parse() {
+                    Some(x) => {
+                        println!("parse: true");
+                        ast = x; // borrow checker madness... move into a longer span
+                        let mut typechecker = interpreter::typecheck::TypeChecker::new(&ast, &symtab, &issues);
+                        let ok = typechecker.check();
+                        println!("typecheck: {}", ok);
                     }
-                    if args.flag_idmap {
-                        println!("Identifier map:");
-                        for (v, n) in idmap.name_map.borrow().iter() {
-                            println!("\t{} -> {}", v, n);
-                        }
-                        println!("");
-                    }
-
-                    let mut parser = Parser::new(tok, &issues);
-                    let ast = parser.parse();
-                    println!("{:?}", ast);
-                },
-                None => { }
+                    None => {
+                        println!("parse: false");
+                    },
+                }
+            } else {
+                println!("lex: false");
             }
-
             println!("{}", issues);
             if !issues.is_ok() {
                 return;

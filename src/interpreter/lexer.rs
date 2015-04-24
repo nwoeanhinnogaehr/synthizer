@@ -1,7 +1,9 @@
 use regex::Regex;
 use super::issue::{Level, IssueTracker};
-use super::identifier::{Identifier, IdMap};
+use super::symbol::{Identifier, SymbolTable};
+use super::ast::Node;
 use std::fmt;
+use std::str::FromStr;
 
 pub type Number = f32;
 
@@ -10,6 +12,7 @@ pub type Number = f32;
 pub enum Token {
     Ident(Identifier),
     Const(Number),
+    Boolean(bool),
     Operator(Operator),
     Symbol(Symbol),
 }
@@ -166,6 +169,7 @@ impl fmt::Display for Token {
             Operator(x) => write!(f, "{:?}", x),
             Const(x) => write!(f, "{}", x),
             Symbol(x) => write!(f, "{}", x),
+            Boolean(x) => write!(f, "{}", x),
         }
     }
 }
@@ -177,7 +181,7 @@ pub enum Bracket {
     Curly,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq)]
 pub struct SourcePos {
     pub line: usize,
     pub column: usize,
@@ -220,53 +224,32 @@ impl fmt::Debug for SourcePos {
     }
 }
 
-///PW/PowWrapper holds an arbitrary object along with a position
-pub type PW<T> = (T, SourcePos);
-
-pub trait PWImpl {
-    type Token;
-    type Pos;
-    fn token(self) -> <Self as PWImpl>::Token;
-    fn pos(self) -> <Self as PWImpl>::Pos;
-}
-impl<T: Clone> PWImpl for PW<T> {
-    type Token = T;
-    type Pos = SourcePos;
-    fn token(self) -> T {
-        self.0
-    }
-    fn pos(self) -> SourcePos {
-        self.1
-    }
-}
-impl<T: Clone> PWImpl for Option<PW<T>> {
-    type Token = Option<T>;
-    type Pos = Option<SourcePos>;
-    fn token(self) -> Option<T> {
-        self.map(|x| x.0)
-    }
-    fn pos(self) -> Option<SourcePos> {
-        self.map(|x| x.1)
-    }
-}
-
 static IDENT_REGEX: Regex = regex!(r"[a-zA-Z_~']+[a-zA-Z_~0-9']*");
 static WHITESPACE_REGEX: Regex = regex!(r"[ \t]+");
 static CONST_REGEX: Regex = regex!(r"([0-9]+\.?[0-9]*|[0-9]*\.?[0-9]+)([eE]-?[0-9]+)?");
-static OPERATOR_REGEX: Regex = regex!(r"\^\^|>=|<=|~=|[\+\*/\^><!%-]|&&|\|\||==|!=");
+static OPERATOR_REGEX: Regex = regex!(r"\^\^|>=|<=|[\+\*/\^><!%-]|&&|\|\||==|!=");
 static SYMBOL_REGEX: Regex = regex!(r"if|else|[\.,=:;\?\(\)\{\}\]\[\\]");
+static BOOLEAN_REGEX: Regex = regex!(r"true|false");
 static COMMENT_REGEX: Regex = regex!(r"//.*");
 static NEWLINE_REGEX: Regex = regex!(r"[\n\r]");
 
 pub fn lex<'a>(issues: &'a IssueTracker<'a>,
                string: &'a str,
-               idmap: &'a IdMap<'a>) -> Option<Vec<PW<Token>>> {
+               symtab: &'a SymbolTable<'a>) -> Option<Vec<Node<Token>>> {
 
     let mut walk = string;
     let mut tokens = Vec::new();
     let mut pos = SourcePos::new();
+    let mut ok = true;
 
     while walk.len() > 0 {
+        // Strip whitespace
+        if let Some((0, x)) = WHITESPACE_REGEX.find(walk) {
+            walk = &walk[x..];
+            pos.add_chars(x);
+            continue;
+        }
+
         // Strip comments
         if let Some((0, x)) = COMMENT_REGEX.find(walk) {
             walk = &walk[x..];
@@ -274,8 +257,36 @@ pub fn lex<'a>(issues: &'a IssueTracker<'a>,
             continue;
         }
 
-        // Strip whitespace
-        if let Some((0, x)) = WHITESPACE_REGEX.find(walk) {
+        // Add operators
+        if let Some((0, x)) = OPERATOR_REGEX.find(walk) {
+            let op = Operator::parse(&walk[0..x]).unwrap(); // If this fails either the regex or the parser is wrong.
+            tokens.push(Node(Token::Operator(op), pos));
+            walk = &walk[x..];
+            pos.add_chars(x);
+            continue;
+        }
+
+        // Add symbols
+        if let Some((0, x)) = SYMBOL_REGEX.find(walk) {
+            let sym = Symbol::parse(&walk[0..x]).unwrap(); // If this fails either the regex or the parser is wrong.
+            tokens.push(Node(Token::Symbol(sym), pos));
+            walk = &walk[x..];
+            pos.add_chars(x);
+            continue;
+        }
+
+        // Add boolean literals
+        if let Some((0, x)) = BOOLEAN_REGEX.find(walk) {
+            let val = bool::from_str(&walk[0..x]).unwrap(); // If this fails either the regex or the parser is wrong.
+            tokens.push(Node(Token::Boolean(val), pos));
+            walk = &walk[x..];
+            pos.add_chars(x);
+            continue;
+        }
+
+        // Add identifiers
+        if let Some((0, x)) = IDENT_REGEX.find(walk) {
+            tokens.push(Node(Token::Ident(symtab.get_id(&walk[0..x])), pos));
             walk = &walk[x..];
             pos.add_chars(x);
             continue;
@@ -288,35 +299,9 @@ pub fn lex<'a>(issues: &'a IssueTracker<'a>,
             continue;
         }
 
-        // Add symbols
-        if let Some((0, x)) = SYMBOL_REGEX.find(walk) {
-            let sym = Symbol::parse(&walk[0..x]).unwrap(); // If this fails either the regex or the parser is wrong.
-            tokens.push((Token::Symbol(sym), pos));
-            walk = &walk[x..];
-            pos.add_chars(x);
-            continue;
-        }
-
-        // Add identifiers
-        if let Some((0, x)) = IDENT_REGEX.find(walk) {
-            tokens.push((Token::Ident(idmap.id(&walk[0..x])), pos));
-            walk = &walk[x..];
-            pos.add_chars(x);
-            continue;
-        }
-
-        // Add operators
-        if let Some((0, x)) = OPERATOR_REGEX.find(walk) {
-            let op = Operator::parse(&walk[0..x]).unwrap(); // If this fails either the regex or the parser is wrong.
-            tokens.push((Token::Operator(op), pos));
-            walk = &walk[x..];
-            pos.add_chars(x);
-            continue;
-        }
-
         if let Some((0, x)) = CONST_REGEX.find(walk) {
             let v = walk[0..x].parse().unwrap(); // If this fails either the regex or the parser is wrong.
-            tokens.push((Token::Const(v), pos));
+            tokens.push(Node(Token::Const(v), pos));
             walk = &walk[x..];
             pos.add_chars(x);
             continue;
@@ -326,6 +311,11 @@ pub fn lex<'a>(issues: &'a IssueTracker<'a>,
         issues.new_issue(pos, Level::Error, "unrecognized token");
         walk = &walk[1..];
         pos.add_chars(1);
+        ok = false;
     }
-    Some(tokens)
+    if ok {
+        Some(tokens)
+    } else {
+        None
+    }
 }
