@@ -259,7 +259,8 @@ pub fn lex<'a>(issues: &'a IssueTracker<'a>,
 
         // Add operators
         if let Some((0, x)) = OPERATOR_REGEX.find(walk) {
-            let op = Operator::parse(&walk[0..x]).unwrap(); // If this fails either the regex or the parser is wrong.
+            // If this fails either the regex or the parser is wrong.
+            let op = Operator::parse(&walk[0..x]).unwrap();
             tokens.push(Node(Token::Operator(op), pos));
             walk = &walk[x..];
             pos.add_chars(x);
@@ -268,7 +269,8 @@ pub fn lex<'a>(issues: &'a IssueTracker<'a>,
 
         // Add symbols
         if let Some((0, x)) = SYMBOL_REGEX.find(walk) {
-            let sym = Symbol::parse(&walk[0..x]).unwrap(); // If this fails either the regex or the parser is wrong.
+            // If this fails either the regex or the parser is wrong.
+            let sym = Symbol::parse(&walk[0..x]).unwrap();
             tokens.push(Node(Token::Symbol(sym), pos));
             walk = &walk[x..];
             pos.add_chars(x);
@@ -277,7 +279,8 @@ pub fn lex<'a>(issues: &'a IssueTracker<'a>,
 
         // Add boolean literals
         if let Some((0, x)) = BOOLEAN_REGEX.find(walk) {
-            let val = bool::from_str(&walk[0..x]).unwrap(); // If this fails either the regex or the parser is wrong.
+            // If this fails either the regex or the parser is wrong.
+            let val = bool::from_str(&walk[0..x]).unwrap();
             tokens.push(Node(Token::Boolean(val), pos));
             walk = &walk[x..];
             pos.add_chars(x);
