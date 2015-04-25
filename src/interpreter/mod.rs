@@ -4,3 +4,4 @@ pub mod symbol;
 pub mod issue;
 pub mod ast;
 pub mod typecheck;
+pub mod synth;

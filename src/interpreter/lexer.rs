@@ -233,9 +233,9 @@ static BOOLEAN_REGEX: Regex = regex!(r"true|false");
 static COMMENT_REGEX: Regex = regex!(r"//.*");
 static NEWLINE_REGEX: Regex = regex!(r"[\n\r]");
 
-pub fn lex<'a>(issues: &'a IssueTracker<'a>,
+pub fn lex<'a, 'b>(issues: &'b IssueTracker<'a>,
                string: &'a str,
-               symtab: &'a SymbolTable<'a>) -> Option<Vec<Node<Token>>> {
+               symtab: &'b SymbolTable<'a>) -> Option<Vec<Node<Token>>> {
 
     let mut walk = string;
     let mut tokens = Vec::new();

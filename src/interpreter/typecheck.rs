@@ -9,14 +9,14 @@ macro_rules! try_bool (
     }
 );
 
-pub struct TypeChecker<'a> {
+pub struct TypeChecker<'a, 'b> {
     issues: &'a IssueTracker<'a>,
-    ast: &'a Root,
+    ast: &'b Root,
     symtab: &'a SymbolTable<'a>,
 }
 
-impl<'a> TypeChecker<'a> {
-    pub fn new(ast: &'a Root, symtab: &'a SymbolTable<'a>, issues: &'a IssueTracker<'a>) -> TypeChecker<'a> {
+impl<'a, 'b> TypeChecker<'a, 'b> {
+    pub fn new(ast: &'b Root, symtab: &'a SymbolTable<'a>, issues: &'a IssueTracker<'a>) -> TypeChecker<'a, 'b> {
         TypeChecker {
             ast: ast,
             symtab: symtab,
@@ -24,11 +24,11 @@ impl<'a> TypeChecker<'a> {
         }
     }
 
-    pub fn check(&mut self) -> bool {
+    pub fn check(&self) -> bool {
         self.check_root(self.ast)
     }
 
-    fn check_root(&mut self, root: &Root) -> bool {
+    fn check_root(&self, root: &Root) -> bool {
         let mut ok = true;
         for item in root.iter() {
             ok &= match item {
@@ -41,7 +41,7 @@ impl<'a> TypeChecker<'a> {
         ok
     }
 
-    fn check_assignment(&mut self, assign: &Node<Assignment>) -> bool {
+    fn check_assignment(&self, assign: &Node<Assignment>) -> bool {
         if let Some((_, 0)) = self.symtab.get_symbol(assign.ident()) {
             self.issues.new_issue(assign.pos(), Level::Warning,
                                   "constant declaration shadows previous declaration of same name");
@@ -57,7 +57,7 @@ impl<'a> TypeChecker<'a> {
         ok
     }
 
-    fn check_function_def(&mut self, def: &Node<FunctionDef>) -> bool {
+    fn check_function_def(&self, def: &Node<FunctionDef>) -> bool {
         if let Some((_, 0)) = self.symtab.get_symbol(def.ident()) {
             self.issues.new_issue(def.pos(), Level::Warning,
                                   "function declaration shadows previous declaration of same name");
@@ -68,7 +68,7 @@ impl<'a> TypeChecker<'a> {
         true
     }
 
-    fn typeof_expr(&mut self, expr: &Expression) -> Option<Type> {
+    fn typeof_expr(&self, expr: &Expression) -> Option<Type> {
         match expr {
             &Expression::Constant(_) => Some(Type::Number),
             &Expression::Boolean(_) => Some(Type::Boolean),
@@ -81,7 +81,7 @@ impl<'a> TypeChecker<'a> {
         }
     }
 
-    fn typeof_function_call(&mut self, call: &Node<FunctionCall>) -> Option<Type> {
+    fn typeof_function_call(&self, call: &Node<FunctionCall>) -> Option<Type> {
         let def = match self.symtab.get_symbol(call.ident()) {
             Some((Symbol { ty: Some(Type::Function(f)) }, _)) => f.clone(),
             Some((Symbol { ty: Some(ty) }, _)) => {
@@ -195,7 +195,7 @@ impl<'a> TypeChecker<'a> {
         }
     }
 
-    fn typeof_block(&mut self, block: &Node<Block>) -> Option<Type> {
+    fn typeof_block(&self, block: &Node<Block>) -> Option<Type> {
         self.symtab.enter_scope(block.pos());
         for stmnt in block.item() {
             match stmnt {
@@ -244,7 +244,7 @@ impl<'a> TypeChecker<'a> {
         ty
     }
 
-    fn typeof_conditional(&mut self, cond: &Node<Conditional>) -> Option<Type> {
+    fn typeof_conditional(&self, cond: &Node<Conditional>) -> Option<Type> {
         match self.typeof_expr(&cond.cond()) {
             Some(x) => {
                 if x != Type::Boolean {
@@ -292,7 +292,7 @@ impl<'a> TypeChecker<'a> {
         Some(then_ty)
     }
 
-    fn typeof_var(&mut self, ident: &Node<Identifier>) -> Option<Type> {
+    fn typeof_var(&self, ident: &Node<Identifier>) -> Option<Type> {
         match self.symtab.get_symbol(*ident.item()) {
             Some((s, _)) => s.ty,
             None => {
@@ -303,7 +303,7 @@ impl<'a> TypeChecker<'a> {
         }
     }
 
-    fn typeof_infix(&mut self, infix: &Node<Infix>) -> Option<Type> {
+    fn typeof_infix(&self, infix: &Node<Infix>) -> Option<Type> {
         let lhs_ty = match self.typeof_expr(infix.left()) {
             Some(x) => x,
             None => {
@@ -396,7 +396,7 @@ impl<'a> TypeChecker<'a> {
         }
     }
 
-    fn typeof_prefix(&mut self, prefix: &Node<Prefix>) -> Option<Type> {
+    fn typeof_prefix(&self, prefix: &Node<Prefix>) -> Option<Type> {
         let expr_ty = match self.typeof_expr(prefix.expr()) {
             Some(x) => x,
             None => {

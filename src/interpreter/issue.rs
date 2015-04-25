@@ -62,7 +62,8 @@ impl<'a> IssueTracker<'a> {
     }
 
     pub fn new_issue<T>(&self, pos: SourcePos, ty: Level, msg: T) where T: IntoCow<'static, str> {
-        self.issues.borrow_mut().push(Issue::new(self.source, self.filename, pos, ty, msg));
+        let issue = Issue::new(self.source, self.filename, pos, ty, msg);
+        self.issues.borrow_mut().push(issue);
     }
 
     pub fn is_ok(&self) -> bool {
