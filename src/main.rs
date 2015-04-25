@@ -16,8 +16,6 @@ Usage:
 
 Options:
   -h, --help       Show this message.
-  -t, --tokens     Show tokens
-  -i, --idmap      Show identifier map
 ");
 
 fn main() {
