@@ -175,16 +175,17 @@ impl<'a, 'b> TypeChecker<'a, 'b> {
             }
         }
 
-        let recursive = self.symtab.check_cycle(def.pos());
-        if recursive {
-            return Some(Type::Infer);
-        }
-
         for unassigned in undef_args.iter() {
             self.issues.new_issue(call.args_pos(), Level::Error, format!(
                     "argument `{}` is required",
                     self.symtab.get_name(unassigned.ident().unwrap())));
         }
+
+        let recursive = self.symtab.check_cycle(def.pos());
+        if recursive {
+            return Some(Type::Infer);
+        }
+
         if undef_args.len() > 0 {
             None
         } else {
