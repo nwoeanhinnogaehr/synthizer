@@ -3,12 +3,6 @@ use super::issue::{IssueTracker, Level};
 use super::symbol::{Type, SymbolTable, Identifier, Symbol};
 use super::lexer::Operator;
 
-macro_rules! try_bool (
-    ( $e:expr ) => {
-        if !$e { return false }
-    }
-);
-
 pub struct TypeChecker<'a, 'b> {
     issues: &'a IssueTracker<'a>,
     ast: &'b Root,
@@ -160,6 +154,9 @@ impl<'a, 'b> TypeChecker<'a, 'b> {
                 Argument(Some(Node(id, _)), Some(ref expr)) => {
                     let mut sym = Symbol::new();
                     sym.ty = self.typeof_expr(expr);
+                    if let None = sym.ty {
+                        return None;
+                    }
                     self.symtab.enter_scope(def.pos());
                     if let Some((prev, 1)) = self.symtab.get_symbol(id) {
                         if sym.ty.is_some() && prev.ty.is_some() && sym.ty != prev.ty {
@@ -181,19 +178,19 @@ impl<'a, 'b> TypeChecker<'a, 'b> {
                     self.symtab.get_name(unassigned.ident().unwrap())));
         }
 
+        if undef_args.len() > 0 {
+            return None
+        }
+
         let recursive = self.symtab.check_cycle(def.pos());
         if recursive {
             return Some(Type::Infer);
         }
 
-        if undef_args.len() > 0 {
-            None
-        } else {
-            self.symtab.enter_scope(def.pos());
-            let ty = self.typeof_block(&def.block);
-            self.symtab.leave_scope();
-            ty
-        }
+        self.symtab.enter_scope(def.pos());
+        let ty = self.typeof_block(&def.block);
+        self.symtab.leave_scope();
+        ty
     }
 
     fn typeof_block(&self, block: &Node<Block>) -> Option<Type> {
@@ -298,7 +295,8 @@ impl<'a, 'b> TypeChecker<'a, 'b> {
             Some((s, _)) => s.ty,
             None => {
                 self.issues.new_issue(ident.pos(), Level::Error,
-                                      "undefined variable referenced");
+                                      format!("variable `{}` is undefined",
+                                          self.symtab.get_name(*ident.item())));
                 None
             }
         }
