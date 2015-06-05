@@ -4,6 +4,7 @@ use super::ident::Identifier;
 use super::tokens::Node;
 
 use std::collections::VecMap;
+use std::ops::Deref;
 
 #[derive(Debug, Clone)]
 pub enum Function {
@@ -15,6 +16,14 @@ pub enum Function {
 pub struct UserFunction {
     pub ty: Option<FunctionType>,
     pub node: Node<ast::Function>,
+}
+
+impl Deref for UserFunction {
+    type Target = Node<ast::Function>;
+
+    fn deref<'a>(&'a self) -> &'a Node<ast::Function> {
+        &self.node
+    }
 }
 
 #[derive(Debug, Clone)]

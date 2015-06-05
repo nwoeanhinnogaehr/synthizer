@@ -122,11 +122,11 @@ impl<'a> TypeChecker<'a> {
 
         let mut undef_args = match func {
             functions::Function::User(ref def) => {
-                let recursive = self.types.has_scope_cycle(def.node.block_pos().index);
+                let recursive = self.types.has_scope_cycle(def.block_pos().index);
                 if recursive {
                     return Some(Type::Indeterminate);
                 }
-                def.node.args().clone()
+                def.args().clone()
             }
 
             functions::Function::Builtin(ref def) => {
@@ -234,16 +234,16 @@ impl<'a> TypeChecker<'a> {
 
         let return_ty = match func {
             functions::Function::User(ref def) => {
-                self.types.enter_block(def.node.block_pos().index);
+                self.types.enter_block(def.block_pos().index);
                 for (id, ty) in &arg_types {
                     self.types.set_type(id, Some(ty.clone()));
                 }
-                let ty = self.typeof_block(&def.node.block);
+                let ty = self.typeof_block(&def.block);
                 self.types.leave_block();
                 match ty {
                     Some(ty) => ty,
                     None => {
-                        self.ctxt.emit_error("could not determine return type of function", def.node.pos());
+                        self.ctxt.emit_error("could not determine return type of function", def.pos());
                         return None;
                     }
                 }
