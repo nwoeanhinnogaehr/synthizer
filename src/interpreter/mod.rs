@@ -1,7 +1,10 @@
-pub mod parser;
-pub mod lexer;
-pub mod symbol;
-pub mod issue;
+pub mod common;
+pub mod ident;
+pub mod types;
+pub mod tokens;
 pub mod ast;
+pub mod issue;
+pub mod lexer;
+pub mod parser;
+pub mod functions;
 pub mod typecheck;
-pub mod synth;

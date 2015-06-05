@@ -1,68 +1,7 @@
-use super::lexer::{Number, Operator, SourcePos};
-use super::symbol::Identifier;
+use super::tokens::{Number, Operator, SourcePos, Node, NodeImpl};
+use super::ident::Identifier;
+
 use std::ops::Deref;
-use std::fmt;
-
-pub struct Node<T>(pub T, pub SourcePos);
-
-pub trait NodeImpl<'a> {
-    type Item;
-    type Pos;
-    fn item(&'a self) -> <Self as NodeImpl>::Item;
-    fn pos(&'a self) -> <Self as NodeImpl>::Pos;
-}
-
-impl<'a, T> NodeImpl<'a> for Node<T> {
-    type Item =  &'a T;
-    type Pos = SourcePos;
-    fn item(&'a self) -> &'a T {
-        &self.0
-    }
-    fn pos(&self) -> SourcePos {
-        self.1
-    }
-}
-
-impl<'a, T> NodeImpl<'a> for Option<Node<T>> where T: Copy {
-    type Item =  Option<T>;
-    type Pos = Option<SourcePos>;
-    fn item(&self) -> Option<T> {
-        self.map(|x| x.0)
-    }
-    fn pos(&self) -> Option<SourcePos> {
-        self.map(|x| x.1)
-    }
-}
-
-impl<T> fmt::Debug for Node<T> where T: fmt::Debug {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_tuple(&format!("Node+{}", self.1))
-            .field(&self.0)
-            .finish()
-    }
-}
-
-impl<T> fmt::Display for Node<T> where T: fmt::Display {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{} @ {}", self.0, self.1)
-    }
-}
-
-impl<T> Copy for Node<T> where T: Copy { }
-
-impl<T> Clone for Node<T> where T: Clone {
-    fn clone(&self) -> Node<T> {
-        Node(self.0.clone(), self.1)
-    }
-}
-
-impl<T> Deref for Node<T> {
-    type Target = T;
-
-    fn deref<'a>(&'a self) -> &'a T {
-        &self.0
-    }
-}
 
 #[derive(Clone, Debug)]
 pub enum Item {

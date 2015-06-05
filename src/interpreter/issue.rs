@@ -1,7 +1,8 @@
-use super::lexer::SourcePos;
+use super::tokens::SourcePos;
+use super::common::Context;
+
 use std::fmt;
-use std::cell::RefCell;
-use std::borrow::{Cow, IntoCow};
+use std::borrow::Cow;
 
 #[derive(Debug, PartialEq)]
 pub enum Level {
@@ -19,13 +20,16 @@ pub struct Issue<'a> {
 }
 
 impl<'a> Issue<'a> {
-    pub fn new<T>(source: &'a str, filename: &'a str, pos: SourcePos, ty: Level, msg: T) -> Issue<'a>
-            where T: IntoCow<'static, str> {
+    pub fn new(source: &'a str,
+               filename: &'a str,
+               pos: SourcePos,
+               ty: Level,
+               msg: Cow<'static, str>) -> Issue<'a> {
         Issue {
             source: source,
             filename: filename,
             pos: pos,
-            msg: msg.into_cow(),
+            msg: msg,
             ty: ty,
         }
     }
@@ -33,6 +37,7 @@ impl<'a> Issue<'a> {
 
 impl<'a> fmt::Display for Issue<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        // oh god why
         let line = &self.source[self.pos.line_index..];
         let line = line[..line.find('\n').unwrap_or(line.len())].to_string();
         let line = line.replace("\t", " ");
@@ -47,33 +52,30 @@ impl<'a> fmt::Display for Issue<'a> {
 
 #[derive(Debug)]
 pub struct IssueTracker<'a> {
-    issues: RefCell<Vec<Issue<'a>>>,
-    source: &'a str,
-    filename: &'a str,
+    issues: Vec<Issue<'a>>,
 }
 
 impl<'a> IssueTracker<'a> {
-    pub fn new(filename: &'a str, source: &'a str) -> IssueTracker<'a> {
+    pub fn new() -> IssueTracker<'a> {
         IssueTracker {
-            issues: RefCell::new(Vec::new()),
-            source: source,
-            filename: filename,
+            issues: Vec::new(),
         }
     }
 
-    pub fn new_issue<T>(&self, pos: SourcePos, ty: Level, msg: T) where T: IntoCow<'static, str> {
-        let issue = Issue::new(self.source, self.filename, pos, ty, msg);
-        self.issues.borrow_mut().push(issue);
+    pub fn new_issue<T>(&mut self, ctxt: &'a Context, pos: SourcePos, ty: Level, msg: T)
+            where T: Into<Cow<'static, str>> {
+        let issue = Issue::new(&ctxt.source, &ctxt.filename, pos, ty, msg.into());
+        self.issues.push(issue);
     }
 
     pub fn is_ok(&self) -> bool {
-        self.issues.borrow().iter().fold(true, |acc, ref item| acc & (item.ty != Level::Error))
+        self.issues.iter().fold(true, |acc, ref item| acc & (item.ty != Level::Error))
     }
 }
 
 impl<'a> fmt::Display for IssueTracker<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        for issue in self.issues.borrow().iter() {
+        for issue in self.issues.iter() {
             try!(write!(f, "{}\n", issue));
         }
         Ok(())
