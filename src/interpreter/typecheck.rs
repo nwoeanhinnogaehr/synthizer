@@ -3,7 +3,7 @@ use super::types::*;
 use super::tokens::{Operator, Node, NodeImpl, SourcePos};
 use super::common::Context;
 use super::ident::{Identifier, NameTable};
-use super::functions::{self, FunctionTable};
+use super::functions;
 
 use std::cell::{Ref, RefMut};
 use std::collections::VecMap;
