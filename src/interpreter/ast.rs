@@ -89,6 +89,7 @@ impl FunctionCall {
 pub enum CallType {
     Explicit,
     Implicit,
+    Partial,
 }
 
 // At most one of the two can be None

@@ -346,6 +346,7 @@ impl<'a> Parser<'a> {
 
             // function call
             Some(Token::Symbol(Symbol::LeftBracket(Bracket::Round))) |
+            Some(Token::Symbol(Symbol::LeftBracket(Bracket::Curly))) |
             Some(Token::Symbol(Symbol::LeftBracket(Bracket::Square))) => {
                 self.seek(-2);
                 let call = try_opt!(self.parse_function_call());
@@ -394,6 +395,7 @@ impl<'a> Parser<'a> {
 
             // function call
             Some(Token::Symbol(Symbol::LeftBracket(Bracket::Round))) |
+            Some(Token::Symbol(Symbol::LeftBracket(Bracket::Curly))) |
             Some(Token::Symbol(Symbol::LeftBracket(Bracket::Square))) => Some(1000),
 
             None => Some(0),
@@ -617,7 +619,7 @@ impl<'a> Parser<'a> {
                 let ty = match brace {
                     Bracket::Round => CallType::Explicit,
                     Bracket::Square => CallType::Implicit,
-                    _ => unreachable!(),
+                    Bracket::Curly => CallType::Partial,
                 };
 
                 let (end, end_idx) = find_next_skip_brackets!(self, Token::Symbol(Symbol::RightBracket(brace)));

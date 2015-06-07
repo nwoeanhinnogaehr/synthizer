@@ -5,7 +5,7 @@ use super::common::Context;
 use super::ident::{Identifier, NameTable};
 use super::functions;
 
-use std::cell::{Ref, RefMut};
+use std::cell::RefMut;
 use std::collections::VecMap;
 
 pub fn typecheck<'a>(ctxt: &'a Context<'a>) {
@@ -15,7 +15,7 @@ pub fn typecheck<'a>(ctxt: &'a Context<'a>) {
 
 pub struct TypeChecker<'a> {
     types: RefMut<'a, TypeTable>,
-    names: Ref<'a, NameTable<'a>>,
+    names: RefMut<'a, NameTable<'a>>,
     ctxt: &'a Context<'a>,
 }
 
@@ -24,7 +24,7 @@ impl<'a> TypeChecker<'a> {
         TypeChecker {
             ctxt: ctxt,
             types: ctxt.types.borrow_mut(),
-            names: ctxt.names.borrow(),
+            names: ctxt.names.borrow_mut(),
         }
     }
 
@@ -106,8 +106,8 @@ impl<'a> TypeChecker<'a> {
 
             _ => unreachable!(),
         };
-        let mut func = match self.ctxt.functions.borrow_mut().get_mut(func_id) {
-            Some(f) => (*f).clone(),
+        let func = match self.ctxt.functions.borrow().get(func_id) {
+            Some(f) => f.clone(),
             None => {
                 self.ctxt.emit_error(format!("function `{}` is not defined",
                                              self.names.get_name(call.ident()).unwrap()),
@@ -204,90 +204,114 @@ impl<'a> TypeChecker<'a> {
             });
         }
 
-        for unassigned in undef_args.iter() {
-            self.ctxt.emit_error(format!("argument `{}` is required",
-                                         self.names.get_name(unassigned.ident().unwrap()).unwrap()),
-                                 call.args_pos());
-        }
+        if call.ty() == CallType::Partial {
+            let mut args = Vec::new();
+            args.push_all(&undef_args);
+            args.push_all(&def_args);
+            let new_ident = self.names.new_anon();
+            let new_type = Type::Function(new_ident);
+            self.types.set_type(new_ident, Some(new_type));
+            match func {
+                functions::Function::User(ref def) => {
+                    let mut new_def = def.item().clone();
+                    new_def.args = Node(args, call.args_pos());
+                    self.ctxt.functions.borrow_mut().insert(new_ident, functions::Function::User(
+                        functions::UserFunction {
+                            ty: None,
+                            node: Node(new_def, call.pos())
+                        }));
+                },
+                functions::Function::Builtin(_) => {
+                    self.ctxt.functions.borrow_mut().insert(new_ident, func);
+                },
+            }
+            Some(new_type)
+        } else { // Not partial application
+            for unassigned in undef_args.iter() {
+                self.ctxt.emit_error(format!("argument `{}` is required",
+                                             self.names.get_name(unassigned.ident().unwrap()).unwrap()),
+                                     call.args_pos());
+            }
+            if undef_args.len() > 0 {
+                return None
+            }
 
-        if undef_args.len() > 0 {
-            return None
-        }
+            let mut arg_types = VecMap::new();
 
-        let mut arg_types = VecMap::new();
+            // determine the type of the arguments
+            for arg in &def_args {
+                match *arg.item() {
+                    Argument(Some(Node(id, _)), Some(ref expr)) => {
+                        let ty = self.typeof_expr(expr);
+                        match ty {
+                            None => return None,
+                            Some(ty) => {
+                                arg_types.insert(id, ty);
+                            }
+                        }
+                    }
+                    _ => { },
+                }
+            }
 
-        // determine the type of the arguments
-        for arg in &def_args {
-            match *arg.item() {
-                Argument(Some(Node(id, _)), Some(ref expr)) => {
-                    let ty = self.typeof_expr(expr);
+            let return_ty = match func {
+                functions::Function::User(ref def) => {
+                    self.types.enter_block(def.block_pos().index);
+                    for (id, ty) in &arg_types {
+                        self.types.set_type(id, Some(ty.clone()));
+                    }
+                    let ty = self.typeof_block(&def.block);
+                    self.types.leave_block();
                     match ty {
-                        None => return None,
-                        Some(ty) => {
-                            arg_types.insert(id, ty);
+                        Some(ty) => ty,
+                        None => {
+                            self.ctxt.emit_error("could not determine return type of function", def.pos());
+                            return None;
                         }
                     }
                 }
-                _ => { },
-            }
-        }
 
-        let return_ty = match func {
-            functions::Function::User(ref def) => {
-                self.types.enter_block(def.block_pos().index);
-                for (id, ty) in &arg_types {
-                    self.types.set_type(id, Some(ty.clone()));
+                functions::Function::Builtin(ref def) => {
+                    def.ty.returns.clone()
                 }
-                let ty = self.typeof_block(&def.block);
-                self.types.leave_block();
-                match ty {
-                    Some(ty) => ty,
-                    None => {
-                        self.ctxt.emit_error("could not determine return type of function", def.pos());
-                        return None;
+            };
+
+            let calcd_type = FunctionType::new(arg_types, return_ty);
+            let mut types_match = true;
+            if let Some(old_type) = match func {
+                functions::Function::User(ref def) => def.ty.as_ref(),
+                functions::Function::Builtin(ref def) => Some(&def.ty),
+            } {
+                for ((old, new), arg) in old_type.args.iter().zip(calcd_type.args.iter()).zip(def_args.iter()) {
+                    if old != new {
+                        if is_aliased {
+                            self.ctxt.emit_error(format!("expected type `{}` for argument `{}` to aliased function `{}`, got type `{}`",
+                                                         old.1,
+                                                         self.names.get_name(arg.ident().unwrap()).unwrap(),
+                                                         self.names.get_name(func_id).unwrap(),
+                                                         new.1),
+                                                 arg.pos());
+                        } else {
+                            self.ctxt.emit_error(format!("expected type `{}` for argument `{}`, got `{}`",
+                                                         old.1,
+                                                         self.names.get_name(arg.ident().unwrap()).unwrap(),
+                                                         new.1),
+                                                 arg.pos());
+                        }
+                        types_match = false;
                     }
                 }
             }
-
-            functions::Function::Builtin(ref def) => {
-                def.ty.returns.clone()
+            if !types_match {
+                return None;
             }
-        };
-
-        let calcd_type = FunctionType::new(arg_types, return_ty);
-        let mut types_match = true;
-        if let Some(old_type) = match func {
-            functions::Function::User(ref def) => def.ty.as_ref(),
-            functions::Function::Builtin(ref def) => Some(&def.ty),
-        } {
-            for ((old, new), arg) in old_type.args.iter().zip(calcd_type.args.iter()).zip(def_args.iter()) {
-                if old != new {
-                    if is_aliased {
-                        self.ctxt.emit_error(format!("expected type `{}` for argument `{}` to aliased function `{}`, got type `{}`",
-                                                     old.1,
-                                                     self.names.get_name(arg.ident().unwrap()).unwrap(),
-                                                     self.names.get_name(func_id).unwrap(),
-                                                     new.1),
-                                             arg.pos());
-                    } else {
-                        self.ctxt.emit_error(format!("expected type `{}` for argument `{}`, got `{}`",
-                                                     old.1,
-                                                     self.names.get_name(arg.ident().unwrap()).unwrap(),
-                                                     new.1),
-                                             arg.pos());
-                    }
-                    types_match = false;
-                }
+            let mut func = func;
+            if let functions::Function::User(ref mut def) = func {
+                def.ty = Some(calcd_type);
             }
+            self.ctxt.functions.borrow_mut().insert(func_id, func);
+            Some(return_ty)
         }
-        if !types_match {
-            return None;
-        }
-        if let functions::Function::User(ref mut def) = func {
-            let found_type = Some(calcd_type);
-            def.ty = found_type;
-        }
-        Some(return_ty)
     }
 
     fn typeof_block(&mut self, block: &Node<Block>) -> Option<Type> {
@@ -506,7 +530,7 @@ impl<'a> TypeChecker<'a> {
                 if expr_ty == Type::Number {
                     Some(Type::Number)
                 } else {
-                    self.ctxt.emit_error(format!("expected `Number`, got `{:?}`", expr_ty),
+                    self.ctxt.emit_error(format!("expected `Number`, got `{}`", expr_ty),
                                          prefix.expr_pos());
                     None
                 }
@@ -515,7 +539,7 @@ impl<'a> TypeChecker<'a> {
                 if expr_ty == Type::Boolean {
                     Some(Type::Boolean)
                 } else {
-                    self.ctxt.emit_error(format!("expected `Boolean`, got `{:?}`", expr_ty),
+                    self.ctxt.emit_error(format!("expected `Boolean`, got `{}`", expr_ty),
                                          prefix.expr_pos());
                     None
                 }
