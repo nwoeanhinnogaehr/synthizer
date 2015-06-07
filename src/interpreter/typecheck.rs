@@ -277,11 +277,11 @@ impl<'a> TypeChecker<'a> {
             };
 
             let calcd_type = FunctionType::new(arg_types, return_ty);
-            if let Some(type_a) = match func {
+            if let Some(def_type) = match func {
                 functions::Function::User(ref def) => def.ty.as_ref(),
                 functions::Function::Builtin(ref def) => Some(&def.ty),
             } {
-                let types_match = self.check_call_args(func_id, is_aliased, &type_a, &calcd_type, &def_args);
+                let types_match = self.check_call_args(func_id, is_aliased, &def_type, &calcd_type, &def_args);
                 if !types_match {
                     return None;
                 }
