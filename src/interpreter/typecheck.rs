@@ -277,33 +277,14 @@ impl<'a> TypeChecker<'a> {
             };
 
             let calcd_type = FunctionType::new(arg_types, return_ty);
-            let mut types_match = true;
-            if let Some(old_type) = match func {
+            if let Some(type_a) = match func {
                 functions::Function::User(ref def) => def.ty.as_ref(),
                 functions::Function::Builtin(ref def) => Some(&def.ty),
             } {
-                for ((old, new), arg) in old_type.args.iter().zip(calcd_type.args.iter()).zip(def_args.iter()) {
-                    if old != new {
-                        if is_aliased {
-                            self.ctxt.emit_error(format!("expected type `{}` for argument `{}` to aliased function `{}`, got type `{}`",
-                                                         old.1,
-                                                         self.names.get_name(arg.ident().unwrap()).unwrap(),
-                                                         self.names.get_name(func_id).unwrap(),
-                                                         new.1),
-                                                 arg.pos());
-                        } else {
-                            self.ctxt.emit_error(format!("expected type `{}` for argument `{}`, got `{}`",
-                                                         old.1,
-                                                         self.names.get_name(arg.ident().unwrap()).unwrap(),
-                                                         new.1),
-                                                 arg.pos());
-                        }
-                        types_match = false;
-                    }
+                let types_match = self.check_call_args(func_id, is_aliased, &type_a, &calcd_type, &def_args);
+                if !types_match {
+                    return None;
                 }
-            }
-            if !types_match {
-                return None;
             }
             let mut func = func;
             if let functions::Function::User(ref mut def) = func {
@@ -312,6 +293,38 @@ impl<'a> TypeChecker<'a> {
             self.ctxt.functions.borrow_mut().insert(func_id, func);
             Some(return_ty)
         }
+    }
+
+    fn check_call_args(&mut self,
+                       func_id: Identifier,
+                       is_aliased: bool,
+                       type_a: &FunctionType,
+                       type_b: &FunctionType,
+                       args: &[Node<Argument>]) -> bool {
+        let mut types_match = true;
+        for ((old, new), arg) in type_a.args.iter().zip(type_b.args.iter()).zip(args.iter()) {
+            if let ((_, &Type::Function(_)), (_, &Type::Function(_))) = (new, old) {
+                // If they are both functions, do nothing.
+                // Their compatibility will already have been validated
+            } else if old != new {
+                if is_aliased {
+                    self.ctxt.emit_error(format!("expected type `{}` for argument `{}` to aliased function `{}`, got type `{}`",
+                                                 old.1,
+                                                 self.names.get_name(arg.ident().unwrap()).unwrap(),
+                                                 self.names.get_name(func_id).unwrap(),
+                                                 new.1),
+                                         arg.pos());
+                } else {
+                    self.ctxt.emit_error(format!("expected type `{}` for argument `{}`, got `{}`",
+                                                 old.1,
+                                                 self.names.get_name(arg.ident().unwrap()).unwrap(),
+                                                 new.1),
+                                         arg.pos());
+                }
+                types_match = false;
+            }
+        }
+        types_match
     }
 
     fn typeof_block(&mut self, block: &Node<Block>) -> Option<Type> {
