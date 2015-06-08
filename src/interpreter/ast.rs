@@ -72,14 +72,14 @@ impl Function {
 
 #[derive(Clone, Debug)]
 pub struct FunctionCall {
-    pub ident: Node<Identifier>,
+    pub callee: Expression,
     pub args: Node<ArgumentList>,
     pub ty: CallType,
 }
 
 impl FunctionCall {
-    pub fn ident(&self) -> Identifier { *self.ident.item() }
-    pub fn ident_pos(&self) -> SourcePos { self.ident.pos() }
+    pub fn callee(&self) -> &Expression { &self.callee }
+    pub fn callee_pos(&self) -> SourcePos { self.callee.pos() }
     pub fn args(&self) -> &ArgumentList { &self.args }
     pub fn args_pos(&self) -> SourcePos { self.args.pos() }
     pub fn ty(&self) -> CallType { self.ty.clone() }
@@ -171,7 +171,7 @@ pub enum Expression {
     Prefix(Box<Node<Prefix>>),
     Variable(Node<Identifier>),
     Block(Node<Block>),
-    FunctionCall(Node<FunctionCall>),
+    FunctionCall(Box<Node<FunctionCall>>),
     Conditional(Box<Node<Conditional>>),
 }
 

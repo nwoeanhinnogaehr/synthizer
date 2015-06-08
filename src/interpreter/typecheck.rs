@@ -49,6 +49,7 @@ impl<'a> TypeChecker<'a> {
                 _ => { }
             };
         }
+        //TODO emit warnings when functions or variables are not used.
     }
 
     fn check_assignment(&mut self, assign: &Node<Assignment>) -> bool {
@@ -89,34 +90,25 @@ impl<'a> TypeChecker<'a> {
     }
 
     fn typeof_function_call(&mut self, call: &Node<FunctionCall>) -> Option<Type> {
-        let func_id = match self.types.get_symbol(call.ident()) {
-            Some((&Symbol { ty: Some(Type::Function(ref f)), .. }, _)) => *f,
+        let func_id = match self.typeof_expr(call.callee()) {
+            Some(Type::Function(f)) => f,
 
-            Some((&Symbol { ty: Some(ref ty), .. }, _)) => {
-                self.ctxt.emit_error(format!("expected function, got type `{}`", ty), call.ident_pos());
+            Some(ref ty) => {
+                self.ctxt.emit_error(format!("expected function, got type `{}`", ty), call.callee_pos());
                 return None;
             },
 
             None => {
-                self.ctxt.emit_error(format!("function `{}` is not defined",
-                                             self.names.get_name(call.ident()).unwrap()),
-                                     call.ident_pos());
+                self.ctxt.emit_error("could not determine type of function", call.callee_pos());
                 return None;
             },
-
-            _ => unreachable!(),
         };
         let func = match self.ctxt.functions.borrow().get(func_id) {
             Some(f) => f.clone(),
-            None => {
-                self.ctxt.emit_error(format!("function `{}` is not defined",
-                                             self.names.get_name(call.ident()).unwrap()),
-                                     call.ident_pos());
-                unreachable!();
-            }
+            None => unreachable!(),
         };
 
-        let is_aliased = func_id != call.ident();
+        let is_aliased = false; //TODO set this for better error messages
 
         let mut def_args = Vec::new();
 
@@ -424,7 +416,7 @@ impl<'a> TypeChecker<'a> {
     fn typeof_var(&mut self, ident: &Node<Identifier>) -> Option<Type> {
         match self.types.get_symbol(*ident.item()) {
             Some((s, _)) => {
-                s.ty.clone()
+                s.ty
             }
             None => {
                 self.ctxt.emit_error(format!("no variable named `{}` is in scope",

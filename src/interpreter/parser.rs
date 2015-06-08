@@ -348,9 +348,9 @@ impl<'a> Parser<'a> {
             Some(Token::Symbol(Symbol::LeftBracket(Bracket::Round))) |
             Some(Token::Symbol(Symbol::LeftBracket(Bracket::Curly))) |
             Some(Token::Symbol(Symbol::LeftBracket(Bracket::Square))) => {
-                self.seek(-2);
-                let call = try_opt!(self.parse_function_call());
-                Some(Expression::FunctionCall(call))
+                self.seek(-1);
+                let call = try_opt!(self.parse_function_call(left));
+                Some(Expression::FunctionCall(Box::new(call)))
             }
 
             // if
@@ -611,9 +611,8 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn parse_function_call(&mut self) -> Option<Node<FunctionCall>> {
+    fn parse_function_call(&mut self, callee: Expression) -> Option<Node<FunctionCall>> {
         let pos = self.peek_source_pos_or_end(0);
-        let ident = try_opt!(self.parse_ident());
         match self.next_token() {
             Some(Token::Symbol(Symbol::LeftBracket(brace))) => {
                 let ty = match brace {
@@ -634,7 +633,7 @@ impl<'a> Parser<'a> {
                 self.integrate_subsection();
                 self.seek(1); //consume closing brace
                 Some(Node(FunctionCall {
-                    ident: ident,
+                    callee: callee,
                     args: args,
                     ty: ty,
                 }, pos))
