@@ -55,6 +55,7 @@ pub type BlockPos = usize;
 pub struct TypeTable {
     symbols: HashMap<BlockPos, VecMap<Symbol>>, // From Identifier to Symbol
     scope: Vec<BlockPos>,
+    scope_lengths: Vec<usize>,
 }
 
 impl TypeTable {
@@ -64,16 +65,24 @@ impl TypeTable {
         TypeTable {
             symbols: symbols,
             scope: vec![0],
+            scope_lengths: vec![0],
         }
     }
 
+    pub fn enter_scope(&mut self, scope: &[BlockPos]) {
+        self.scope.push_all(scope);
+        self.scope_lengths.push(scope.len());
+    }
     pub fn enter_block(&mut self, scope: BlockPos) {
         self.scope.push(scope);
+        self.scope_lengths.push(1);
         self.symbols.entry(scope).or_insert(VecMap::new());
     }
     pub fn leave_block(&mut self) {
-        assert!(self.scope.len() > 1, "tried to leave the outermost scope!");
-        self.scope.pop();
+        assert!(self.scope_lengths.len() > 1, "tried to leave the outermost scope!");
+        for _ in 0..self.scope_lengths.pop().unwrap() {
+            self.scope.pop();
+        }
     }
 
     pub fn has_scope_cycle(&self, pos: BlockPos) -> bool {
@@ -83,6 +92,10 @@ impl TypeTable {
             }
         }
         false
+    }
+
+    pub fn get_scope<'a>(&'a self) -> &'a [BlockPos] {
+        &self.scope
     }
 
     // Always sets the type in the innermost scope.

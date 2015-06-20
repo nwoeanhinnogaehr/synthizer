@@ -216,11 +216,15 @@ impl SourcePos {
         self.column += num;
         self.index += num;
     }
+
+    pub fn is_anon(&self) -> bool {
+        self.line == 0
+    }
 }
 
 impl fmt::Display for SourcePos {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        if self.line == 0 {
+        if self.is_anon() {
             write!(f, "<anon>")
         } else {
             write!(f, "{}:{}", self.line, self.column)
@@ -230,7 +234,7 @@ impl fmt::Display for SourcePos {
 
 impl fmt::Debug for SourcePos {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        if self.line == 0 {
+        if self.is_anon() {
             write!(f, "<anon>")
         } else {
             write!(f, "{}:{}/idx={}", self.line, self.column, self.index)

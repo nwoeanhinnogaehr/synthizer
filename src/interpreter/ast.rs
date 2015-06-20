@@ -101,9 +101,16 @@ impl Argument {
     pub fn ident_pos(&self) -> Option<SourcePos> { self.0.map(|x| x.pos()) }
     pub fn expr(&self) -> &Option<Expression> { &self.1 }
     pub fn expr_pos(&self) -> Option<SourcePos> { self.1.as_ref().map(|x| x.pos()) }
+    pub fn pos(&self) -> SourcePos {
+        match *self {
+            Argument(Some(ref ident), _) => ident.pos(),
+            Argument(None, Some(ref expr)) => expr.pos(),
+            _ => unreachable!(),
+        }
+    }
 }
 
-pub type ArgumentList = Vec<Node<Argument>>;
+pub type ArgumentList = Vec<Argument>;
 
 #[derive(Clone, Debug)]
 pub struct Assignment {
@@ -173,6 +180,7 @@ pub enum Expression {
     Block(Node<Block>),
     FunctionCall(Box<Node<FunctionCall>>),
     Conditional(Box<Node<Conditional>>),
+    Closure(Box<Node<FunctionDef>>),
 }
 
 impl Expression {
@@ -187,6 +195,7 @@ impl Expression {
             Block(ref x) => x.pos(),
             FunctionCall(ref x) => x.pos(),
             Conditional(ref x) => x.pos(),
+            Closure(ref x) => x.pos(),
         }
     }
 }

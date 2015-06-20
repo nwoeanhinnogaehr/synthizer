@@ -1,4 +1,4 @@
-#![feature(plugin, collections)]
+#![feature(plugin, optin_builtin_traits, vecmap, vec_push_all)]
 #![plugin(regex_macros, docopt_macros)]
 
 extern crate regex;
@@ -34,7 +34,7 @@ fn main() {
     let mut args = VecMap::new();
     args.insert(arg_id, ::interpreter::types::Type::Number);
     let fn_ty = ::interpreter::types::FunctionType { args: args, returns: ::interpreter::types::Type::Number };
-    let func  = ::interpreter::functions::Function::Builtin(::interpreter::functions::BuiltinFunction { ty: fn_ty });
+    let func  = ::interpreter::functions::Function::Builtin(::interpreter::functions::BuiltinFunction::new(fn_ty));
     let ty = ::interpreter::types::Type::Function(id);
     ctxt.functions.borrow_mut().insert(id, func);
     ctxt.types.borrow_mut().set_type(id, Some(ty));

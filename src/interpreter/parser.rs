@@ -312,6 +312,13 @@ impl<'a> Parser<'a> {
                 Some(Expression::Block(block))
             }
 
+            // closure
+            Some(Token::Symbol(Symbol::Backslash)) => {
+                self.seek(-1);
+                let def = try_opt!(self.parse_closure());
+                Some(Expression::Closure(Box::new(def)))
+            }
+
             _ => {
                 self.emit_error_here("expected constant, variable, opening bracket or unary operator");
                 return None;
@@ -455,6 +462,23 @@ impl<'a> Parser<'a> {
         }, pos))
     }
 
+    fn parse_closure(&mut self) -> Option<Node<FunctionDef>> {
+        let pos = self.peek_source_pos_or_end(0);
+        try_opt!(self.parse_symbol(Symbol::Backslash));
+        let func = try_opt!(self.parse_function());
+        let ident = self.ctxt.names.borrow_mut().new_anon();
+        self.functions.insert(ident, functions::Function::User(
+                functions::UserFunction {
+                    ty: None,
+                    node: Node(func.item().clone(), pos)
+                }));
+
+        Some(Node(FunctionDef {
+            ident: Node(ident, pos),
+            func: func,
+        }, pos))
+    }
+
     fn parse_function(&mut self) -> Option<Node<Function>> {
         let pos = self.peek_source_pos_or_end(0);
 
@@ -580,32 +604,31 @@ impl<'a> Parser<'a> {
 
     // if def_type, expression only args are not allowed, if not then identifier only args are
     // parsed as rhs expressions rather than the lhs
-    fn parse_arg(&mut self, def_type: bool) -> Option<Node<Argument>> {
-        let pos = self.peek_source_pos_or_end(0);
+    fn parse_arg(&mut self, def_type: bool) -> Option<Argument> {
         let (one, two) = (self.next(), self.next());
         match (one.item(), two.item()) {
             (Some(Token::Ident(id)), Some(Token::Symbol(Symbol::Equals))) => {
                 let expr = try_opt!(self.parse_expression());
-                Some(Node(Argument(Some(Node(id, one.pos().unwrap())), Some(expr)), pos))
+                Some(Argument(Some(Node(id, one.pos().unwrap())), Some(expr)))
             }
             (Some(Token::Ident(id)), None) => {
                 if !def_type { //it's actually an expression containing a single identifier
                     self.seek(-2);
                     let expr = try_opt!(self.parse_expression());
-                    Some(Node(Argument(None, Some(expr)), pos))
+                    Some(Argument(None, Some(expr)))
                 } else {
-                    Some(Node(Argument(Some(Node(id, one.pos().unwrap())), None), pos))
+                    Some(Argument(Some(Node(id, one.pos().unwrap())), None))
                 }
             }
             _ => {
                 self.seek(-1);
                 if def_type {
-                    self.emit_error_here("expression only arguments are not allowed in definitions");
+                    self.emit_error_here("expected identifier");
                     return None
                 } else {
                     self.seek(-1);
                     let expr = try_opt!(self.parse_expression());
-                    Some(Node(Argument(None, Some(expr)), pos))
+                    Some(Argument(None, Some(expr)))
                 }
             }
         }

@@ -8,9 +8,5 @@ authors = ["Noah Weninger"]
 rustc-serialize = "*"
 docopt = "*"
 docopt_macros = "*"
-
-[dependencies.regex]
-git = "https://github.com/rust-lang/regex"
-
-[dependencies.regex_macros]
-git = "https://github.com/rust-lang/regex"
+regex = "*"
+regex_macros = "*"

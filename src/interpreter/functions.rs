@@ -1,7 +1,7 @@
 use super::ast;
 use super::types::FunctionType;
 use super::ident::Identifier;
-use super::tokens::Node;
+use super::tokens::{Node, SourcePos};
 
 use std::collections::VecMap;
 use std::ops::Deref;
@@ -29,7 +29,21 @@ impl Deref for UserFunction {
 #[derive(Debug, Clone)]
 pub struct BuiltinFunction {
     pub ty: FunctionType,
+    pub args: ast::ArgumentList,
     //fn ptr...
+}
+
+impl BuiltinFunction {
+    pub fn new(ty: FunctionType) -> BuiltinFunction {
+        let mut args = Vec::new();
+        for (id, _) in &ty.args {
+            args.push(ast::Argument(Some(Node(id, SourcePos::anon())), None));
+        }
+        BuiltinFunction {
+            ty: ty,
+            args: args,
+        }
+    }
 }
 
 #[derive(Debug)]

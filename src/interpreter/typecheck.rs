@@ -1,6 +1,6 @@
 use super::ast::*;
 use super::types::*;
-use super::tokens::{Operator, Node, NodeImpl, SourcePos};
+use super::tokens::{Operator, Node, NodeImpl};
 use super::common::Context;
 use super::ident::{Identifier, NameTable};
 use super::functions;
@@ -36,7 +36,7 @@ impl<'a> TypeChecker<'a> {
         for item in root.iter() {
             match *item {
                 Item::FunctionDef(ref f) => {
-                    self.check_function_def(&f);
+                    self.typeof_function_def(&f);
                 }
                 _ => { }
             };
@@ -44,7 +44,7 @@ impl<'a> TypeChecker<'a> {
         for item in root.iter() {
             match *item {
                 Item::Assignment(ref a) => {
-                    self.check_assignment(&a);
+                    self.typeof_assignment(&a);
                 }
                 _ => { }
             };
@@ -52,28 +52,32 @@ impl<'a> TypeChecker<'a> {
         //TODO emit warnings when functions or variables are not used.
     }
 
-    fn check_assignment(&mut self, assign: &Node<Assignment>) -> bool {
-        if let Some((_, 0)) = self.types.get_symbol(assign.ident()) {
-            self.ctxt.emit_warning("constant declaration shadows previous declaration of same name",
-                                   assign.pos());
-        }
+    fn typeof_assignment(&mut self, assign: &Node<Assignment>) -> Option<Type> {
         let ty = self.typeof_expr(&assign.expr());
-        let ok = ty.is_some();
-        if !ok {
+        if let Some((old_ty, 0)) = self.types.get_symbol(assign.ident()) {
+            if old_ty.ty != ty {
+                self.ctxt.emit_error(format!("variable was previously assigned type `{}`",
+                                             old_ty.ty.unwrap()),
+                                     assign.pos());
+                return None;
+            }
+        }
+        if ty.is_none() {
             self.ctxt.emit_error("could not determine type of assignment", assign.pos());
         } else {
             self.types.set_type(assign.ident(), ty);
         }
         println!("assign identifier `{}` type {:?}", self.names.get_name(assign.ident()).unwrap(), ty);
-        ok
+        ty
     }
 
-    fn check_function_def(&mut self, def: &Node<FunctionDef>) -> bool {
+    fn typeof_function_def(&mut self, def: &Node<FunctionDef>) -> Option<Type> {
         if let Some((_, 0)) = self.types.get_symbol(def.ident()) {
             self.ctxt.emit_warning("function declaration shadows previous declaration of same name", def.pos());
         }
-        self.types.set_type(def.ident(), Some(Type::Function(def.ident())));
-        true
+        let ty = Some(Type::Function(def.ident()));
+        self.types.set_type(def.ident(), ty);
+        ty
     }
 
     fn typeof_expr(&mut self, expr: &Expression) -> Option<Type> {
@@ -86,6 +90,7 @@ impl<'a> TypeChecker<'a> {
             Expression::Conditional(ref c) => self.typeof_conditional(c),
             Expression::Block(ref b) => self.typeof_block(b),
             Expression::FunctionCall(ref c) => self.typeof_function_call(c),
+            Expression::Closure(ref c) => self.typeof_function_def(c),
         }
     }
 
@@ -102,6 +107,10 @@ impl<'a> TypeChecker<'a> {
                 self.ctxt.emit_error("could not determine type of function", call.callee_pos());
                 return None;
             },
+        };
+        let def_scope = match self.types.get_symbol(func_id) {
+            Some((s, _)) => s.scope.clone(),
+            None => panic!("fuck"),
         };
         let func = match self.ctxt.functions.borrow().get(func_id) {
             Some(f) => f.clone(),
@@ -122,21 +131,17 @@ impl<'a> TypeChecker<'a> {
             }
 
             functions::Function::Builtin(ref def) => {
-                let mut args = Vec::new();
-                for (id, _) in &def.ty.args {
-                    args.push(Node(Argument(Some(Node(id, SourcePos::anon())), None), SourcePos::anon()));
-                }
-                args
+                def.args.clone()
             }
         };
 
         // first set explicitly defined args, like a=5
         for arg in call.args() {
-            match *arg.item() {
+            match *arg {
                 Argument(Some(Node(id, _)), Some(_)) => {
                     // check if an argument with the same id is in the function
                     // definition.
-                    match undef_args.iter().position(|x| match *x.item() {
+                    match undef_args.iter().position(|x| match *x {
                         Argument(Some(Node(def_id, _)), _) if id == def_id => true,
                         _ => false,
                     }) {
@@ -156,14 +161,14 @@ impl<'a> TypeChecker<'a> {
         let num_positional_args = undef_args.len();
         // next set expression only args, like 2+2
         for arg in call.args() {
-            match *arg.item() {
+            match *arg {
                 Argument(None, Some(ref expr)) => {
                     if undef_args.len() > 0 {
-                        def_args.push(Node(Argument(undef_args[0].item().0, Some(expr.clone())),
-                                           arg.pos()));
+                        def_args.push(Argument(Some(Node(*undef_args[0].0.unwrap().item(), arg.pos())),
+                                               Some(expr.clone())));
                         undef_args.remove(0);
                     } else {
-                        self.ctxt.emit_error(format!("unexpected argument, {}function `{}` needs {} positional argument{}",
+                        self.ctxt.emit_error(format!("unexpected argument, {}function `{}` takes {} positional argument{}",
                                                      if is_aliased { "aliased " } else { "" },
                                                      self.names.get_name(func_id).unwrap(),
                                                      num_positional_args,
@@ -176,21 +181,21 @@ impl<'a> TypeChecker<'a> {
         }
         // set default args that weren't set previously
         for arg in undef_args.iter().rev() {
-            match *arg.item() {
+            match *arg {
                 Argument(Some(_), Some(_)) => {
                     def_args.insert(0, arg.clone());
                 }
                 _ => { }
             }
         }
-        undef_args.retain(|x| match *x.item() {
+        undef_args.retain(|x| match *x {
             Argument(Some(_), Some(_)) => false,
             _ => true,
         });
 
         // check that all args are defined somewhere for implicit calls
         if call.ty() == CallType::Implicit {
-            undef_args.retain(|x| match *x.item() {
+            undef_args.retain(|x| match *x {
                 Argument(Some(id), None) => self.types.get_symbol(*id.item()).is_none(),
                 _ => true,
             });
@@ -213,8 +218,12 @@ impl<'a> TypeChecker<'a> {
                             node: Node(new_def, call.pos())
                         }));
                 },
-                functions::Function::Builtin(_) => {
-                    self.ctxt.functions.borrow_mut().insert(new_ident, func);
+                functions::Function::Builtin(ref def) => {
+                    self.ctxt.functions.borrow_mut().insert(new_ident, functions::Function::Builtin(
+                        functions::BuiltinFunction {
+                            ty: def.ty.clone(),
+                            args: args,
+                        }));
                 },
             }
             Some(new_type)
@@ -232,7 +241,7 @@ impl<'a> TypeChecker<'a> {
 
             // determine the type of the arguments
             for arg in &def_args {
-                match *arg.item() {
+                match *arg {
                     Argument(Some(Node(id, _)), Some(ref expr)) => {
                         let ty = self.typeof_expr(expr);
                         match ty {
@@ -248,9 +257,9 @@ impl<'a> TypeChecker<'a> {
 
             let return_ty = match func {
                 functions::Function::User(ref def) => {
-                    self.types.enter_block(def.block_pos().index);
+                    self.types.enter_scope(&def_scope);
                     for (id, ty) in &arg_types {
-                        self.types.set_type(id, Some(ty.clone()));
+                        self.types.set_type(id, Some(*ty));
                     }
                     let ty = self.typeof_block(&def.block);
                     self.types.leave_block();
@@ -264,7 +273,7 @@ impl<'a> TypeChecker<'a> {
                 }
 
                 functions::Function::Builtin(ref def) => {
-                    def.ty.returns.clone()
+                    def.ty.returns
                 }
             };
 
@@ -273,7 +282,29 @@ impl<'a> TypeChecker<'a> {
                 functions::Function::User(ref def) => def.ty.as_ref(),
                 functions::Function::Builtin(ref def) => Some(&def.ty),
             } {
-                let types_match = self.check_call_args(func_id, is_aliased, &def_type, &calcd_type, &def_args);
+                let mut types_match = true;
+                for ((old, new), arg) in def_type.args.iter().zip(calcd_type.args.iter()).zip(def_args.iter()) {
+                    if let ((_, &Type::Function(_)), (_, &Type::Function(_))) = (new, old) {
+                        // If they are both functions, do nothing.
+                        // Their compatibility will already have been validated
+                    } else if old != new {
+                        if is_aliased {
+                            self.ctxt.emit_error(format!("expected type `{}` for argument `{}` to aliased function `{}`, got type `{}`",
+                                                         old.1,
+                                                         self.names.get_name(arg.ident().unwrap()).unwrap(),
+                                                         self.names.get_name(func_id).unwrap(),
+                                                         new.1),
+                                                 arg.pos());
+                        } else {
+                            self.ctxt.emit_error(format!("expected type `{}` for argument `{}`, got `{}`",
+                                                         old.1,
+                                                         self.names.get_name(arg.ident().unwrap()).unwrap(),
+                                                         new.1),
+                                                 arg.pos());
+                        }
+                        types_match = false;
+                    }
+                }
                 if !types_match {
                     return None;
                 }
@@ -287,44 +318,12 @@ impl<'a> TypeChecker<'a> {
         }
     }
 
-    fn check_call_args(&mut self,
-                       func_id: Identifier,
-                       is_aliased: bool,
-                       type_a: &FunctionType,
-                       type_b: &FunctionType,
-                       args: &[Node<Argument>]) -> bool {
-        let mut types_match = true;
-        for ((old, new), arg) in type_a.args.iter().zip(type_b.args.iter()).zip(args.iter()) {
-            if let ((_, &Type::Function(_)), (_, &Type::Function(_))) = (new, old) {
-                // If they are both functions, do nothing.
-                // Their compatibility will already have been validated
-            } else if old != new {
-                if is_aliased {
-                    self.ctxt.emit_error(format!("expected type `{}` for argument `{}` to aliased function `{}`, got type `{}`",
-                                                 old.1,
-                                                 self.names.get_name(arg.ident().unwrap()).unwrap(),
-                                                 self.names.get_name(func_id).unwrap(),
-                                                 new.1),
-                                         arg.pos());
-                } else {
-                    self.ctxt.emit_error(format!("expected type `{}` for argument `{}`, got `{}`",
-                                                 old.1,
-                                                 self.names.get_name(arg.ident().unwrap()).unwrap(),
-                                                 new.1),
-                                         arg.pos());
-                }
-                types_match = false;
-            }
-        }
-        types_match
-    }
-
     fn typeof_block(&mut self, block: &Node<Block>) -> Option<Type> {
         self.types.enter_block(block.pos().index);
         for stmnt in block.item() {
             match stmnt {
                 &Statement::Assignment(ref a) => {
-                    if !self.check_assignment(a) {
+                    if self.typeof_assignment(a).is_none() {
                         self.ctxt.emit_error("could not determine type of block assignment", a.pos());
                         return None
                     }
@@ -402,6 +401,9 @@ impl<'a> TypeChecker<'a> {
             }
             if then_ty == Type::Indeterminate && else_ty != Type::Indeterminate {
                 return Some(else_ty);
+            }
+            if let (Type::Function(_), Type::Function(_)) = (then_ty, else_ty) {
+                unimplemented!();
             }
             if else_ty != then_ty {
                 self.ctxt.emit_error(format!(
