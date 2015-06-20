@@ -10,3 +10,11 @@ docopt = "*"
 docopt_macros = "*"
 regex = "*"
 regex_macros = "*"
+
+[lib]
+name = "interpreter"
+path = "src/interpreter/lib.rs"
+
+[[bin]]
+name = "synthizer"
+path = "src/cli/main.rs"

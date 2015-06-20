@@ -1,11 +1,9 @@
-#![feature(plugin, optin_builtin_traits, vecmap, vec_push_all)]
+#![feature(plugin, optin_builtin_traits, vecmap)]
 #![plugin(regex_macros, docopt_macros)]
 
-extern crate regex;
-extern crate rustc_serialize;
 extern crate docopt;
-
-pub mod interpreter;
+extern crate rustc_serialize;
+extern crate interpreter;
 
 docopt!(Args, "
 Usage:
@@ -22,6 +20,7 @@ use interpreter::parser::parse;
 use interpreter::typecheck::typecheck;
 use std::collections::VecMap;
 
+#[allow(dead_code)]
 fn main() {
     let args: Args = Args::docopt().decode().unwrap_or_else(|e| e.exit());
     let filename = args.arg_file;

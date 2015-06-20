@@ -68,17 +68,28 @@ impl<'a> IssueTracker<'a> {
         self.issues.push(issue);
     }
 
-    pub fn is_ok(&self) -> bool {
-        self.issues.iter().fold(true, |acc, ref item| acc & (item.ty != Level::Error))
+    pub fn has_errors(&self) -> bool {
+        self.issues.iter().fold(false, |acc, ref item| acc | (item.ty == Level::Error))
+    }
+    pub fn has_warnings(&self) -> bool {
+        self.issues.iter().fold(false, |acc, ref item| acc | (item.ty == Level::Warning))
+    }
+
+    pub fn clear(&mut self) {
+        self.issues.clear();
     }
 }
 
 impl<'a> fmt::Display for IssueTracker<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        for issue in self.issues.iter() {
-            try!(write!(f, "{}\n", issue));
+        if self.issues.len() == 0 {
+            write!(f, "No issues!")
+        } else {
+            for issue in self.issues.iter() {
+                try!(write!(f, "{}\n", issue));
+            }
+            Ok(())
         }
-        Ok(())
     }
 }
 
