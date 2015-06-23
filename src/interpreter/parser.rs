@@ -39,38 +39,6 @@ macro_rules! expect(
     };
 );
 
-macro_rules! find_next_skip_brackets(
-    ( $parser:ident, $( $token:expr ),+ ) => {
-        {
-            let start_idx = $parser.index();
-            let out;
-            loop {
-                let token = $parser.next_token();
-                match token {
-                    $(Some(x) if x == $token => {
-                        out = token;
-                        break;
-                    }),+
-                    Some(Token::Symbol(Symbol::LeftBracket(_))) => {
-                        if !$parser.match_bracket() {
-                            out = None;
-                            break;
-                        }
-                    },
-                    None => {
-                        out = None;
-                        break;
-                    },
-                    _ => { }
-                }
-            }
-            let index = $parser.index();
-            $parser.set_index(start_idx);
-            (out, index)
-        }
-    }
-);
-
 pub fn parse<'a>(ctxt: &'a Context<'a>) {
     let mut parser = Parser::new(ctxt);
     parser.parse();
@@ -383,8 +351,7 @@ impl<'a> Parser<'a> {
             }
 
             _ => {
-                self.emit_error_here("(internal error: unreachable) expected left denotation");
-                return None;
+                panic!("expected left denotation");
             }
         }
     }
@@ -407,7 +374,7 @@ impl<'a> Parser<'a> {
 
             None => Some(0),
             _ => {
-                self.emit_error_here("expected binary operator");
+                self.emit_error_here("expected binary operator or function call");
                 return None;
             }
         }
@@ -479,20 +446,56 @@ impl<'a> Parser<'a> {
         }, pos))
     }
 
+    fn find_smart(&mut self, search: Token) -> Option<usize> {
+        let start_idx = self.index();
+        loop {
+            let token = self.next_token();
+            match token {
+                Some(t) if t == search => {
+                    break;
+                }
+                Some(Token::Symbol(Symbol::LeftBracket(_))) => {
+                    if !self.match_bracket() {
+                        self.set_index(start_idx);
+                        return None;
+                    }
+                },
+                Some(Token::Symbol(Symbol::Backslash)) => {
+                    let closure_block = try_opt!(self.find_smart(
+                            Token::Symbol(Symbol::LeftBracket(Bracket::Curly))));
+                    self.set_index(closure_block+1);
+                    if !self.match_bracket() {
+                        self.set_index(start_idx);
+                        return None;
+                    }
+                }
+                None => {
+                    self.set_index(start_idx);
+                    return None;
+                },
+                _ => { }
+            }
+        }
+        self.seek(-1);
+        let index = self.index();
+        assert!(self.peek_token(0).unwrap() == search);
+        self.set_index(start_idx);
+        Some(index)
+    }
+
     fn parse_function(&mut self) -> Option<Node<Function>> {
         let pos = self.peek_source_pos_or_end(0);
 
-        // find the start of the block
-        let (brace, brace_idx) = find_next_skip_brackets!(
-            self, Token::Symbol(Symbol::LeftBracket(Bracket::Curly)));
-        if brace.is_none() {
-            self.ctxt.emit_error("expected `{`", self.end_source_pos());
-            return None;
-        }
-
-        // parse arg list (everything until start of block)
         let idx = self.index();
-        self.enter_subsection(idx, brace_idx-1);
+        let block_idx = match self.find_smart(Token::Symbol(Symbol::LeftBracket(Bracket::Curly))) {
+            Some(x) => x,
+            None => {
+                self.ctxt.emit_error("expected `{` to start function block", self.end_source_pos());
+                return None;
+            }
+        };
+        // parse arg list (everything until start of block)
+        self.enter_subsection(idx, block_idx);
         let args = try_opt!(self.parse_arg_list(true));
         self.integrate_subsection();
 
@@ -507,22 +510,22 @@ impl<'a> Parser<'a> {
     fn parse_block(&mut self) -> Option<Node<Block>> {
         let pos = self.peek_source_pos_or_end(0);
         try_opt!(self.parse_symbol(Symbol::LeftBracket(Bracket::Curly)));
-        let (brace, brace_idx) = find_next_skip_brackets!(self,
-                                    Token::Symbol(Symbol::RightBracket(Bracket::Curly)));
+        let brace = self.find_smart(Token::Symbol(Symbol::RightBracket(Bracket::Curly)));
         if brace.is_none() {
             self.ctxt.emit_error("expected `}`", self.end_source_pos());
             return None;
         }
         let mut stmts = Vec::new();
         let idx = self.index();
-        self.enter_subsection(idx, brace_idx-1);
+        self.enter_subsection(idx, brace.unwrap());
         loop {
-            let (semi, semi_idx) = find_next_skip_brackets!(self, Token::Symbol(Symbol::Semicolon));
-            if semi_idx - 1 == self.index() {
+            let semi = self.find_smart(Token::Symbol(Symbol::Semicolon));
+            let semi_idx = semi.unwrap_or(self.end_index());
+            if semi_idx == self.index() {
                 break;
             }
             let idx = self.index();
-            self.enter_subsection(idx, semi_idx-1);
+            self.enter_subsection(idx, semi_idx);
             let stmt = try_opt!(self.parse_statement());
             stmts.push(stmt);
             self.integrate_subsection();
@@ -556,20 +559,20 @@ impl<'a> Parser<'a> {
         match self.next_token() {
             Some(Token::Symbol(Symbol::Equals)) => {
                 self.seek(-2);
-                let (semi, semi_idx) = find_next_skip_brackets!(self, Token::Symbol(Symbol::Semicolon));
+                let semi = self.find_smart(Token::Symbol(Symbol::Semicolon));
                 if semi.is_none() {
                     self.ctxt.emit_error("expected `;`", self.end_source_pos());
                     return None;
                 }
                 let idx = self.index();
-                self.enter_subsection(idx, semi_idx-1);
+                self.enter_subsection(idx, semi.unwrap());
                 let assign = try_opt!(self.parse_assignment());
                 self.integrate_subsection();
                 Some(Item::Assignment(assign))
             },
             _ => {
                 self.seek(-1);
-                let (brace, _) = find_next_skip_brackets!(self, Token::Symbol(Symbol::LeftBracket(Bracket::Curly)));
+                let brace = self.find_smart(Token::Symbol(Symbol::LeftBracket(Bracket::Curly)));
                 if brace.is_some() {
                     self.seek(-1);
                     Some(Item::FunctionDef(try_opt!(self.parse_function_def())))
@@ -588,13 +591,14 @@ impl<'a> Parser<'a> {
             return Some(Node(args, pos))
         }
         loop {
-            let (token, token_idx) = find_next_skip_brackets!(self, Token::Symbol(Symbol::Comma));
             let idx = self.index();
-            self.enter_subsection(idx, token_idx-1);
+            let comma = self.find_smart(Token::Symbol(Symbol::Comma));
+            let token_idx = comma.unwrap_or(self.end_index());
+            self.enter_subsection(idx, token_idx);
             let arg = try_opt!(self.parse_arg(def_type));
             args.push(arg);
             self.integrate_subsection();
-            if token.is_none() {
+            if comma.is_none() {
                 break;
             }
         }
@@ -644,14 +648,14 @@ impl<'a> Parser<'a> {
                     Bracket::Curly => CallType::Partial,
                 };
 
-                let (end, end_idx) = find_next_skip_brackets!(self, Token::Symbol(Symbol::RightBracket(brace)));
+                let end = self.find_smart(Token::Symbol(Symbol::RightBracket(brace)));
                 if end.is_none() {
                     self.ctxt.emit_error(format!("expected `{}`", Symbol::RightBracket(brace)),
                                          self.end_source_pos());
                     return None;
                 }
                 let idx = self.index();
-                self.enter_subsection(idx, end_idx-1);
+                self.enter_subsection(idx, end.unwrap());
                 let args = try_opt!(self.parse_arg_list(false));
                 self.integrate_subsection();
                 self.seek(1); //consume closing brace
