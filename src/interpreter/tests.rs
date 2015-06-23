@@ -3,8 +3,7 @@
 /// should_warn: expects warnings.
 #[macro_export]
 macro_rules! run_test {
-    ( $name:expr,
-      $( $prop:ident ( $( $val:ident ),* ) ),*
+    ( $( $prop:ident ( $( $val:ident ),* ) ),*
       => $source:expr ) => {{
         use ::interpreter::common::Context;
         use ::interpreter::parser::parse;
@@ -18,15 +17,16 @@ macro_rules! run_test {
         let mut should_warn: HashSet<&'static str> = HashSet::new();
         $(
             $(
+                let val = stringify!($val);
                 match stringify!($prop) {
-                    "should_pass" => { should_pass.insert(stringify!($val)); },
-                    "should_fail" => { should_fail.insert(stringify!($val)); },
-                    "should_warn" => { should_warn.insert(stringify!($val)); },
+                    "should_pass" => { should_pass.insert(val); },
+                    "should_fail" => { should_fail.insert(val); },
+                    "should_warn" => { should_warn.insert(val); },
                     _ => panic!("unknown property"),
                 }
             )*
         )*
-        let ctxt = Context::new($name.into(), $source.into());
+        let ctxt = Context::new("<test>".into(), $source.into());
 
         lex(&ctxt);
         let err = ctxt.issues.borrow().has_errors();
@@ -68,6 +68,5 @@ macro_rules! run_test {
         if should_warn.contains(&"typecheck") && !warn {
             panic!("typecheck should have produced warnings:\n{}", *ctxt.issues.borrow());
         }
-        ctxt.issues.borrow_mut().clear();
     }};
 }

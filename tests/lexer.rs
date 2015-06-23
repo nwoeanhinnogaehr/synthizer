@@ -4,7 +4,6 @@ extern crate interpreter;
 #[test]
 fn all_tokens() {
     run_test!(
-        "all_tokens",
         should_pass(lex)
         => r"
             1
@@ -30,7 +29,6 @@ fn all_tokens() {
 #[test]
 fn non_tokens() {
     run_test!(
-        "non_tokens",
         should_fail(lex)
         => "` @ # $ & | ' \""
     );
