@@ -145,9 +145,14 @@ impl<'a> TypeChecker<'a> {
                             undef_args.remove(pos);
                             def_args.push(arg.clone());
                         }
-                        None =>
-                            self.ctxt.emit_error(format!("unexpected named argument `{}`",
-                                                         self.names.get_name(id).unwrap()), arg.pos()),
+                        None => {
+                            if call.ty() == CallType::Implicit {
+                                def_args.push(arg.clone());
+                            } else {
+                                self.ctxt.emit_error(format!("unexpected named argument `{}`",
+                                                             self.names.get_name(id).unwrap()), arg.pos());
+                            }
+                        }
                     }
                 }
                 Argument(Some(Node(id, _)), None) => {
@@ -209,7 +214,7 @@ impl<'a> TypeChecker<'a> {
         // check that all args are defined somewhere for implicit calls
         if call.ty() == CallType::Implicit {
             undef_args.retain(|x| match *x {
-                Argument(Some(id), None) => self.types.get_symbol(*id.item()).is_none(),
+                Argument(Some(Node(id, _)), None) => self.types.get_symbol(id).is_none(),
                 _ => true,
             });
         }

@@ -275,4 +275,33 @@ fn unbind_expression() {
             y = false;
             z = fn'[];
         ");
+    run_test!(
+        should_fail(typecheck)
+        => r"
+            fn x, y=3 { x + y }
+            fn' = fn{y=};
+            x = 1;
+            z = fn'[];
+        ");
+    run_test!(
+        should_pass(typecheck)
+        => r"
+            fn x, y=3 { x + y }
+            fn' = fn{y=};
+            x = 1;
+            y = 2;
+            z = fn'[];
+        ");
+}
+
+#[test]
+fn layered_implicit_calls() {
+    run_test!(
+        should_pass(typecheck)
+        => r"
+            a x { x^2 }
+            b y { y[] }
+            c z { z(b) }
+            z = c[b, x=4];
+        ");
 }
