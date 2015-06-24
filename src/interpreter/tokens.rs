@@ -181,11 +181,13 @@ pub enum Bracket {
 
 #[derive(Copy, Clone, PartialEq)]
 pub struct SourcePos {
-    pub line: usize,
+    pub line: isize,
     pub column: usize,
     pub index: usize,
     pub line_index: usize, //index of first character of line
 }
+
+static mut anon_count: isize = 0;
 
 impl SourcePos {
     pub fn new() -> SourcePos {
@@ -197,8 +199,9 @@ impl SourcePos {
         }
     }
     pub fn anon() -> SourcePos {
+        unsafe { anon_count -= 1; }
         SourcePos {
-            line: 0,
+            line: unsafe { anon_count },
             column: 0,
             index: 0,
             line_index: 0,
@@ -218,7 +221,7 @@ impl SourcePos {
     }
 
     pub fn is_anon(&self) -> bool {
-        self.line == 0
+        self.line < 0
     }
 }
 

@@ -1,4 +1,5 @@
 use super::ident::Identifier;
+use super::tokens::{Node, NodeImpl, SourcePos};
 
 use std::collections::{HashMap, VecMap};
 use std::fmt;
@@ -7,6 +8,7 @@ use std::fmt;
 pub struct Symbol {
     pub scope: Vec<BlockPos>,
     pub id: Identifier,
+    pub pos: SourcePos,
     pub ty: Option<Type>,
 }
 
@@ -81,7 +83,14 @@ impl TypeTable {
     pub fn leave_block(&mut self) {
         assert!(self.scope_lengths.len() > 1, "tried to leave the outermost scope!");
         for _ in 0..self.scope_lengths.pop().unwrap() {
-            self.scope.pop();
+            let block = self.scope.pop();
+            let mut count = 0;
+            for _ in &self.symbols[&block.unwrap()] {
+                count += 1;
+            }
+            for _ in 0..count {
+                self.scope.pop();
+            }
         }
     }
 
@@ -99,13 +108,15 @@ impl TypeTable {
     }
 
     // Always sets the type in the innermost scope.
-    pub fn set_type(&mut self, id: Identifier, ty: Option<Type>) {
+    pub fn set_type(&mut self, id: Node<Identifier>, ty: Option<Type>) {
+        self.enter_block(id.pos().index);
         let block_pos = *self.scope.last().unwrap();
         let id_map = self.symbols.get_mut(&block_pos).unwrap();
         let scope = self.scope.clone();
-        let symbol = id_map.entry(id).or_insert(Symbol {
+        let symbol = id_map.entry(*id.item()).or_insert(Symbol {
                 scope: scope,
-                id: id,
+                id: *id.item(),
+                pos: id.pos(),
                 ty: None,
             });
         symbol.ty = ty;

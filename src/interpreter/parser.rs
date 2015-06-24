@@ -639,7 +639,7 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_function_call(&mut self, callee: Expression) -> Option<Node<FunctionCall>> {
-        let pos = self.peek_source_pos_or_end(0);
+        let pos = callee.pos();
         match self.next_token() {
             Some(Token::Symbol(Symbol::LeftBracket(brace))) => {
                 let ty = match brace {

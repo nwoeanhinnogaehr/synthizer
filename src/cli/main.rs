@@ -18,6 +18,7 @@ use interpreter::common::{Context, read_file};
 use interpreter::lexer::lex;
 use interpreter::parser::parse;
 use interpreter::typecheck::typecheck;
+use interpreter::tokens::{Node, SourcePos};
 use std::collections::VecMap;
 
 #[allow(dead_code)]
@@ -36,7 +37,7 @@ fn main() {
     let func  = ::interpreter::functions::Function::Builtin(::interpreter::functions::BuiltinFunction::new(fn_ty));
     let ty = ::interpreter::types::Type::Function(id);
     ctxt.functions.borrow_mut().insert(id, func);
-    ctxt.types.borrow_mut().set_type(id, Some(ty));
+    ctxt.types.borrow_mut().set_type(Node(id, SourcePos::anon()), Some(ty));
 
     lex(&ctxt);
     parse(&ctxt);

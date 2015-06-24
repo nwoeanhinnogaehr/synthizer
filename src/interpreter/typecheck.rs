@@ -1,6 +1,6 @@
 use super::ast::*;
 use super::types::*;
-use super::tokens::{Operator, Node, NodeImpl};
+use super::tokens::{Operator, Node, NodeImpl, SourcePos};
 use super::common::Context;
 use super::ident::{Identifier, NameTable};
 use super::functions;
@@ -56,16 +56,18 @@ impl<'a> TypeChecker<'a> {
         let ty = self.typeof_expr(&assign.expr());
         if let Some((old_ty, 0)) = self.types.get_symbol(assign.ident()) {
             if old_ty.ty != ty {
-                self.ctxt.emit_error(format!("variable was previously assigned type `{}`",
+                self.ctxt.emit_warning(format!("variable was previously assigned type `{}`",
                                              old_ty.ty.unwrap()),
                                      assign.pos());
-                return None;
             }
         }
         if ty.is_none() {
             self.ctxt.emit_error("could not determine type of assignment", assign.pos());
         } else {
-            self.types.set_type(assign.ident(), ty);
+            if let Some(Type::Indeterminate) = ty {
+                self.ctxt.emit_error("expression references a function with ambiguous type", assign.expr_pos());
+            }
+            self.types.set_type(assign.ident, ty);
         }
         println!("assign identifier `{}` type {:?}", self.names.get_name(assign.ident()).unwrap(), ty);
         ty
@@ -76,7 +78,7 @@ impl<'a> TypeChecker<'a> {
             self.ctxt.emit_warning("function declaration shadows previous declaration of same name", def.pos());
         }
         let ty = Some(Type::Function(def.ident()));
-        self.types.set_type(def.ident(), ty);
+        self.types.set_type(def.ident, ty);
         ty
     }
 
@@ -207,7 +209,7 @@ impl<'a> TypeChecker<'a> {
             args.push_all(&def_args);
             let new_ident = self.names.new_anon();
             let new_type = Type::Function(new_ident);
-            self.types.set_type(new_ident, Some(new_type));
+            self.types.set_type(Node(new_ident, SourcePos::anon()), Some(new_type));
             match func {
                 functions::Function::User(ref def) => {
                     let mut new_def = def.item().clone();
@@ -259,7 +261,7 @@ impl<'a> TypeChecker<'a> {
                 functions::Function::User(ref def) => {
                     self.types.enter_scope(&def_scope);
                     for (id, ty) in &arg_types {
-                        self.types.set_type(id, Some(*ty));
+                        self.types.set_type(Node(id, SourcePos::anon()), Some(*ty));
                     }
                     let ty = self.typeof_block(&def.block);
                     self.types.leave_block();
@@ -534,7 +536,7 @@ impl<'a> TypeChecker<'a> {
         };
         match prefix.op() {
             Operator::Sub => {
-                if expr_ty == Type::Number {
+                if expr_ty == Type::Number || expr_ty == Type::Indeterminate {
                     Some(Type::Number)
                 } else {
                     self.ctxt.emit_error(format!("expected `Number`, got `{}`", expr_ty),
@@ -543,7 +545,7 @@ impl<'a> TypeChecker<'a> {
                 }
             }
             Operator::Not => {
-                if expr_ty == Type::Boolean {
+                if expr_ty == Type::Boolean || expr_ty == Type::Indeterminate {
                     Some(Type::Boolean)
                 } else {
                     self.ctxt.emit_error(format!("expected `Boolean`, got `{}`", expr_ty),
