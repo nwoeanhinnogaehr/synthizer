@@ -5,8 +5,14 @@ use std::collections::{HashMap, VecMap};
 use std::fmt;
 
 #[derive(Clone, Debug)]
-pub struct Symbol {
+pub struct ScopePos {
     pub scope: Vec<BlockPos>,
+    pub scope_lengths: Vec<usize>,
+}
+
+#[derive(Clone, Debug)]
+pub struct Symbol {
+    pub scope: ScopePos,
     pub id: Identifier,
     pub pos: SourcePos,
     pub ty: Option<Type>,
@@ -56,8 +62,8 @@ pub type BlockPos = usize;
 #[derive(Debug)]
 pub struct TypeTable {
     symbols: HashMap<BlockPos, VecMap<Symbol>>, // From Identifier to Symbol
-    scope: Vec<BlockPos>,
-    scope_lengths: Vec<usize>,
+    pub scope: Vec<BlockPos>,
+    pub scope_lengths: Vec<usize>,
 }
 
 impl TypeTable {
@@ -75,22 +81,21 @@ impl TypeTable {
         self.scope.push_all(scope);
         self.scope_lengths.push(scope.len());
     }
-    pub fn enter_block(&mut self, scope: BlockPos) {
-        self.scope.push(scope);
+    pub fn enter_block(&mut self, block: BlockPos) {
+        self.scope.push(block);
         self.scope_lengths.push(1);
-        self.symbols.entry(scope).or_insert(VecMap::new());
+        self.symbols.entry(block).or_insert(VecMap::new());
     }
+    pub fn add_block(&mut self, block: BlockPos) {
+        self.scope.push(block);
+        *self.scope_lengths.last_mut().unwrap() += 1;
+        self.symbols.entry(block).or_insert(VecMap::new());
+    }
+
     pub fn leave_block(&mut self) {
         assert!(self.scope_lengths.len() > 1, "tried to leave the outermost scope!");
         for _ in 0..self.scope_lengths.pop().unwrap() {
-            let block = self.scope.pop();
-            let mut count = 0;
-            for _ in &self.symbols[&block.unwrap()] {
-                count += 1;
-            }
-            for _ in 0..count {
-                self.scope.pop();
-            }
+            self.scope.pop().unwrap();
         }
     }
 
@@ -103,16 +108,20 @@ impl TypeTable {
         false
     }
 
-    pub fn get_scope<'a>(&'a self) -> &'a [BlockPos] {
-        &self.scope
+    pub fn get_scope<'a>(&'a self) -> ScopePos {
+        ScopePos {
+            scope: self.scope.clone(),
+            scope_lengths: self.scope_lengths.clone(),
+        }
     }
 
     // Always sets the type in the innermost scope.
     pub fn set_type(&mut self, id: Node<Identifier>, ty: Option<Type>) {
-        self.enter_block(id.pos().index);
+        let block = id.pos().index;
+        self.add_block(block);
+        let scope = self.get_scope();
         let block_pos = *self.scope.last().unwrap();
         let id_map = self.symbols.get_mut(&block_pos).unwrap();
-        let scope = self.scope.clone();
         let symbol = id_map.entry(*id.item()).or_insert(Symbol {
                 scope: scope,
                 id: *id.item(),

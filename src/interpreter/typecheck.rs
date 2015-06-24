@@ -38,15 +38,9 @@ impl<'a> TypeChecker<'a> {
                 Item::FunctionDef(ref f) => {
                     self.typeof_function_def(&f);
                 }
-                _ => { }
-            };
-        }
-        for item in root.iter() {
-            match *item {
                 Item::Assignment(ref a) => {
                     self.typeof_assignment(&a);
                 }
-                _ => { }
             };
         }
         //TODO emit warnings when functions or variables are not used.
@@ -276,7 +270,7 @@ impl<'a> TypeChecker<'a> {
 
             let return_ty = match func {
                 functions::Function::User(ref def) => {
-                    self.types.enter_scope(&def_scope);
+                    self.types.enter_scope(&def_scope.scope);
                     for (id, ty) in &arg_types {
                         self.types.set_type(Node(id, SourcePos::anon()), Some(*ty));
                     }

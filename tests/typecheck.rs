@@ -117,6 +117,16 @@ fn reassignment() {
             x = 1;
             y = x * 5;
         ");
+    run_test!(
+        should_pass(typecheck)
+        => r"
+            x = true;
+            a { x ^^ true }
+            x = 1;
+            b { x * 2 }
+            w = b();
+            z = a();
+        ");
 }
 
 #[test]
