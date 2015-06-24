@@ -137,7 +137,7 @@ impl<'a> TypeChecker<'a> {
             }
         };
 
-        // first set explicitly defined args, like a=5
+        // first set explicitly defined args, like a=5 or *a
         for arg in call.args() {
             match *arg {
                 Argument(Some(Node(id, _)), Some(_)) => {
@@ -154,6 +154,23 @@ impl<'a> TypeChecker<'a> {
                         None =>
                             self.ctxt.emit_error(format!("unexpected named argument `{}`",
                                                          self.names.get_name(id).unwrap()), arg.pos()),
+                    }
+                }
+                Argument(Some(Node(id, _)), None) => {
+                    if call.ty() == CallType::Partial {
+                        match undef_args.iter().position(|x| match *x {
+                            Argument(Some(Node(def_id, _)), _) if id == def_id => true,
+                            _ => false,
+                        }) {
+                            Some(pos) => {
+                                undef_args.remove(pos);
+                                def_args.push(arg.clone());
+                            }
+                            None =>
+                                self.ctxt.emit_error("unexpected argument unbind expression", arg.pos()),
+                        }
+                    } else {
+                        self.ctxt.emit_error("expected identifier", arg.pos());
                     }
                 }
                 _ => { },

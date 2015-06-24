@@ -36,13 +36,13 @@ fn wrong_num_arguments() {
     run_test!(
         should_fail(typecheck)
         => r"
-            f x { x }
+            f x, y=1 { x+y }
             x = f(1, 2, 3);
         ");
     run_test!(
         should_fail(typecheck)
         => r"
-            f x { x }
+            f x, y=1 { x+y }
             x = f();
         ");
 }
@@ -209,3 +209,60 @@ fn internal_block_shadowing_captured_vars() {
         ");
 }
 
+#[test]
+fn default_args() {
+    run_test!(
+        should_pass(typecheck)
+        => r"
+            fn x, y=3 { x + y }
+            a = fn(1);
+            a = fn(1, 2);
+            a = fn(1, x=2);
+        ");
+}
+
+#[test]
+fn partial_application() {
+    run_test!(
+        should_pass(typecheck)
+        => r"
+            fn x, y=3 { x + y }
+            fn' = fn{x=2};
+            a = fn'(1);
+            a = fn'(1, 2);
+            a = fn'(1, x=2);
+        ");
+}
+
+#[test]
+fn implicit_call() {
+    run_test!(
+        should_pass(typecheck)
+        => r"
+            fn x, y=3 { x + y }
+            x = 1;
+            y = false;
+            z = fn[];
+        ");
+    run_test!(
+        should_fail(typecheck)
+        => r"
+            fn x, y { x + y }
+            x = 1;
+            y = false;
+            z = fn[];
+        ");
+}
+
+#[test]
+fn unbind_expression() {
+    run_test!(
+        should_fail(typecheck)
+        => r"
+            fn x, y=3 { x + y }
+            fn' = fn{y=};
+            x = 1;
+            y = false;
+            z = fn'[];
+        ");
+}

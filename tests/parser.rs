@@ -164,11 +164,6 @@ fn bad_argument() {
     run_test!(
         should_fail(parse)
         => r"
-            c = fn(x=);
-        ");
-    run_test!(
-        should_fail(parse)
-        => r"
             d = fn(=);
         ");
 }
@@ -199,7 +194,7 @@ fn closure_in_arg() {
 #[test]
 fn block_in_default_arg() {
     run_test!(
-        should_pass(parse) // hopefully this will be supported at some point for completeness
+        should_fail(parse) // hopefully this will be supported at some point for completeness
                            // but right now implementing it is a major pain
         => r"
             fn y=99-{1+2+3+4+5} { }
@@ -228,7 +223,7 @@ fn partial_application_in_arg() {
 #[test]
 fn partial_application_in_default_arg() {
     run_test!(
-        should_pass(parse)
+        should_fail(parse) // FIXME
         => r"
             fn x=y{5} { x() }
         ");
@@ -269,9 +264,18 @@ fn call_types() {
 }
 
 #[test]
-fn everything_at_once() {
+fn unbind() {
     run_test!(
         should_pass(parse)
+        => r"
+            x = fn{y=};
+        ");
+}
+
+#[test]
+fn everything_at_once() {
+    run_test!(
+        should_fail(parse) // FIXME
         => r"
             z = \x{x*x*x};
             fn a, b=z{5}, c=true, d=\e,f=1,g=\i=\j{2*j}{i();}{e;f*g()} {

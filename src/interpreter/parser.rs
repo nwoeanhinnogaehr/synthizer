@@ -612,8 +612,13 @@ impl<'a> Parser<'a> {
         let (one, two) = (self.next(), self.next());
         match (one.item(), two.item()) {
             (Some(Token::Ident(id)), Some(Token::Symbol(Symbol::Equals))) => {
-                let expr = try_opt!(self.parse_expression());
-                Some(Argument(Some(Node(id, one.pos().unwrap())), Some(expr)))
+                if self.index() == self.end_index() {
+                    self.seek(1);
+                    Some(Argument(Some(Node(id, one.pos().unwrap())), None))
+                } else {
+                    let expr = try_opt!(self.parse_expression());
+                    Some(Argument(Some(Node(id, one.pos().unwrap())), Some(expr)))
+                }
             }
             (Some(Token::Ident(id)), None) => {
                 if !def_type { //it's actually an expression containing a single identifier
