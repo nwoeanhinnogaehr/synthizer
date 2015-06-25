@@ -301,7 +301,7 @@ fn layered_implicit_calls() {
         => r"
             a x { x^2 }
             b y { y[] }
-            c z { z(b) }
+            c z { z(a) }
             z = c[b, x=4];
         ");
 }
