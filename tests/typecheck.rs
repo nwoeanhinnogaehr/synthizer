@@ -305,3 +305,41 @@ fn layered_implicit_calls() {
             z = c[b, x=4];
         ");
 }
+
+#[test]
+fn recursive_partial_application() {
+    run_test!(
+        should_pass(typecheck)
+        => r"
+            a b { b() }
+            z = a(a{a{a{a{\{5}}}}});
+        ");
+}
+
+#[test]
+fn recursion_numeric() {
+    run_test!(
+        should_pass(typecheck)
+        => r"
+            a b {
+                a(b-1);
+                b;
+            }
+            z = a(5);
+        ");
+}
+
+#[test]
+fn partially_apply_recursive_function() {
+    run_test!(
+        should_pass(typecheck)
+        => r"
+            a b {
+                a(b-1);
+                b;
+            }
+            z = a(5);
+            w = a{5};
+            x = w();
+        ");
+}

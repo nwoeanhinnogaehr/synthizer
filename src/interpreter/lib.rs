@@ -1,4 +1,4 @@
-#![feature(plugin, optin_builtin_traits, vecmap, vec_push_all)]
+#![feature(plugin, optin_builtin_traits, vecmap, vec_push_all, bitset)]
 #![plugin(regex_macros, docopt_macros)]
 
 extern crate regex;

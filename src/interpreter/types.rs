@@ -99,15 +99,6 @@ impl TypeTable {
         }
     }
 
-    pub fn has_scope_cycle(&self, pos: BlockPos) -> bool {
-        for &scope in self.scope.iter() {
-            if scope == pos {
-                return true;
-            }
-        }
-        false
-    }
-
     pub fn get_scope<'a>(&'a self) -> ScopePos {
         ScopePos {
             scope: self.scope.clone(),

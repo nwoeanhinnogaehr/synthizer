@@ -3,7 +3,7 @@ use super::types::FunctionType;
 use super::ident::Identifier;
 use super::tokens::{Node, SourcePos};
 
-use std::collections::VecMap;
+use std::collections::{VecMap, BitSet};
 use std::ops::Deref;
 
 #[derive(Debug, Clone)]
@@ -71,5 +71,35 @@ impl FunctionTable {
 
     pub fn get_mut<'a>(&'a mut self, ident: Identifier) -> Option<&'a mut Function> {
         self.map.get_mut(&ident)
+    }
+}
+
+#[derive(Debug)]
+pub struct CallStack {
+    stack: Vec<Identifier>,
+    recursive: BitSet,
+}
+
+impl CallStack {
+    pub fn new() -> CallStack {
+        CallStack {
+            stack: Vec::new(),
+            recursive: BitSet::new(),
+        }
+    }
+    pub fn push(&mut self, id: Identifier) {
+        for &func in &self.stack {
+            if func == id {
+                self.recursive.insert(id);
+                break;
+            }
+        }
+        self.stack.push(id);
+    }
+    pub fn pop(&mut self) {
+        self.stack.pop();
+    }
+    pub fn is_recursive(&self, id: Identifier) -> bool {
+        self.recursive.contains(&id)
     }
 }

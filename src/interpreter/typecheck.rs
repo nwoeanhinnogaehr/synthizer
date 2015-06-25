@@ -119,10 +119,6 @@ impl<'a> TypeChecker<'a> {
 
         let mut undef_args = match func {
             functions::Function::User(ref def) => {
-                let recursive = self.types.has_scope_cycle(def.block_pos().index);
-                if recursive {
-                    return Some(Type::Indeterminate);
-                }
                 def.args().clone()
             }
 
@@ -225,7 +221,7 @@ impl<'a> TypeChecker<'a> {
             args.push_all(&def_args);
             let new_ident = self.names.new_anon();
             let new_type = Type::Function(new_ident);
-            self.types.set_type(Node(new_ident, SourcePos::anon()), Some(new_type));
+            self.types.set_type(Node(new_ident, call.pos()), Some(new_type));
             match func {
                 functions::Function::User(ref def) => {
                     let mut new_def = def.item().clone();
@@ -256,6 +252,12 @@ impl<'a> TypeChecker<'a> {
             }
 
             let mut arg_types = VecMap::new();
+
+            let recursive = self.ctxt.callstack.borrow().is_recursive(func_id);
+            if recursive {
+                return Some(Type::Indeterminate);
+            }
+            self.ctxt.callstack.borrow_mut().push(func_id);
 
             // determine the type of the arguments
             for arg in &def_args {
@@ -294,6 +296,8 @@ impl<'a> TypeChecker<'a> {
                     def.ty.returns
                 }
             };
+
+            self.ctxt.callstack.borrow_mut().pop();
 
             let calcd_type = FunctionType::new(arg_types, return_ty);
             if let Some(def_type) = match func {
