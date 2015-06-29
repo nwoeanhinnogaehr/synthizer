@@ -4,7 +4,8 @@ extern crate interpreter;
 #[test]
 fn reassign_different_type() {
     run_test!(
-        should_warn(typecheck)
+        should_warn(typecheck),
+        should_pass(lex, parse)
         => r"
             x = 1;
             x = true;
@@ -14,7 +15,8 @@ fn reassign_different_type() {
 #[test]
 fn shadow_function() {
     run_test!(
-        should_warn(typecheck)
+        should_warn(typecheck),
+        should_pass(lex, parse)
         => r"
             fn x { x }
             fn x { x*2 }
@@ -24,7 +26,8 @@ fn shadow_function() {
 #[test]
 fn call_non_function() {
     run_test!(
-        should_fail(typecheck)
+        should_fail(typecheck),
+        should_pass(lex, parse)
         => r"
             x = 1;
             y = x(1, 2, 3);
@@ -34,13 +37,15 @@ fn call_non_function() {
 #[test]
 fn wrong_num_arguments() {
     run_test!(
-        should_fail(typecheck)
+        should_fail(typecheck),
+        should_pass(lex, parse)
         => r"
             f x, y=1 { x+y }
             x = f(1, 2, 3);
         ");
     run_test!(
-        should_fail(typecheck)
+        should_fail(typecheck),
+        should_pass(lex, parse)
         => r"
             f x, y=1 { x+y }
             x = f();
@@ -50,7 +55,8 @@ fn wrong_num_arguments() {
 #[test]
 fn misspelled_argument() {
     run_test!(
-        should_fail(typecheck)
+        should_fail(typecheck),
+        should_pass(lex, parse)
         => r"
             fn x { x }
             x = fn(y=5);
@@ -60,7 +66,8 @@ fn misspelled_argument() {
 #[test]
 fn ambiguous_recursion() {
     run_test!(
-        should_fail(typecheck)
+        should_fail(typecheck),
+        should_pass(lex, parse)
         => r"
             fn x { fn(x) }
             y = fn(1);
@@ -70,14 +77,16 @@ fn ambiguous_recursion() {
 #[test]
 fn wrong_arg_type() {
     run_test!(
-        should_fail(typecheck)
+        should_fail(typecheck),
+        should_pass(lex, parse)
         => r"
             fn x { x }
             x = fn(1);
             y = fn(true);
         ");
     run_test!(
-        should_fail(typecheck)
+        should_fail(typecheck),
+        should_pass(lex, parse)
         => r"
             fn x { x }
             z = fn;
@@ -89,7 +98,8 @@ fn wrong_arg_type() {
 #[test]
 fn wrong_block_type() {
     run_test!(
-        should_fail(typecheck)
+        should_fail(typecheck),
+        should_pass(lex, parse)
         => r"
             x = {
                 true;
@@ -101,7 +111,8 @@ fn wrong_block_type() {
 #[test]
 fn non_boolean_condition() {
     run_test!(
-        should_fail(typecheck)
+        should_fail(typecheck),
+        should_pass(lex, parse)
         => r"
             x = true if 1 else false;
         ");
@@ -110,7 +121,7 @@ fn non_boolean_condition() {
 #[test]
 fn reassignment() {
     run_test!(
-        should_pass(typecheck)
+        should_pass(lex, parse, typecheck)
         => r"
             x = true;
             y = x ^^ true;
@@ -118,7 +129,7 @@ fn reassignment() {
             y = x * 5;
         ");
     run_test!(
-        should_pass(typecheck)
+        should_pass(lex, parse, typecheck)
         => r"
             x = true;
             a { x ^^ true }
@@ -132,12 +143,14 @@ fn reassignment() {
 #[test]
 fn variable_not_in_scope() {
     run_test!(
-        should_fail(typecheck)
+        should_fail(typecheck),
+        should_pass(lex, parse)
         => r"
             x = a;
         ");
     run_test!(
-        should_fail(typecheck)
+        should_fail(typecheck),
+        should_pass(lex, parse)
         => r"
             fn {
                 a = 5;
@@ -149,7 +162,8 @@ fn variable_not_in_scope() {
 #[test]
 fn mismatched_conditional_types() {
     run_test!(
-        should_fail(typecheck)
+        should_fail(typecheck),
+        should_pass(lex, parse)
         => r"
             x = 1 if true else false;
         ");
@@ -158,7 +172,8 @@ fn mismatched_conditional_types() {
 #[test]
 fn wrong_type_numerical_op() {
     run_test!(
-        should_fail(typecheck)
+        should_fail(typecheck),
+        should_pass(lex, parse)
         => r"
             a = 5 + true;
         ");
@@ -167,7 +182,8 @@ fn wrong_type_numerical_op() {
 #[test]
 fn wrong_type_comparison_op() {
     run_test!(
-        should_fail(typecheck)
+        should_fail(typecheck),
+        should_pass(lex, parse)
         => r"
             a = 5 + true;
         ");
@@ -176,7 +192,8 @@ fn wrong_type_comparison_op() {
 #[test]
 fn wrong_type_equality_op() {
     run_test!(
-        should_fail(typecheck)
+        should_fail(typecheck),
+        should_pass(lex, parse)
         => r"
             a = 5 == true;
         ");
@@ -185,7 +202,8 @@ fn wrong_type_equality_op() {
 #[test]
 fn wrong_type_boolean_op() {
     run_test!(
-        should_fail(typecheck)
+        should_fail(typecheck),
+        should_pass(lex, parse)
         => r"
             a = 5 && true;
         ");
@@ -194,12 +212,14 @@ fn wrong_type_boolean_op() {
 #[test]
 fn wrong_type_prefix_op() {
     run_test!(
-        should_fail(typecheck)
+        should_fail(typecheck),
+        should_pass(lex, parse)
         => r"
             a = -true;
         ");
     run_test!(
-        should_fail(typecheck)
+        should_fail(typecheck),
+        should_pass(lex, parse)
         => r"
             a = !5;
         ");
@@ -208,21 +228,35 @@ fn wrong_type_prefix_op() {
 #[test]
 fn internal_block_shadowing_captured_vars() {
     run_test!(
-        should_pass(typecheck)
+        should_pass(lex, parse, typecheck)
         => r"
             x = 5;
             c = \{x+5};
             z = {
                 x = true;
                 c();
-            }
+            };
+        ");
+}
+
+#[test]
+fn internal_block_shadowing_captured_args() {
+    run_test!(
+        should_pass(lex, parse, typecheck)
+        => r"
+            x = 5;
+            c = \x{x+5}{x};
+            z = {
+                x = true;
+                c();
+            };
         ");
 }
 
 #[test]
 fn default_args() {
     run_test!(
-        should_pass(typecheck)
+        should_pass(lex, parse, typecheck)
         => r"
             fn x, y=3 { x + y }
             a = fn(1);
@@ -234,7 +268,7 @@ fn default_args() {
 #[test]
 fn partial_application() {
     run_test!(
-        should_pass(typecheck)
+        should_pass(lex, parse, typecheck)
         => r"
             fn x, y=3 { x + y }
             fn' = fn{x=2};
@@ -247,7 +281,7 @@ fn partial_application() {
 #[test]
 fn implicit_call() {
     run_test!(
-        should_pass(typecheck)
+        should_pass(lex, parse, typecheck)
         => r"
             fn x, y=3 { x + y }
             x = 1;
@@ -255,7 +289,8 @@ fn implicit_call() {
             z = fn[];
         ");
     run_test!(
-        should_fail(typecheck)
+        should_fail(typecheck),
+        should_pass(lex, parse)
         => r"
             fn x, y { x + y }
             x = 1;
@@ -267,7 +302,8 @@ fn implicit_call() {
 #[test]
 fn unbind_expression() {
     run_test!(
-        should_fail(typecheck)
+        should_fail(typecheck),
+        should_pass(lex, parse)
         => r"
             fn x, y=3 { x + y }
             fn' = fn{y=};
@@ -276,7 +312,8 @@ fn unbind_expression() {
             z = fn'[];
         ");
     run_test!(
-        should_fail(typecheck)
+        should_fail(typecheck),
+        should_pass(lex, parse)
         => r"
             fn x, y=3 { x + y }
             fn' = fn{y=};
@@ -284,7 +321,7 @@ fn unbind_expression() {
             z = fn'[];
         ");
     run_test!(
-        should_pass(typecheck)
+        should_pass(lex, parse, typecheck)
         => r"
             fn x, y=3 { x + y }
             fn' = fn{y=};
@@ -297,7 +334,7 @@ fn unbind_expression() {
 #[test]
 fn layered_implicit_calls() {
     run_test!(
-        should_pass(typecheck)
+        should_pass(lex, parse, typecheck)
         => r"
             a x { x^2 }
             b y { y[] }
@@ -309,7 +346,7 @@ fn layered_implicit_calls() {
 #[test]
 fn recursive_partial_application() {
     run_test!(
-        should_pass(typecheck)
+        should_pass(lex, parse, typecheck)
         => r"
             a b { b() }
             z = a(a{a{a{a{\{5}}}}});
@@ -319,7 +356,7 @@ fn recursive_partial_application() {
 #[test]
 fn recursion_numeric() {
     run_test!(
-        should_pass(typecheck)
+        should_pass(lex, parse, typecheck)
         => r"
             a b {
                 a(b-1);
@@ -332,7 +369,7 @@ fn recursion_numeric() {
 #[test]
 fn partially_apply_recursive_function() {
     run_test!(
-        should_pass(typecheck)
+        should_pass(lex, parse, typecheck)
         => r"
             a b {
                 a(b-1);

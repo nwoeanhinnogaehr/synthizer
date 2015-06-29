@@ -4,7 +4,8 @@ extern crate interpreter;
 #[test]
 fn unclosed_paren() {
     run_test!(
-        should_fail(parse)
+        should_fail(parse),
+        should_pass(lex)
         => r"
             x = (5 + (5);
         ");
@@ -13,7 +14,8 @@ fn unclosed_paren() {
 #[test]
 fn missing_assignment_semicolon() {
     run_test!(
-        should_fail(parse)
+        should_fail(parse),
+        should_pass(lex)
         => r"
             x = 5
         ");
@@ -22,12 +24,14 @@ fn missing_assignment_semicolon() {
 #[test]
 fn bad_item() {
     run_test!(
-        should_fail(parse)
+        should_fail(parse),
+        should_pass(lex)
         => r"
             a;
         ");
     run_test!(
-        should_fail(parse)
+        should_fail(parse),
+        should_pass(lex)
         => r"
             5 = a;
         ");
@@ -36,7 +40,8 @@ fn bad_item() {
 #[test]
 fn empty_assignment_expr() {
     run_test!(
-        should_fail(parse)
+        should_fail(parse),
+        should_pass(lex)
         => r"
             a = ;
         ");
@@ -45,7 +50,8 @@ fn empty_assignment_expr() {
 #[test]
 fn extra_closing_paren() {
     run_test!(
-        should_fail(parse)
+        should_fail(parse),
+        should_pass(lex)
         => r"
             a = (5+5));
         ");
@@ -54,7 +60,8 @@ fn extra_closing_paren() {
 #[test]
 fn unary_operator_used_as_binary() {
     run_test!(
-        should_fail(parse)
+        should_fail(parse),
+        should_pass(lex)
         => r"
             a = true ! false;
         ");
@@ -63,17 +70,20 @@ fn unary_operator_used_as_binary() {
 #[test]
 fn binary_operator_used_as_unary() {
     run_test!(
-        should_fail(parse)
+        should_fail(parse),
+        should_pass(lex)
         => r"
             a = 5 + * 5;
         ");
     run_test!(
-        should_fail(parse)
+        should_fail(parse),
+        should_pass(lex)
         => r"
             a = 5 + 5 -;
         ");
     run_test!(
-        should_fail(parse)
+        should_fail(parse),
+        should_pass(lex)
         => r"
             a = + 5 + 5;
         ");
@@ -82,7 +92,8 @@ fn binary_operator_used_as_unary() {
 #[test]
 fn closure_missing_block() {
     run_test!(
-        should_fail(parse)
+        should_fail(parse),
+        should_pass(lex)
         => r"
             a = \x,y,z;
         ");
@@ -91,12 +102,14 @@ fn closure_missing_block() {
 #[test]
 fn block_not_closed() {
     run_test!(
-        should_fail(parse)
+        should_fail(parse),
+        should_pass(lex)
         => r"
             a = \x,y,z { x; { y; z; }
         ");
     run_test!(
-        should_fail(parse)
+        should_fail(parse),
+        should_pass(lex)
         => r"
             a = { 5 + 5;
         ");
@@ -105,12 +118,14 @@ fn block_not_closed() {
 #[test]
 fn extra_semicolon() {
     run_test!(
-        should_fail(parse)
+        should_fail(parse),
+        should_pass(lex)
         => r"
             a = 5;;
         ");
     run_test!(
-        should_fail(parse)
+        should_fail(parse),
+        should_pass(lex)
         => r"
             a = {
                 5;
@@ -122,14 +137,15 @@ fn extra_semicolon() {
 #[test]
 fn empty_program() {
     run_test!(
-        should_pass(parse)
+        should_pass(lex, parse)
         => "");
 }
 
 #[test]
 fn empty_argument() {
     run_test!(
-        should_fail(parse)
+        should_fail(parse),
+        should_pass(lex)
         => r"
             a = fn(5,);
         ");
@@ -138,12 +154,14 @@ fn empty_argument() {
 #[test]
 fn wrong_bracket_type() {
     run_test!(
-        should_fail(parse)
+        should_fail(parse),
+        should_pass(lex)
         => r"
             a = fn(5];
         ");
     run_test!(
-        should_fail(parse)
+        should_fail(parse),
+        should_pass(lex)
         => r"
             a = fn{5);
         ");
@@ -152,17 +170,20 @@ fn wrong_bracket_type() {
 #[test]
 fn bad_argument() {
     run_test!(
-        should_fail(parse)
+        should_fail(parse),
+        should_pass(lex)
         => r"
             a = fn(5=a);
         ");
     run_test!(
-        should_fail(parse)
+        should_fail(parse),
+        should_pass(lex)
         => r"
             b = fn(=5);
         ");
     run_test!(
-        should_fail(parse)
+        should_fail(parse),
+        should_pass(lex)
         => r"
             d = fn(=);
         ");
@@ -171,12 +192,12 @@ fn bad_argument() {
 #[test]
 fn closure_in_default_arg() {
     run_test!(
-        should_pass(parse)
+        should_pass(lex, parse)
         => r"
             fn y=\x{x<5} { }
         ");
     run_test!(
-        should_pass(parse)
+        should_pass(lex, parse)
         => r"
             fn z=\x=\{5},y=\{6}{x()<y()} { z() }
         ");
@@ -185,7 +206,7 @@ fn closure_in_default_arg() {
 #[test]
 fn closure_in_arg() {
     run_test!(
-        should_pass(parse)
+        should_pass(lex, parse)
         => r"
             a = fn(3, cond=\{x>5});
         ");
@@ -194,7 +215,8 @@ fn closure_in_arg() {
 #[test]
 fn block_in_default_arg() {
     run_test!(
-        should_fail(parse) // hopefully this will be supported at some point for completeness
+        should_fail(parse),
+        should_pass(lex) // hopefully this will be supported at some point for completeness
                            // but right now implementing it is a major pain
         => r"
             fn y=99-{1+2+3+4+5} { }
@@ -204,7 +226,7 @@ fn block_in_default_arg() {
 #[test]
 fn block_in_arg() {
     run_test!(
-        should_pass(parse)
+        should_pass(lex, parse)
         => r"
             a = fn(y={1+2+3+4+5});
         ");
@@ -213,7 +235,7 @@ fn block_in_arg() {
 #[test]
 fn partial_application_in_arg() {
     run_test!(
-        should_pass(parse)
+        should_pass(lex, parse)
         => r"
             a = fn(y=fx{5});
             a = fn{y=fx{5}};
@@ -223,7 +245,8 @@ fn partial_application_in_arg() {
 #[test]
 fn partial_application_in_default_arg() {
     run_test!(
-        should_fail(parse) // FIXME
+        should_fail(parse),
+        should_pass(lex) // FIXME
         => r"
             fn x=y{5} { x() }
         ");
@@ -232,12 +255,12 @@ fn partial_application_in_default_arg() {
 #[test]
 fn closure_with_semicolon() {
     run_test!(
-        should_pass(parse)
+        should_pass(lex, parse)
         => r"
             a = \x, y { x; y; };
         ");
     run_test!(
-        should_pass(parse)
+        should_pass(lex, parse)
         => r"
             a = \x=\c{c;}, y { x; y; };
         ");
@@ -246,7 +269,7 @@ fn closure_with_semicolon() {
 #[test]
 fn call_types() {
     run_test!(
-        should_pass(parse)
+        should_pass(lex, parse)
         => r"
             a = fn(1, 2);
             b = fn(x=1, 2);
@@ -266,7 +289,7 @@ fn call_types() {
 #[test]
 fn unbind() {
     run_test!(
-        should_pass(parse)
+        should_pass(lex, parse)
         => r"
             x = fn{y=};
         ");
@@ -275,7 +298,8 @@ fn unbind() {
 #[test]
 fn everything_at_once() {
     run_test!(
-        should_fail(parse) // FIXME
+        should_fail(parse),
+        should_pass(lex) // FIXME
         => r"
             z = \x{x*x*x};
             fn a, b=z{5}, c=true, d=\e,f=1,g=\i=\j{2*j}{i();}{e;f*g()} {
