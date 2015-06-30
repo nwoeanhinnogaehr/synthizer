@@ -256,7 +256,7 @@ fn default_args_evald_in_new_scope() {
 }
 
 #[test]
-fn internal_block_overriding_captured_args() {
+fn implicit_args_read_from_correct_scope() {
     run_test!(
         should_pass(lex, parse, typecheck)
         => r"
