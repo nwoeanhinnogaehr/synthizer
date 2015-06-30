@@ -1,6 +1,6 @@
 use super::ast::*;
 use super::types::*;
-use super::tokens::{Operator, Node, NodeImpl, SourcePos};
+use super::tokens::{Operator, Node, NodeImpl};
 use super::common::Context;
 use super::ident::{Identifier, NameTable};
 use super::functions;
@@ -104,8 +104,8 @@ impl<'a> TypeChecker<'a> {
                 return None;
             },
         };
-        let def_scope = match self.types.get_symbol(func_id) {
-            Some((s, _)) => s.scope.clone(),
+        let func_def = match self.types.get_symbol(func_id) {
+            Some((s, _)) => s.clone(),
             None => panic!("fuck"),
         };
         let func = match self.ctxt.functions.borrow().get(func_id) {
@@ -210,7 +210,12 @@ impl<'a> TypeChecker<'a> {
         // check that all args are defined somewhere for implicit calls
         if call.ty() == CallType::Implicit {
             undef_args.retain(|x| match *x {
-                Argument(Some(Node(id, _)), None) => self.types.get_symbol(id).is_none(),
+                Argument(Some(Node(id, pos)), None) => {
+                    if self.types.get_symbol(id).is_some() {
+                        def_args.push(Argument(Some(Node(id, pos)), Some(Expression::Variable(Node(id, pos)))));
+                        false
+                    } else { true }
+                }
                 _ => true,
             });
         }
@@ -258,7 +263,6 @@ impl<'a> TypeChecker<'a> {
                 return Some(Type::Indeterminate);
             }
             self.ctxt.callstack.borrow_mut().push(func_id);
-
             // determine the type of the arguments
             for arg in &def_args {
                 match *arg {
@@ -271,15 +275,15 @@ impl<'a> TypeChecker<'a> {
                             }
                         }
                     }
-                    _ => { },
+                    _ => unreachable!(),
                 }
             }
 
             let return_ty = match func {
                 functions::Function::User(ref def) => {
-                    self.types.enter_scope(&def_scope.scope);
-                    for (id, ty) in &arg_types {
-                        self.types.set_type(Node(id, SourcePos::anon()), Some(*ty));
+                    self.types.enter_scope(&func_def.scope.scope);
+                    for ((id, ty), arg) in arg_types.iter().zip(def_args.iter()) {
+                        self.types.set_type(Node(id, arg.pos()), Some(*ty));
                     }
                     let ty = self.typeof_block(&def.block);
                     self.types.leave_block();
@@ -369,6 +373,9 @@ impl<'a> TypeChecker<'a> {
                         Some(Type::Indeterminate) => {
                             if count > 1 {
                                 ty = Some(Type::Number);
+                            } else {
+                                self.ctxt.emit_error("type of expression is ambiguous", e.pos());
+                                ty = None;
                             }
                         }
                         Some(_) => {
@@ -410,30 +417,29 @@ impl<'a> TypeChecker<'a> {
                 return None;
             }
         };
-        if let &Some(ref els) = cond.els() {
-            let else_ty = match self.typeof_expr(&els) {
-                Some(x) => x,
-                None => {
-                    self.ctxt.emit_error("type of conditional else expression could not be determined", els.pos());
-                    return None;
-                }
-            };
-            if else_ty == Type::Indeterminate && then_ty != Type::Indeterminate {
-                return Some(then_ty);
-            }
-            if then_ty == Type::Indeterminate && else_ty != Type::Indeterminate {
-                return Some(else_ty);
-            }
-            if let (Type::Function(_), Type::Function(_)) = (then_ty, else_ty) {
-                unimplemented!();
-            }
-            if else_ty != then_ty {
-                self.ctxt.emit_error(format!(
-                    "then branch of conditional is of type `{}` but else branch is of type `{}`",
-                    then_ty, else_ty), els.pos());
+        let else_ty = match self.typeof_expr(cond.els()) {
+            Some(x) => x,
+            None => {
+                self.ctxt.emit_error("type of conditional else expression could not be determined", cond.els_pos());
                 return None;
             }
+        };
+        if else_ty == Type::Indeterminate && then_ty != Type::Indeterminate {
+            return Some(then_ty);
         }
+        if then_ty == Type::Indeterminate && else_ty != Type::Indeterminate {
+            return Some(else_ty);
+        }
+        if let (Type::Function(_), Type::Function(_)) = (then_ty, else_ty) {
+            unimplemented!();
+        }
+        if else_ty != then_ty {
+            self.ctxt.emit_error(format!(
+                "then branch of conditional is of type `{}` but else branch is of type `{}`",
+                then_ty, else_ty), cond.els_pos());
+            return None;
+        }
+
         Some(then_ty)
     }
 

@@ -338,15 +338,12 @@ impl<'a> Parser<'a> {
                     Some(Expression::Conditional(Box::new(Node(Conditional {
                         cond: cond,
                         then: then,
-                        els: Some(els),
+                        els: els,
                     }, pos))))
                 } else {
                     self.seek(-1);
-                    Some(Expression::Conditional(Box::new(Node(Conditional {
-                        cond: cond,
-                        then: then,
-                        els: None,
-                    }, pos))))
+                    self.emit_error_here("expected `else`");
+                    None
                 }
             }
 

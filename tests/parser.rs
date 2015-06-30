@@ -313,3 +313,22 @@ fn everything_at_once() {
             a = fn({5;4;3;2;1;});
         ");
 }
+
+#[test]
+fn conditional_missing_else() {
+    run_test!(
+        should_fail(parse),
+        should_pass(lex)
+        => r"
+            x = y if z;
+        ");
+}
+
+#[test]
+fn conditional() {
+    run_test!(
+        should_pass(lex, parse)
+        => r"
+            x = x + y if z && w else x - 2*y;
+        ");
+}

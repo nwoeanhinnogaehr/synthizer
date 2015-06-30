@@ -129,7 +129,7 @@ impl Assignment {
 pub struct Conditional {
     pub cond: Expression,
     pub then: Expression,
-    pub els: Option<Expression>,
+    pub els: Expression,
 }
 
 impl Conditional {
@@ -137,8 +137,8 @@ impl Conditional {
     pub fn cond_pos(&self) -> SourcePos { self.cond.pos() }
     pub fn then(&self) -> &Expression { &self.then }
     pub fn then_pos(&self) -> SourcePos { self.then.pos() }
-    pub fn els(&self) -> &Option<Expression> { &self.els }
-    pub fn els_pos(&self) -> Option<SourcePos> { self.els.as_ref().map(|x| x.pos()) }
+    pub fn els(&self) -> &Expression { &self.els }
+    pub fn els_pos(&self) -> SourcePos { self.els.pos() }
 }
 
 #[derive(Clone, Debug)]

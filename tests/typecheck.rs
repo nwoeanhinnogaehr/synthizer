@@ -240,15 +240,31 @@ fn internal_block_shadowing_captured_vars() {
 }
 
 #[test]
-fn internal_block_shadowing_captured_args() {
+fn default_args_evald_in_new_scope() {
     run_test!(
         should_pass(lex, parse, typecheck)
         => r"
             x = 5;
-            c = \x{x+5}{x};
-            z = {
+            fn z=x {
+                z^2;
+            }
+            w = {
                 x = true;
-                c();
+                fn();
+            };
+        ");
+}
+
+#[test]
+fn internal_block_overriding_captured_args() {
+    run_test!(
+        should_pass(lex, parse, typecheck)
+        => r"
+            x = true;
+            c x { x+5 }
+            z = {
+                x = 5;
+                c[];
             };
         ");
 }
