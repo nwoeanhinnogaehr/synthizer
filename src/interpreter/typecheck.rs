@@ -113,17 +113,15 @@ impl<'a> TypeChecker<'a> {
             None => unreachable!(),
         };
 
-        let is_aliased = false; //TODO set this for better error messages
-
         let mut def_args = Vec::new();
 
-        let mut undef_args = match func {
+        let (mut undef_args, mut arg_scopes) = match func {
             functions::Function::User(ref def) => {
-                def.args().clone()
+                (def.args().clone(), def.arg_scopes.clone().unwrap_or(VecMap::new()))
             }
 
             functions::Function::Builtin(ref def) => {
-                def.args.clone()
+                (def.args.clone(), def.arg_scopes.clone().unwrap_or(VecMap::new()))
             }
         };
 
@@ -182,8 +180,7 @@ impl<'a> TypeChecker<'a> {
                                                Some(expr.clone())));
                         undef_args.remove(0);
                     } else {
-                        self.ctxt.emit_error(format!("unexpected argument, {}function `{}` takes {} positional argument{}",
-                                                     if is_aliased { "aliased " } else { "" },
+                        self.ctxt.emit_error(format!("unexpected argument, function `{}` takes {} positional argument{}",
                                                      self.names.get_name(func_id).unwrap(),
                                                      num_positional_args,
                                                      if num_positional_args == 1 { "" } else { "s" }),
@@ -196,8 +193,9 @@ impl<'a> TypeChecker<'a> {
         // set default args that weren't set previously
         for arg in undef_args.iter().rev() {
             match *arg {
-                Argument(Some(_), Some(_)) => {
+                Argument(Some(Node(id, _)), Some(_)) => {
                     def_args.insert(0, arg.clone());
+                    arg_scopes.entry(id).or_insert_with(|| func_def.scope.clone());
                 }
                 _ => { }
             }
@@ -224,6 +222,12 @@ impl<'a> TypeChecker<'a> {
             let mut args = Vec::new();
             args.push_all(&undef_args);
             args.push_all(&def_args);
+            for arg in &def_args {
+                if let &Argument(Some(Node(id, _)), _) = arg {
+                    arg_scopes.entry(id).or_insert_with(|| self.types.get_scope());
+                }
+            }
+
             let new_ident = self.names.new_anon();
             let new_type = Type::Function(new_ident);
             self.types.set_type(Node(new_ident, call.pos()), Some(new_type));
@@ -234,7 +238,8 @@ impl<'a> TypeChecker<'a> {
                     self.ctxt.functions.borrow_mut().insert(new_ident, functions::Function::User(
                         functions::UserFunction {
                             ty: None,
-                            node: Node(new_def, call.pos())
+                            node: Node(new_def, call.pos()),
+                            arg_scopes: Some(arg_scopes),
                         }));
                 },
                 functions::Function::Builtin(ref def) => {
@@ -242,6 +247,7 @@ impl<'a> TypeChecker<'a> {
                         functions::BuiltinFunction {
                             ty: def.ty.clone(),
                             args: args,
+                            arg_scopes: Some(arg_scopes),
                         }));
                 },
             }
@@ -267,7 +273,10 @@ impl<'a> TypeChecker<'a> {
             for arg in &def_args {
                 match *arg {
                     Argument(Some(Node(id, _)), Some(ref expr)) => {
+                        let scope = arg_scopes.get(&id).map(|x| x.clone()).unwrap_or(self.types.get_scope());
+                        self.types.enter_scope(&scope.scope);
                         let ty = self.typeof_expr(expr);
+                        self.types.leave_block();
                         match ty {
                             None => return None,
                             Some(ty) => {
@@ -314,20 +323,11 @@ impl<'a> TypeChecker<'a> {
                         // If they are both functions, do nothing.
                         // Their compatibility will already have been validated
                     } else if old != new {
-                        if is_aliased {
-                            self.ctxt.emit_error(format!("expected type `{}` for argument `{}` to aliased function `{}`, got type `{}`",
-                                                         old.1,
-                                                         self.names.get_name(arg.ident().unwrap()).unwrap(),
-                                                         self.names.get_name(func_id).unwrap(),
-                                                         new.1),
-                                                 arg.pos());
-                        } else {
-                            self.ctxt.emit_error(format!("expected type `{}` for argument `{}`, got `{}`",
-                                                         old.1,
-                                                         self.names.get_name(arg.ident().unwrap()).unwrap(),
-                                                         new.1),
-                                                 arg.pos());
-                        }
+                        self.ctxt.emit_error(format!("expected type `{}` for argument `{}`, got `{}`",
+                                                     old.1,
+                                                     self.names.get_name(arg.ident().unwrap()).unwrap(),
+                                                     new.1),
+                                             arg.pos());
                         types_match = false;
                     }
                 }

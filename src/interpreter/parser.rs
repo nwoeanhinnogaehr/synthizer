@@ -417,7 +417,8 @@ impl<'a> Parser<'a> {
         self.functions.insert(*ident, functions::Function::User(
                 functions::UserFunction {
                     ty: None,
-                    node: Node(func.item().clone(), pos)
+                    node: Node(func.item().clone(), pos),
+                    arg_scopes: None,
                 }));
 
         Some(Node(FunctionDef {
@@ -434,7 +435,8 @@ impl<'a> Parser<'a> {
         self.functions.insert(ident, functions::Function::User(
                 functions::UserFunction {
                     ty: None,
-                    node: Node(func.item().clone(), pos)
+                    node: Node(func.item().clone(), pos),
+                    arg_scopes: None,
                 }));
 
         Some(Node(FunctionDef {

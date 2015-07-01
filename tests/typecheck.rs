@@ -256,6 +256,21 @@ fn default_args_evald_in_new_scope() {
 }
 
 #[test]
+fn default_args_from_multiple_scopes() {
+    run_test!(
+        should_pass(lex, parse, typecheck)
+        => r"
+            x = 5;
+            fn z=x, w {
+                z^2 if w else 5;
+            }
+            x = true;
+            fn' = fn{w=x};
+            w = fn'();
+        ");
+}
+
+#[test]
 fn implicit_args_read_from_correct_scope() {
     run_test!(
         should_pass(lex, parse, typecheck)
