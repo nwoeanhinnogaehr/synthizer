@@ -411,3 +411,35 @@ fn partially_apply_recursive_function() {
             x = w();
         ");
 }
+
+#[test]
+fn call_nonexistant_function() {
+    run_test!(
+        should_pass(lex, parse),
+        should_fail(typecheck)
+        => r"
+            x = f();
+        ");
+}
+
+#[test]
+fn reference_nonexistant_variable() {
+    run_test!(
+        should_pass(lex, parse),
+        should_fail(typecheck)
+        => r"
+            x = f;
+        ");
+}
+
+#[test]
+fn call_default_arg() {
+    run_test!(
+        should_pass(lex, parse, typecheck)
+        => r"
+            fn d=\e{e} {
+                d(5);
+            }
+            a = fn();
+        ");
+}

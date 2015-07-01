@@ -106,7 +106,7 @@ impl<'a> TypeChecker<'a> {
         };
         let func_def = match self.types.get_symbol(func_id) {
             Some((s, _)) => s.clone(),
-            None => panic!("fuck"),
+            None => unreachable!(),
         };
         let func = match self.ctxt.functions.borrow().get(func_id) {
             Some(f) => f.clone(),
@@ -293,6 +293,9 @@ impl<'a> TypeChecker<'a> {
                     self.types.enter_scope(&func_def.scope.scope);
                     for ((id, ty), arg) in arg_types.iter().zip(def_args.iter()) {
                         self.types.set_type(Node(id, arg.pos()), Some(*ty));
+                        if let Type::Function(func_id) = *ty {
+                            self.types.set_type(Node(func_id, arg.pos()), Some(Type::Function(func_id)));
+                        }
                     }
                     let ty = self.typeof_block(&def.block);
                     self.types.leave_block();
@@ -336,9 +339,16 @@ impl<'a> TypeChecker<'a> {
                 }
             }
             let mut func = func;
-            if let functions::Function::User(ref mut def) = func {
-                def.ty = Some(calcd_type);
-            }
+            match func {
+                functions::Function::User(ref mut def) => {
+                    def.ty = Some(calcd_type);
+                    def.arg_scopes = Some(arg_scopes);
+                }
+
+                functions::Function::Builtin(ref mut def) => {
+                    def.arg_scopes = Some(arg_scopes);
+                }
+            };
             self.ctxt.functions.borrow_mut().insert(func_id, func);
             Some(return_ty)
         }

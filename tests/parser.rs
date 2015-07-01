@@ -296,25 +296,6 @@ fn unbind() {
 }
 
 #[test]
-fn everything_at_once() {
-    run_test!(
-        should_fail(parse),
-        should_pass(lex) // FIXME
-        => r"
-            z = \x{x*x*x};
-            fn a, b=z{5}, c=true, d=\e,f=1,g=\i=\j{2*j}{i();}{e;f*g()} {
-                x = a + {
-                    b if c else d(c);
-                    d{e=a}(f=2);
-                    d{b}[3];
-                    d{b}{g=\x{x^2}};
-                };
-            }
-            a = fn({5;4;3;2;1;});
-        ");
-}
-
-#[test]
 fn conditional_missing_else() {
     run_test!(
         should_fail(parse),
