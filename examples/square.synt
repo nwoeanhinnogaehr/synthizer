@@ -1,5 +1,0 @@
-square a {
-	a*a
-}
-
-x = square(5);

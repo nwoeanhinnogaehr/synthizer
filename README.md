@@ -1,5 +1,5 @@
 # Synthizer
-A simple, experimental procedural language for real time additive audio synthesis, intended for the creation of unique mathematical sounds.
+A simple experimental language for real time additive audio synthesis, intended for the creation of unique mathematical sounds.
 
 ## What works so far
 - Lexing
@@ -15,4 +15,4 @@ A simple, experimental procedural language for real time additive audio synthesi
 - Graphical representations of the sound
 
 ## Example code
-See the examples directory. Syntax is subject to change at any moment and will not be documented fully until it has stabilized.
+A wide variety of unit tests can be found in the tests directory.

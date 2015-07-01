@@ -1,5 +1,0 @@
-fib n {
-	fib(n-1) + fib(n-2) if n>1 else 1
-}
-
-x = fib(20);
