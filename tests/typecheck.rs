@@ -265,7 +265,7 @@ fn default_args_from_multiple_scopes() {
                 z^2 if w else 5;
             }
             x = true;
-            fn' = fn{w=x};
+            fn' = fn@(w=x);
             w = fn'();
         ");
 }
@@ -302,7 +302,7 @@ fn partial_application() {
         should_pass(lex, parse, typecheck)
         => r"
             fn x, y=3 { x + y }
-            fn' = fn{x=2};
+            fn' = fn@(x=2);
             a = fn'(1);
             a = fn'(1, 2);
             a = fn'(1, x=2);
@@ -337,7 +337,7 @@ fn unbind_expression() {
         should_pass(lex, parse)
         => r"
             fn x, y=3 { x + y }
-            fn' = fn{y=};
+            fn' = fn@(y=);
             x = 1;
             y = false;
             z = fn'[];
@@ -347,7 +347,7 @@ fn unbind_expression() {
         should_pass(lex, parse)
         => r"
             fn x, y=3 { x + y }
-            fn' = fn{y=};
+            fn' = fn@(y=);
             x = 1;
             z = fn'[];
         ");
@@ -355,7 +355,7 @@ fn unbind_expression() {
         should_pass(lex, parse, typecheck)
         => r"
             fn x, y=3 { x + y }
-            fn' = fn{y=};
+            fn' = fn@(y=);
             x = 1;
             y = 2;
             z = fn'[];
@@ -380,7 +380,7 @@ fn recursive_partial_application() {
         should_pass(lex, parse, typecheck)
         => r"
             a b { b() }
-            z = a(a{a{a{a{\{5}}}}});
+            z = a(a@(a@(a@(a@(\{5})))));
         ");
 }
 
@@ -407,7 +407,7 @@ fn partially_apply_recursive_function() {
                 b;
             }
             z = a(5);
-            w = a{5};
+            w = a@(5);
             x = w();
         ");
 }

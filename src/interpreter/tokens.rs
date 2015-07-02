@@ -107,6 +107,7 @@ pub enum Symbol {
     Backslash,
     If,
     Else,
+    At,
     LeftBracket(Bracket),
     RightBracket(Bracket),
 }
@@ -124,6 +125,7 @@ impl Symbol {
             "\\" => Backslash,
             "if" => If,
             "else" => Else,
+            "@" => At,
             "(" => LeftBracket(Bracket::Round),
             ")" => RightBracket(Bracket::Round),
             "{" => LeftBracket(Bracket::Curly),
@@ -148,6 +150,7 @@ impl fmt::Display for Symbol {
             Backslash => "\\",
             If => "if",
             Else => "else",
+            At => "@",
             LeftBracket(Bracket::Round) => "(",
             RightBracket(Bracket::Round) => ")",
             LeftBracket(Bracket::Curly) => "{",

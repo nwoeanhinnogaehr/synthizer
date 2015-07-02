@@ -320,8 +320,8 @@ impl<'a> Parser<'a> {
             }
 
             // function call
+            Some(Token::Symbol(Symbol::At)) |
             Some(Token::Symbol(Symbol::LeftBracket(Bracket::Round))) |
-            Some(Token::Symbol(Symbol::LeftBracket(Bracket::Curly))) |
             Some(Token::Symbol(Symbol::LeftBracket(Bracket::Square))) => {
                 self.seek(-1);
                 let call = try_opt!(self.parse_function_call(left));
@@ -365,8 +365,8 @@ impl<'a> Parser<'a> {
             Some(Token::Symbol(Symbol::RightBracket(Bracket::Round))) => Some(1),
 
             // function call
+            Some(Token::Symbol(Symbol::At)) |
             Some(Token::Symbol(Symbol::LeftBracket(Bracket::Round))) |
-            Some(Token::Symbol(Symbol::LeftBracket(Bracket::Curly))) |
             Some(Token::Symbol(Symbol::LeftBracket(Bracket::Square))) => Some(1000),
 
             None => Some(0),
@@ -644,35 +644,42 @@ impl<'a> Parser<'a> {
 
     fn parse_function_call(&mut self, callee: Expression) -> Option<Node<FunctionCall>> {
         let pos = callee.pos();
-        match self.next_token() {
-            Some(Token::Symbol(Symbol::LeftBracket(brace))) => {
-                let ty = match brace {
-                    Bracket::Round => CallType::Explicit,
-                    Bracket::Square => CallType::Implicit,
-                    Bracket::Curly => CallType::Partial,
-                };
-
-                let end = self.find_smart(Token::Symbol(Symbol::RightBracket(brace)));
-                if end.is_none() {
-                    self.ctxt.emit_error(format!("expected `{}`", Symbol::RightBracket(brace)),
-                                         self.end_source_pos());
-                    return None;
+        let (ty, brace) = match self.next_token() {
+            Some(Token::Symbol(Symbol::LeftBracket(Bracket::Round))) =>
+                (CallType::Explicit, Bracket::Round),
+            Some(Token::Symbol(Symbol::LeftBracket(Bracket::Square))) =>
+                (CallType::Implicit, Bracket::Square),
+            Some(Token::Symbol(Symbol::At)) => {
+                match self.next_token() {
+                    Some(Token::Symbol(Symbol::LeftBracket(Bracket::Round))) =>
+                        (CallType::Partial, Bracket::Round),
+                    _ => {
+                        self.emit_error_here("expected `(`");
+                        return None;
+                    },
                 }
-                let idx = self.index();
-                self.enter_subsection(idx, end.unwrap());
-                let args = try_opt!(self.parse_arg_list(false));
-                self.integrate_subsection();
-                self.seek(1); //consume closing brace
-                Some(Node(FunctionCall {
-                    callee: callee,
-                    args: args,
-                    ty: ty,
-                }, pos))
-            },
+            }
             _ => {
-                self.emit_error_here("expected `(`, `[`, or `{`");
+                self.emit_error_here("expected `(`, `[`, or `@(`");
                 return None;
             }
+        };
+
+        let end = self.find_smart(Token::Symbol(Symbol::RightBracket(brace)));
+        if end.is_none() {
+            self.ctxt.emit_error(format!("expected `{}`", Symbol::RightBracket(brace)),
+                                 self.end_source_pos());
+            return None;
         }
+        let idx = self.index();
+        self.enter_subsection(idx, end.unwrap());
+        let args = try_opt!(self.parse_arg_list(false));
+        self.integrate_subsection();
+        self.seek(1); //consume closing brace
+        Some(Node(FunctionCall {
+            callee: callee,
+            args: args,
+            ty: ty,
+        }, pos))
     }
 }

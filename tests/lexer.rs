@@ -19,7 +19,7 @@ fn all_tokens() {
             abcABC_~'0123
 
             + - * / ^ ^^ >= <= < > ! % && || == !=
-            if else . , = : ; ? ( ) { } [ ] \
+            if else . , = : ; ? ( ) { } [ ] \ @
             true false
             // #&*GR^@&(G#^&(G@&*YFD*B@Y^&#(VT@^(f367g9@&*
         "
@@ -30,6 +30,6 @@ fn all_tokens() {
 fn non_tokens() {
     run_test!(
         should_fail(lex)
-        => "` @ # $ & | ' \""
+        => "` # $ & | ' \""
     );
 }

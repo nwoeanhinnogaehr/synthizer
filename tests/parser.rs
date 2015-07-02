@@ -237,18 +237,27 @@ fn partial_application_in_arg() {
     run_test!(
         should_pass(lex, parse)
         => r"
-            a = fn(y=fx{5});
-            a = fn{y=fx{5}};
+            a = fn(y=fx@(5));
+            a = fn@(y=fx@(5));
+        ");
+}
+
+#[test]
+fn partial_application_missing_paren() {
+    run_test!(
+        should_pass(lex),
+        should_fail(parse)
+        => r"
+            a = fn@5);
         ");
 }
 
 #[test]
 fn partial_application_in_default_arg() {
     run_test!(
-        should_fail(parse),
-        should_pass(lex) // FIXME
+        should_pass(lex, parse)
         => r"
-            fn x=y{5} { x() }
+            fn x=y@(5) { x() }
         ");
 }
 
@@ -279,10 +288,10 @@ fn call_types() {
             g = fn[x=1, 2];
             h = fn[2, x=1];
             i = fn[y=1, x=2];
-            j = fn{1, 2};
-            k = fn{x=1, 2};
-            l = fn{2, x=1};
-            m = fn{y=1, x=2};
+            j = fn@(1, 2);
+            k = fn@(x=1, 2);
+            l = fn@(2, x=1);
+            m = fn@(y=1, x=2);
         ");
 }
 
@@ -291,7 +300,7 @@ fn unbind() {
     run_test!(
         should_pass(lex, parse)
         => r"
-            x = fn{y=};
+            x = fn@(y=);
         ");
 }
 
