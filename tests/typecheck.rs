@@ -443,3 +443,15 @@ fn call_default_arg() {
             a = fn();
         ");
 }
+
+#[test]
+fn indirect_recursion() {
+    run_test!(
+        should_pass(lex, parse),
+        should_fail(typecheck)
+        => r"
+            a { b() }
+            b { a() }
+            x = a();
+        ");
+}
