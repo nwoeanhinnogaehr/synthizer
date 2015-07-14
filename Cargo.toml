@@ -10,6 +10,8 @@ docopt = "*"
 docopt_macros = "*"
 regex = "*"
 regex_macros = "*"
+llvm-alt = "*"
+cbox = "*"
 
 [lib]
 name = "interpreter"

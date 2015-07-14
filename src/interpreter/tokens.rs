@@ -4,13 +4,14 @@ use std::fmt;
 use std::ops::Deref;
 
 pub type Number = f32;
+pub type Boolean = bool;
 
 /// The various types that a token can be
 #[derive(Debug, Copy, PartialEq, Clone)]
 pub enum Token {
     Ident(Identifier),
     Const(Number),
-    Boolean(bool),
+    Boolean(Boolean),
     Operator(Operator),
     Symbol(Symbol),
 }

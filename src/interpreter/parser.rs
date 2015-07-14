@@ -44,7 +44,6 @@ pub fn parse<'a>(ctxt: &'a Context<'a>) {
     parser.parse();
 }
 
-#[derive(Debug)]
 struct Parser<'a> {
     ctxt: &'a Context<'a>,
     tokens: Ref<'a, Vec<Node<Token>>>,

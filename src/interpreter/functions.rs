@@ -1,5 +1,6 @@
 use super::ast;
-use super::types::{FunctionType, ScopePos};
+use super::types::{FunctionType};
+use super::scope::ScopePos;
 use super::ident::Identifier;
 use super::tokens::{Node, SourcePos};
 

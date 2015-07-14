@@ -37,7 +37,7 @@ fn main() {
     let func  = ::interpreter::functions::Function::Builtin(::interpreter::functions::BuiltinFunction::new(fn_ty));
     let ty = ::interpreter::types::Type::Function(id);
     ctxt.functions.borrow_mut().insert(id, func);
-    ctxt.types.borrow_mut().set_type(Node(id, SourcePos::anon()), Some(ty));
+    ctxt.types.borrow_mut().set_val(id, SourcePos::anon().index, ty);
 
     lex(&ctxt);
     parse(&ctxt);

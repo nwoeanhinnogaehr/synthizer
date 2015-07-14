@@ -2,13 +2,15 @@ use super::issue::{IssueTracker, Level};
 use super::tokens::{Token, SourcePos, Node};
 use super::ast::Root;
 use super::types::TypeTable;
-use super::ident::NameTable;
+use super::ident::{Identifier, NameTable};
 use super::functions::{FunctionTable, CallStack};
 
 use std::cell::RefCell;
 use std::borrow::Cow;
 
-#[derive(Debug)]
+use llvm;
+use cbox::CBox;
+
 pub struct Context<'a> {
     pub filename: String,
     pub source: String,
@@ -19,6 +21,7 @@ pub struct Context<'a> {
     pub tokens: RefCell<Vec<Node<Token>>>,
     pub ast: RefCell<Root>,
     pub callstack: RefCell<CallStack>,
+    pub llvm: CBox<llvm::Context>,
 }
 
 impl<'a> Context<'a> {
@@ -33,6 +36,7 @@ impl<'a> Context<'a> {
             tokens: RefCell::new(Vec::new()),
             ast: RefCell::new(Vec::new()),
             callstack: RefCell::new(CallStack::new()),
+            llvm: llvm::Context::new(),
         }
     }
 
@@ -41,6 +45,10 @@ impl<'a> Context<'a> {
     }
     pub fn emit_warning<T>(&'a self, msg: T, pos: SourcePos) where T: Into<Cow<'static, str>> {
         self.issues.borrow_mut().new_issue(self, pos, Level::Warning, msg);
+    }
+
+    pub fn lookup_name(&'a self, id: Identifier) -> String {
+        self.names.borrow().get_name(id).unwrap().into()
     }
 }
 

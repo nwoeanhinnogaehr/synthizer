@@ -9,6 +9,7 @@ macro_rules! run_test {
         use ::interpreter::parser::parse;
         use ::interpreter::lexer::lex;
         use ::interpreter::typecheck::typecheck;
+        use ::interpreter::codegen::codegen;
 
         use std::collections::HashSet;
 
@@ -68,5 +69,19 @@ macro_rules! run_test {
         if should_warn.contains(&"typecheck") && !warn {
             panic!("typecheck should have produced warnings:\n{}", *ctxt.issues.borrow());
         }
+        ctxt.issues.borrow_mut().clear();
+
+        /*codegen(&ctxt);
+        let err = ctxt.issues.borrow().has_errors();
+        let warn = ctxt.issues.borrow().has_warnings();
+        if should_pass.contains(&"codegen") && err {
+            panic!("codegen should have passed:\n{}", *ctxt.issues.borrow());
+        }
+        if should_fail.contains(&"codegen") && !err {
+            panic!("codegen should have produced errors:\n{}", *ctxt.issues.borrow());
+        }
+        if should_warn.contains(&"codegen") && !warn {
+            panic!("codegen should have produced warnings:\n{}", *ctxt.issues.borrow());
+        }*/
     }};
 }

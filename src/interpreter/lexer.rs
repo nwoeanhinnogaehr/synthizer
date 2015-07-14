@@ -7,7 +7,7 @@ use std::str::FromStr;
 static IDENT_REGEX: Regex = regex!(r"[a-zA-Z_~']+[a-zA-Z_~0-9']*");
 static WHITESPACE_REGEX: Regex = regex!(r"[ \t]+");
 static CONST_REGEX: Regex = regex!(r"([0-9]+\.?[0-9]*|[0-9]*\.?[0-9]+)([eE]-?[0-9]+)?");
-static OPERATOR_REGEX: Regex = regex!(r"\^\^|>=|<=|[\+\*/\^><!%-]|&&|\|\||==|!=");
+static OPERATOR_REGEX: Regex = regex!(r"\^\^|>=|<=|!=|[\+\*/\^><!%-]|&&|\|\||==");
 static SYMBOL_REGEX: Regex = regex!(r"if|else|[\.,=:;\?\(\)\{\}\]\[\\@]");
 static BOOLEAN_REGEX: Regex = regex!(r"true|false");
 static COMMENT_REGEX: Regex = regex!(r"//.*");
