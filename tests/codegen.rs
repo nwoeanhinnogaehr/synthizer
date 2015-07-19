@@ -89,6 +89,13 @@ fn conditional() {
 }
 
 #[test]
-fn failing_test() {
-    panic!();
+fn block() {
+    run_test!(
+        should_pass(lex, parse, typecheck, codegen)
+        => r"
+        a = { true };
+        b = { 1; 2; 3 };
+        c = { 1; { 2; 3 } };
+        "
+    );
 }

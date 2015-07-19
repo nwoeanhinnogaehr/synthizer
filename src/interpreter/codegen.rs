@@ -64,7 +64,7 @@ impl<'a> CodeGenerator<'a> {
         for item in root {
             match *item {
                 Item::Assignment(ref x) => {
-                    self.codegen_assignment(x);
+                    self.codegen_assignment(x, init_fn);
                 },
                 _ => { }
             }
@@ -73,17 +73,17 @@ impl<'a> CodeGenerator<'a> {
         self.builder.build_ret_void();
     }
 
-    fn codegen_assignment(&self, assign: &Assignment) {
+    fn codegen_assignment(&self, assign: &Assignment, func: &llvm::Function) {
         let synt_ty = self.types.get_symbol(assign.ident()).unwrap().val;
         let ty = self.type_to_llvm(synt_ty);
         let name = &self.ctxt.lookup_name(assign.ident());
         let global = self.module.add_global_in_addr_space(name, ty, llvm::AddressSpace::Generic);
         global.set_initializer(self.default_for_type(synt_ty));
-        let init_fn = self.module.get_function(GLOBAL_INIT_FN_NAME)
-            .expect("global init fn should be been created in codegen()");
+        //let init_fn = self.module.get_function(GLOBAL_INIT_FN_NAME)
+            //.expect("global init fn should be been created in codegen()");
         //let block = init_fn.get_entry().unwrap();
         //self.builder.position_at_end(block);
-        let val = self.codegen_expr(assign.expr(), init_fn);
+        let val = self.codegen_expr(assign.expr(), func);
         self.builder.build_store(val, global);
 
         // hopefully there's some way to make this not use raw pointers.
@@ -98,8 +98,34 @@ impl<'a> CodeGenerator<'a> {
             Expression::Prefix(ref v) => self.codegen_prefix(v.item(), func),
             Expression::Variable(ref v) => self.codegen_var(*v.item(), func),
             Expression::Conditional(ref v) => self.codegen_conditional(v.item(), func),
+            Expression::Block(ref v) => self.codegen_block(v, func),
             _ => unimplemented!(),
         }
+    }
+
+    fn codegen_block(&self, block: &Node<Block>, func: &llvm::Function) -> &llvm::Value {
+        self.values.borrow_mut().push(block.pos().index);
+        let mut value = None;
+        for stmnt in block.item() {
+            match *stmnt {
+                Statement::Assignment(ref v) => {
+                    self.codegen_assignment(v, func);
+                },
+                Statement::Expression(ref v) => {
+                    let expr = self.codegen_expr(v, func);
+                    if expr.get_type().is_float() {
+                        value = match value {
+                            None => Some(expr),
+                            Some(v) => Some(self.builder.build_add(v, expr)),
+                        };
+                    } else {
+                        value = Some(expr);
+                    }
+                },
+            }
+        }
+        self.values.borrow_mut().pop();
+        value.unwrap()
     }
 
     fn codegen_var(&self, ident: Identifier, _: &llvm::Function) -> &llvm::Value {
