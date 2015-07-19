@@ -20,8 +20,8 @@ pub struct Symbol<T> where T: Clone {
 
 pub struct ScopedTable<T> where T: Clone {
     symbols: HashMap<ScopeId, VecMap<Symbol<T>>>,
-    pub scope: Vec<ScopeId>,
-    pub scope_lengths: Vec<usize>,
+    scope: Vec<ScopeId>,
+    scope_lengths: Vec<usize>,
 }
 
 impl<T> ScopedTable<T> where T: Clone {
@@ -107,4 +107,3 @@ impl<T> ScopedTable<T> where T: Clone {
         None
     }
 }
-
