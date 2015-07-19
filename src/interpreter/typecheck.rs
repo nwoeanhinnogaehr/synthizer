@@ -356,17 +356,6 @@ impl<'a> TypeChecker<'a> {
 
     pub fn typeof_block(&mut self, block: &Node<Block>) -> Option<Type> {
         self.types.push(block.pos().index);
-        for stmnt in block.item() {
-            match stmnt {
-                &Statement::Assignment(ref a) => {
-                    if self.typeof_assignment(a).is_none() {
-                        self.ctxt.emit_error("could not determine type of block assignment", a.pos());
-                        return None
-                    }
-                }
-                _ => { }
-            }
-        }
         let count = block.iter().filter(|&x| {
             match x {
                 &Statement::Expression(..) => true,
@@ -376,6 +365,12 @@ impl<'a> TypeChecker<'a> {
         let mut ty = None;
         for stmnt in block.item() {
             match stmnt {
+                &Statement::Assignment(ref a) => {
+                    if self.typeof_assignment(a).is_none() {
+                        self.ctxt.emit_error("could not determine type of block assignment", a.pos());
+                        return None
+                    }
+                }
                 &Statement::Expression(ref e) => {
                     ty = self.typeof_expr(e);
                     match ty {
@@ -400,7 +395,6 @@ impl<'a> TypeChecker<'a> {
 
                     }
                 }
-                _ => { }
             }
         }
         self.types.pop();
