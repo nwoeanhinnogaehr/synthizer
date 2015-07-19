@@ -57,7 +57,6 @@ impl<'a> CodeGenerator<'a> {
         let unit_ty = llvm::Type::get::<()>(self.llvm);
         let init_fn = self.module.add_function(GLOBAL_INIT_FN_NAME,
                                                llvm::Type::new_function(unit_ty, &[]));
-        //init_fn.add_attributes(&[llvm::Attribute::NoUnwind]);
         let block = init_fn.append("entry");
         self.builder.position_at_end(block);
 
@@ -79,10 +78,6 @@ impl<'a> CodeGenerator<'a> {
         let name = &self.ctxt.lookup_name(assign.ident());
         let global = self.module.add_global_in_addr_space(name, ty, llvm::AddressSpace::Generic);
         global.set_initializer(self.default_for_type(synt_ty));
-        //let init_fn = self.module.get_function(GLOBAL_INIT_FN_NAME)
-            //.expect("global init fn should be been created in codegen()");
-        //let block = init_fn.get_entry().unwrap();
-        //self.builder.position_at_end(block);
         let val = self.codegen_expr(assign.expr(), func);
         self.builder.build_store(val, global);
 
