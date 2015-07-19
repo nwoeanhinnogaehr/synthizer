@@ -47,6 +47,7 @@ fn boolean_arithmetic() {
         => r"
             a = true || !true;
             b = true && !true;
+            c = true ^^ !true;
         "
     );
 }

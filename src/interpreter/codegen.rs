@@ -171,7 +171,7 @@ impl<'a> CodeGenerator<'a> {
             Operator::NotEqual => self.builder.build_cmp(lhs, rhs, llvm::Predicate::NotEqual),
             Operator::Or => self.builder.build_or(lhs, rhs),
             Operator::And => self.builder.build_and(lhs, rhs),
-            Operator::Xor => unimplemented!(),
+            Operator::Xor => self.builder.build_xor(lhs, rhs),
             _ => unreachable!(),
         }
     }
