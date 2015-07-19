@@ -6,8 +6,8 @@ fn simple_assignment() {
     run_test!(
         should_pass(lex, parse, typecheck, codegen)
         => r"
-            x = 1;
-            y = true;
+            a = 1;
+            b = true;
         "
     );
 }
@@ -17,7 +17,7 @@ fn constant_arithmetic() {
     run_test!(
         should_pass(lex, parse, typecheck, codegen)
         => r"
-            x = -(1+1)*(2/(3-8)); // 0.8
+            a = -(1+1)*(2/(3-8)); // 0.8
         "
     );
 }
@@ -45,13 +45,50 @@ fn boolean_arithmetic() {
     run_test!(
         should_pass(lex, parse, typecheck, codegen)
         => r"
-            a = true || false;
-            b = true && false;
+            a = true || !true;
+            b = true && !true;
+        "
+    );
+}
+
+#[test]
+fn reassign() {
+    run_test!(
+        should_pass(lex, parse, typecheck, codegen)
+        => r"
+            a = 1;
+            a = 2;
+        "
+    );
+}
+
+#[test]
+fn global_ref() {
+    run_test!(
+        should_pass(lex, parse, typecheck, codegen)
+        => r"
+            a = 1;
+            b = a + 1;
+        "
+    );
+}
+
+#[test]
+fn conditional() {
+    run_test!(
+        should_pass(lex, parse, typecheck, codegen)
+        => r"
+            a = 2;
+            b = 3;
+            c = (a if true else a)
+                if a + b < a * b
+                else (a if false else b);
+            d = true if true else true;
         "
     );
 }
 
 #[test]
 fn failing_test() {
-    //panic!();
+    panic!();
 }

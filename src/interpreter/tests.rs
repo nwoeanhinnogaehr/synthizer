@@ -71,7 +71,7 @@ macro_rules! run_test {
         }
         ctxt.issues.borrow_mut().clear();
 
-        /*codegen(&ctxt);
+        codegen(&ctxt);
         let err = ctxt.issues.borrow().has_errors();
         let warn = ctxt.issues.borrow().has_warnings();
         if should_pass.contains(&"codegen") && err {
@@ -82,6 +82,6 @@ macro_rules! run_test {
         }
         if should_warn.contains(&"codegen") && !warn {
             panic!("codegen should have produced warnings:\n{}", *ctxt.issues.borrow());
-        }*/
+        }
     }};
 }
