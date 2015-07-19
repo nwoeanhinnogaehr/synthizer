@@ -10,8 +10,10 @@ docopt = "*"
 docopt_macros = "*"
 regex = "*"
 regex_macros = "*"
-llvm-alt = "*"
 cbox = "*"
+
+[dependencies.llvm-alt]
+path = "../llvm-rs"
 
 [lib]
 name = "interpreter"
