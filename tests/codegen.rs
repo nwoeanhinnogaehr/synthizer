@@ -94,9 +94,24 @@ fn block() {
     run_test!(
         should_pass(lex, parse, typecheck, codegen)
         => r"
-        a = { true };
-        b = { 1; 2; 3 };
-        c = { 1; { 2; 3 } };
+            a = { true };
+            b = { 1; 2; 3 };
+            c = { 1; { 2; 3 } };
+        "
+    );
+}
+
+#[test]
+fn block_assignment() {
+    run_test!(
+        should_pass(lex, parse, typecheck, codegen)
+        => r"
+            a = {
+                b = true;
+                5 if b else 6;
+                b = !b;
+                5 if b else 6;
+            };
         "
     );
 }

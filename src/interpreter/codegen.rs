@@ -6,7 +6,7 @@ use super::scope::ScopedTable;
 use super::ident::Identifier;
 
 use llvm;
-use llvm::{Compile, ExecutionEngine};
+use llvm::{Compile, ExecutionEngine, CastFrom};
 use cbox::*;
 use std::cell::{RefCell, RefMut};
 
@@ -63,26 +63,37 @@ impl<'a> CodeGenerator<'a> {
         for item in root {
             match *item {
                 Item::Assignment(ref x) => {
-                    self.codegen_assignment(x, init_fn);
+                    self.codegen_global_assignment(x, init_fn);
                 },
-                _ => { }
+                _ => unimplemented!(),
             }
         }
 
         self.builder.build_ret_void();
     }
 
-    fn codegen_assignment(&self, assign: &Assignment, func: &llvm::Function) {
+    fn codegen_global_assignment(&self, assign: &Assignment, func: &llvm::Function) {
         let synt_ty = self.types.get_symbol(assign.ident()).unwrap().val;
         let ty = self.type_to_llvm(synt_ty);
         let name = &self.ctxt.lookup_name(assign.ident());
-        let global = self.module.add_global_in_addr_space(name, ty, llvm::AddressSpace::Generic);
+        let global = self.module.add_global(name, ty);
         global.set_initializer(llvm::Value::new_undef(ty));
         let val = self.codegen_expr(assign.expr(), func);
         self.builder.build_store(val, global);
 
         // hopefully there's some way to make this not use raw pointers.
-        self.values.borrow_mut().set_val(assign.ident(), assign.ident_pos().index, global as *const llvm::Value);
+        self.values.borrow_mut().set_val(assign.ident(), assign.ident_pos().index,
+                                         global as *const llvm::GlobalValue as *const llvm::Value);
+    }
+
+    fn codegen_assignment(&self, assign: &Assignment, func: &llvm::Function) {
+        let name = &self.ctxt.lookup_name(assign.ident());
+        let val = self.codegen_expr(assign.expr(), func);
+        val.set_name(name);
+
+        // hopefully there's some way to make this not use raw pointers.
+        self.values.borrow_mut().set_val(assign.ident(), assign.ident_pos().index,
+                                         val as *const llvm::Value);
     }
 
     fn codegen_expr(&self, expr: &Expression, func: &llvm::Function) -> &llvm::Value {
@@ -126,7 +137,12 @@ impl<'a> CodeGenerator<'a> {
     fn codegen_var(&self, ident: Identifier, _: &llvm::Function) -> &llvm::Value {
         let values = self.values.borrow();
         let sym = values.get_symbol(ident).unwrap();
-        self.builder.build_load(unsafe { &*sym.val })
+        let value = unsafe { &*sym.val };
+        if llvm::GlobalValue::cast(value).is_some() {
+            self.builder.build_load(value)
+        } else {
+            value
+        }
     }
 
     fn codegen_conditional(&self, cond: &Conditional, func: &llvm::Function) -> &llvm::Value {
