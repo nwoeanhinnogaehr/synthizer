@@ -455,16 +455,3 @@ fn indirect_recursion() {
             x = a();
         ");
 }
-
-#[test]
-fn same_arg_twice() {
-    run_test!(
-        should_pass(lex, parse),
-        should_fail(typecheck)
-        => r"
-            fn x, x {
-                x + x
-            }
-            a = fn(1, 2);
-        ");
-}

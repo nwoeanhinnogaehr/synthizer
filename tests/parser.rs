@@ -322,3 +322,16 @@ fn conditional() {
             x = x + y if z && w else x - 2*y;
         ");
 }
+
+#[test]
+fn same_arg_twice() {
+    run_test!(
+        should_pass(lex),
+        should_fail(parse)
+        => r"
+            fn x, x {
+                x + x
+            }
+            a = fn(1, 2);
+        ");
+}

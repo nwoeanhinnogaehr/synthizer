@@ -594,6 +594,9 @@ impl<'a> Parser<'a> {
             let token_idx = comma.unwrap_or(self.end_index());
             self.enter_subsection(idx, token_idx);
             let arg = try_opt!(self.parse_arg(def_type));
+            if arg.ident().is_some() && args.iter().any(|x| x.ident() == arg.ident()) {
+                self.ctxt.emit_error("argument already previously defined", arg.pos());
+            }
             args.push(arg);
             self.integrate_subsection();
             if comma.is_none() {
