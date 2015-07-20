@@ -9,7 +9,7 @@ use super::functions::{self, FunctionTable};
 use llvm;
 use llvm::{Compile, ExecutionEngine, CastFrom};
 use cbox::*;
-use std::cell::{RefCell, RefMut};
+use std::cell::{RefCell, Ref};
 
 const GLOBAL_INIT_FN_NAME: &'static str = "__global_init";
 
@@ -19,8 +19,8 @@ pub fn codegen<'a>(ctxt: &'a Context<'a>) {
 
 struct CodeGenerator<'a> {
     ctxt: &'a Context<'a>,
-    types: RefMut<'a, TypeTable>,
-    functions: RefMut<'a, FunctionTable>,
+    types: Ref<'a, TypeTable>,
+    functions: Ref<'a, FunctionTable>,
     llvm: &'a llvm::Context,
     module: CSemiBox<'a, llvm::Module>,
     builder: CSemiBox<'a, llvm::Builder>,
@@ -31,8 +31,8 @@ impl<'a> CodeGenerator<'a> {
     fn new(ctxt: &'a Context<'a>) -> CodeGenerator<'a> {
         CodeGenerator {
             ctxt: ctxt,
-            types: ctxt.types.borrow_mut(),
-            functions: ctxt.functions.borrow_mut(),
+            types: ctxt.types.borrow(),
+            functions: ctxt.functions.borrow(),
             llvm: &ctxt.llvm,
             module: llvm::Module::new(&ctxt.filename, &ctxt.llvm),
             builder: llvm::Builder::new(&ctxt.llvm),
