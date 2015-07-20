@@ -5,7 +5,7 @@ dependencies = [
  "cbox 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "docopt 0.6.67 (registry+https://github.com/rust-lang/crates.io-index)",
  "docopt_macros 0.6.67 (registry+https://github.com/rust-lang/crates.io-index)",
- "llvm-alt 0.3.2",
+ "llvm-alt 0.3.3",
  "regex 0.1.41 (registry+https://github.com/rust-lang/crates.io-index)",
  "regex_macros 0.1.21 (registry+https://github.com/rust-lang/crates.io-index)",
  "rustc-serialize 0.3.15 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -62,7 +62,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "llvm-alt"
-version = "0.3.2"
+version = "0.3.3"
 dependencies = [
  "cbox 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "libc 0.1.8 (registry+https://github.com/rust-lang/crates.io-index)",
