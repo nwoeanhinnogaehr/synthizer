@@ -77,7 +77,7 @@ impl<'a> CodeGenerator<'a> {
         let ty = self.type_to_llvm(synt_ty);
         let name = &self.ctxt.lookup_name(assign.ident());
         let global = self.module.add_global_in_addr_space(name, ty, llvm::AddressSpace::Generic);
-        global.set_initializer(self.default_for_type(synt_ty));
+        global.set_initializer(llvm::Value::new_undef(ty));
         let val = self.codegen_expr(assign.expr(), func);
         self.builder.build_store(val, global);
 
@@ -189,13 +189,6 @@ impl<'a> CodeGenerator<'a> {
         match ty {
             Type::Number => llvm::Type::get::<Number>(self.llvm),
             Type::Boolean => llvm::Type::get::<Boolean>(self.llvm),
-            _ => unimplemented!(),
-        }
-    }
-    fn default_for_type(&self, ty: Type) -> &llvm::Value {
-        match ty {
-            Type::Number => 0f32.compile(self.llvm),
-            Type::Boolean => false.compile(self.llvm),
             _ => unimplemented!(),
         }
     }
