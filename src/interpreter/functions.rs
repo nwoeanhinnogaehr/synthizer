@@ -13,6 +13,15 @@ pub enum Function {
     Builtin(BuiltinFunction),
 }
 
+impl Function {
+    pub fn has_concrete_type(&self) -> bool {
+        match *self {
+            Function::User(ref f) => f.ty.is_some(),
+            Function::Builtin(_) => true,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct UserFunction {
     pub ty: Option<FunctionType>,

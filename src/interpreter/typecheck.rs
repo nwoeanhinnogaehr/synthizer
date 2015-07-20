@@ -44,10 +44,8 @@ impl<'a> TypeChecker<'a> {
         for item in root {
             match *item {
                 Item::FunctionDef(ref f) => {
-                    if let Some(&functions::Function::User(ref f)) = self.ctxt.functions.borrow().get(f.ident()) {
-                        if f.ty.is_none() {
-                            self.ctxt.emit_warning("function is never used", f.pos());
-                        }
+                    if !self.ctxt.functions.borrow().get(f.ident()).unwrap().has_concrete_type() {
+                        self.ctxt.emit_warning("function is never used", f.pos());
                     }
                 },
                 _ => { }

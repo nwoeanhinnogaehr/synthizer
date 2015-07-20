@@ -4,6 +4,7 @@ use super::tokens::{Number, Boolean, NodeImpl, Node, Operator};
 use super::types::{Type, TypeTable};
 use super::scope::ScopedTable;
 use super::ident::Identifier;
+use super::functions::{self, FunctionTable};
 
 use llvm;
 use llvm::{Compile, ExecutionEngine, CastFrom};
@@ -19,6 +20,7 @@ pub fn codegen<'a>(ctxt: &'a Context<'a>) {
 struct CodeGenerator<'a> {
     ctxt: &'a Context<'a>,
     types: RefMut<'a, TypeTable>,
+    functions: RefMut<'a, FunctionTable>,
     llvm: &'a llvm::Context,
     module: CSemiBox<'a, llvm::Module>,
     builder: CSemiBox<'a, llvm::Builder>,
@@ -30,6 +32,7 @@ impl<'a> CodeGenerator<'a> {
         CodeGenerator {
             ctxt: ctxt,
             types: ctxt.types.borrow_mut(),
+            functions: ctxt.functions.borrow_mut(),
             llvm: &ctxt.llvm,
             module: llvm::Module::new(&ctxt.filename, &ctxt.llvm),
             builder: llvm::Builder::new(&ctxt.llvm),
@@ -44,11 +47,11 @@ impl<'a> CodeGenerator<'a> {
         self.module.verify().unwrap();
 
         {
-            let func = self.module.get_function(GLOBAL_INIT_FN_NAME).unwrap();
+            let init = self.module.get_function(GLOBAL_INIT_FN_NAME).unwrap();
             let ee = llvm::JitEngine::new(&self.module, llvm::JitOptions { opt_level: 0 }).unwrap();
             //let ee = llvm::Interpreter::new(&self.module, ()).unwrap();
-            ee.with_function(func, |func: extern fn(())| {
-                func(());
+            ee.with_function(init, |init: extern fn(())| {
+                init(());
             });
         }
     }
@@ -57,19 +60,49 @@ impl<'a> CodeGenerator<'a> {
         let unit_ty = llvm::Type::get::<()>(self.llvm);
         let init_fn = self.module.add_function(GLOBAL_INIT_FN_NAME,
                                                llvm::Type::new_function(unit_ty, &[]));
-        let block = init_fn.append("entry");
+        let mut block = init_fn.append("entry");
         self.builder.position_at_end(block);
 
         for item in root {
             match *item {
                 Item::Assignment(ref x) => {
+                    self.builder.position_at_end(block);
                     self.codegen_global_assignment(x, init_fn);
+                    block = self.builder.get_position();
                 },
-                _ => unimplemented!(),
+                Item::FunctionDef(ref x) => {
+                    self.codegen_global_function(x);
+                }
             }
         }
 
         self.builder.build_ret_void();
+    }
+
+    fn codegen_global_function(&self, func: &FunctionDef) {
+        let ident = func.ident();
+        if !self.functions.get(ident).unwrap().has_concrete_type() {
+            return; // in other words, the function was never used, so the type of it's signature is unknown
+        }
+        let name = self.ctxt.lookup_name(ident);
+        let ty = self.type_to_llvm(self.types.get_symbol(ident).unwrap().val);
+        let num_args = func.args().len();
+        println!("TYPE {:?}", ty);
+        let llvm_func = self.module.add_function(&name, ty);
+        self.values.borrow_mut().set_val(ident, func.ident_pos().index,
+                                         llvm_func as *const llvm::Function as *const llvm::Value);
+        let entry = llvm_func.append("entry");
+        self.builder.position_at_end(entry);
+        self.values.borrow_mut().push(func.ident_pos().index);
+        for i in 0..num_args {
+            let ref arg = func.args()[i];
+            &llvm_func[i].set_name(&self.ctxt.lookup_name(arg.ident().unwrap()));
+            self.values.borrow_mut().set_val(arg.ident().unwrap(), arg.pos().index,
+                                             &llvm_func[i] as *const llvm::Arg as *const llvm::Value);
+        }
+        let res = self.codegen_block(&func.block, llvm_func);
+        self.builder.build_ret(res);
+        self.values.borrow_mut().pop();
     }
 
     fn codegen_global_assignment(&self, assign: &Assignment, func: &llvm::Function) {
@@ -100,10 +133,10 @@ impl<'a> CodeGenerator<'a> {
         match *expr {
             Expression::Constant(Node(v, _)) => v.compile(self.llvm),
             Expression::Boolean(Node(v, _)) => v.compile(self.llvm),
-            Expression::Infix(ref v) => self.codegen_infix(v.item(), func),
-            Expression::Prefix(ref v) => self.codegen_prefix(v.item(), func),
-            Expression::Variable(ref v) => self.codegen_var(*v.item(), func),
-            Expression::Conditional(ref v) => self.codegen_conditional(v.item(), func),
+            Expression::Infix(ref v) => self.codegen_infix(v, func),
+            Expression::Prefix(ref v) => self.codegen_prefix(v, func),
+            Expression::Variable(ref v) => self.codegen_var(**v, func),
+            Expression::Conditional(ref v) => self.codegen_conditional(v, func),
             Expression::Block(ref v) => self.codegen_block(v, func),
             _ => unimplemented!(),
         }
@@ -205,7 +238,17 @@ impl<'a> CodeGenerator<'a> {
         match ty {
             Type::Number => llvm::Type::get::<Number>(self.llvm),
             Type::Boolean => llvm::Type::get::<Boolean>(self.llvm),
-            _ => unimplemented!(),
+            Type::Function(id) => {
+                let func = self.functions.get(id).unwrap();
+                let ty = match *func {
+                    functions::Function::User(ref f) => f.ty.as_ref().unwrap(),
+                    functions::Function::Builtin(ref f) => &f.ty,
+                };
+                let args: Vec<&llvm::Type> = ty.args.iter().map(|(_, &ty)| self.type_to_llvm(ty)).collect();
+                let ret = self.type_to_llvm(ty.returns);
+                llvm::Type::new_function(ret, &args)
+            }
+            _ => unreachable!(),
         }
     }
 }

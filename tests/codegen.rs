@@ -115,3 +115,18 @@ fn block_assignment() {
         "
     );
 }
+
+#[test]
+fn function_def() {
+    run_test!(
+        should_pass(lex, parse, typecheck, codegen)
+        => r"
+            a x, y, z=3 {
+                x;
+                y;
+                z;
+            }
+            b = a(1,2);
+        "
+    );
+}
