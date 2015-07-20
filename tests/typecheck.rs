@@ -455,3 +455,13 @@ fn indirect_recursion() {
             x = a();
         ");
 }
+
+#[test]
+fn unused_function() {
+    run_test!(
+        should_pass(lex, parse),
+        should_warn(typecheck)
+        => r"
+            f x { x }
+        ");
+}

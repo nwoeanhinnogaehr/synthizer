@@ -31,7 +31,7 @@ impl<'a> TypeChecker<'a> {
     }
 
     fn check_root(&mut self, root: &Root) {
-        for item in root.iter() {
+        for item in root {
             match *item {
                 Item::FunctionDef(ref f) => {
                     self.typeof_function_def(&f);
@@ -41,7 +41,18 @@ impl<'a> TypeChecker<'a> {
                 }
             };
         }
-        //TODO emit warnings when functions or variables are not used.
+        for item in root {
+            match *item {
+                Item::FunctionDef(ref f) => {
+                    if let Some(&functions::Function::User(ref f)) = self.ctxt.functions.borrow().get(f.ident()) {
+                        if f.ty.is_none() {
+                            self.ctxt.emit_warning("function is never used", f.pos());
+                        }
+                    }
+                },
+                _ => { }
+            };
+        }
     }
 
     pub fn typeof_assignment(&mut self, assign: &Node<Assignment>) -> Option<Type> {
