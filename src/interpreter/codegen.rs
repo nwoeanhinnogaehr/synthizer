@@ -10,6 +10,7 @@ use llvm;
 use llvm::{Compile, ExecutionEngine, CastFrom};
 use cbox::*;
 use std::cell::{RefCell, Ref};
+use std::collections::{VecMap, HashMap};
 
 const GLOBAL_INIT_FN_NAME: &'static str = "__global_init";
 
@@ -25,6 +26,7 @@ struct CodeGenerator<'a> {
     module: CSemiBox<'a, llvm::Module>,
     builder: CSemiBox<'a, llvm::Builder>,
     values: RefCell<ScopedTable<*const llvm::Value>>,
+    default_args: RefCell<HashMap<*const llvm::Value, Option<*const llvm::Value>>>,
 }
 
 impl<'a> CodeGenerator<'a> {
@@ -37,6 +39,7 @@ impl<'a> CodeGenerator<'a> {
             module: llvm::Module::new(&ctxt.filename, &ctxt.llvm),
             builder: llvm::Builder::new(&ctxt.llvm),
             values: RefCell::new(ScopedTable::new()),
+            default_args: RefCell::new(HashMap::new()),
         }
     }
 
@@ -46,13 +49,17 @@ impl<'a> CodeGenerator<'a> {
         println!("{:?}", self.module);
         self.module.verify().unwrap();
 
-        {
-            let init = self.module.get_function(GLOBAL_INIT_FN_NAME).unwrap();
-            let ee = llvm::JitEngine::new(&self.module, llvm::JitOptions { opt_level: 0 }).unwrap();
-            //let ee = llvm::Interpreter::new(&self.module, ()).unwrap();
-            ee.with_function(init, |init: extern fn(())| {
-                init(());
-            });
+        let init = self.module.get_function(GLOBAL_INIT_FN_NAME).unwrap();
+        let ee = llvm::JitEngine::new(&self.module, llvm::JitOptions { opt_level: 3 }).unwrap();
+        //let ee = llvm::Interpreter::new(&self.module, ()).unwrap();
+        ee.with_function(init, |init: extern fn(())| {
+            init(());
+        });
+        unsafe {
+            if let Some(g) = ee.find_global::<f32>("x") {
+                println!("VLAUE = {}", g);
+            }
+
         }
     }
 
@@ -60,15 +67,13 @@ impl<'a> CodeGenerator<'a> {
         let unit_ty = llvm::Type::get::<()>(self.llvm);
         let init_fn = self.module.add_function(GLOBAL_INIT_FN_NAME,
                                                llvm::Type::new_function(unit_ty, &[]));
-        let mut block = init_fn.append("entry");
+        let block = init_fn.append("entry");
         self.builder.position_at_end(block);
 
         for item in root {
             match *item {
                 Item::Assignment(ref x) => {
-                    self.builder.position_at_end(block);
                     self.codegen_global_assignment(x, init_fn);
-                    block = self.builder.get_position();
                 },
                 Item::FunctionDef(ref x) => {
                     self.codegen_global_function(x);
@@ -79,44 +84,64 @@ impl<'a> CodeGenerator<'a> {
         self.builder.build_ret_void();
     }
 
-    fn codegen_global_function(&self, func: &FunctionDef) {
+    fn codegen_global_function(&self, func: &FunctionDef) -> &llvm::Value {
+        let last_block = self.builder.get_position();
         let ident = func.ident();
         if !self.functions.get(ident).unwrap().has_concrete_type() {
-            return; // in other words, the function was never used, so the type of it's signature is unknown
+            panic!();
+            //return; // in other words, the function was never used, so the type of it's signature is unknown
         }
         let name = self.ctxt.lookup_name(ident);
         let ty = self.type_to_llvm(self.types.get_symbol(ident).unwrap().val);
         let num_args = func.args().len();
-        println!("TYPE {:?}", ty);
         let llvm_func = self.module.add_function(&name, ty);
         self.values.borrow_mut().set_val(ident, func.ident_pos().index,
                                          llvm_func as *const llvm::Function as *const llvm::Value);
-        let entry = llvm_func.append("entry");
-        self.builder.position_at_end(entry);
         self.values.borrow_mut().push(func.ident_pos().index);
         for i in 0..num_args {
             let ref arg = func.args()[i];
-            &llvm_func[i].set_name(&self.ctxt.lookup_name(arg.ident().unwrap()));
-            self.values.borrow_mut().set_val(arg.ident().unwrap(), arg.pos().index,
-                                             &llvm_func[i] as *const llvm::Arg as *const llvm::Value);
+            llvm_func[i].set_name(&self.ctxt.lookup_name(arg.ident()));
+
+            // handle default args
+            let default = if let Some(ref expr) = arg.expr() {
+                let default = self.module.add_global("default_arg", llvm_func[i].get_type());
+                default.set_initializer(llvm::Value::new_undef(llvm_func[i].get_type()));
+                let default_val = self.codegen_expr(expr,
+                    llvm::Function::cast(last_block.get_parent().unwrap()).unwrap());
+                self.builder.build_store(default_val, default);
+                Some(default as *const llvm::GlobalValue as *const llvm::Value)
+            } else { None };
+            self.default_args.borrow_mut().insert(&llvm_func[i] as *const llvm::Arg as *const llvm::Value, default);
+            self.store_val(arg.0, &llvm_func[i]);
         }
+        let entry = llvm_func.append("entry");
+        self.builder.position_at_end(entry);
         let res = self.codegen_block(&func.block, llvm_func);
         self.builder.build_ret(res);
         self.values.borrow_mut().pop();
+        self.builder.position_at_end(last_block);
+        llvm_func
     }
 
     fn codegen_global_assignment(&self, assign: &Assignment, func: &llvm::Function) {
         let synt_ty = self.types.get_symbol(assign.ident()).unwrap().val;
-        let ty = self.type_to_llvm(synt_ty);
+        let mut ty = self.type_to_llvm(synt_ty);
+        if ty.is_function() { // make functions into pointers
+            ty = llvm::Type::new_pointer(ty);
+        }
         let name = &self.ctxt.lookup_name(assign.ident());
         let global = self.module.add_global(name, ty);
         global.set_initializer(llvm::Value::new_undef(ty));
         let val = self.codegen_expr(assign.expr(), func);
         self.builder.build_store(val, global);
 
+        self.store_val(assign.ident, val);
+    }
+
+    fn store_val(&self, ident: Node<Identifier>, value: &llvm::Value) {
         // hopefully there's some way to make this not use raw pointers.
-        self.values.borrow_mut().set_val(assign.ident(), assign.ident_pos().index,
-                                         global as *const llvm::GlobalValue as *const llvm::Value);
+        self.values.borrow_mut().set_val(*ident, ident.pos().index,
+                                         value as *const llvm::Value);
     }
 
     fn codegen_assignment(&self, assign: &Assignment, func: &llvm::Function) {
@@ -124,9 +149,7 @@ impl<'a> CodeGenerator<'a> {
         let val = self.codegen_expr(assign.expr(), func);
         val.set_name(name);
 
-        // hopefully there's some way to make this not use raw pointers.
-        self.values.borrow_mut().set_val(assign.ident(), assign.ident_pos().index,
-                                         val as *const llvm::Value);
+        self.store_val(assign.ident, val);
     }
 
     fn codegen_expr(&self, expr: &Expression, func: &llvm::Function) -> &llvm::Value {
@@ -135,11 +158,57 @@ impl<'a> CodeGenerator<'a> {
             Expression::Boolean(Node(v, _)) => v.compile(self.llvm),
             Expression::Infix(ref v) => self.codegen_infix(v, func),
             Expression::Prefix(ref v) => self.codegen_prefix(v, func),
-            Expression::Variable(ref v) => self.codegen_var(**v, func),
+            Expression::Variable(ref v) => self.codegen_var(*v, func),
             Expression::Conditional(ref v) => self.codegen_conditional(v, func),
             Expression::Block(ref v) => self.codegen_block(v, func),
-            _ => unimplemented!(),
+            Expression::Closure(ref v) => self.codegen_global_function(v),
+            Expression::FunctionCall(ref v) => self.codegen_function_call(v, func),
         }
+    }
+
+    fn codegen_function_call(&self, call: &FunctionCall, func: &llvm::Function) -> &llvm::Value {
+        assert_eq!(call.ty(), CallType::Explicit); // for now
+        let callee_val = self.codegen_expr(call.callee(), func);
+        let callee = llvm::Function::cast(callee_val).unwrap();
+        let num_params = callee.get_signature().num_params();
+        let mut call_args = VecMap::new();
+        for i in 0..num_params {
+            let ref def_arg = callee[i];
+            let default = self.default_args.borrow()[&(def_arg as *const llvm::Arg as *const llvm::Value)];
+            let mut found = false;
+            for arg in call.args() {
+                let id = arg.ident();
+                if id == self.ctxt.names.borrow().get_id(def_arg.get_name().unwrap()).unwrap() {
+                    match *arg {
+                        Argument(_, None, Some(ref expr)) => {
+                            call_args.insert(i, self.codegen_expr(expr, func));
+                            found = true;
+                        },
+                        Argument(ident, Some(Node(op, _)), Some(ref expr)) => {
+                            let lhs = self.codegen_var(ident, func);
+                            let rhs = self.codegen_expr(expr, func);
+                            let arg_value = self.codegen_binary_op(op, lhs, rhs);
+                            call_args.insert(i, arg_value);
+                            found = true;
+                        }
+                        Argument(ident, None, None) => {
+                            call_args.insert(i, self.codegen_var(ident, func));
+                            found = true;
+                        }
+                        _ => unreachable!(),
+                    }
+                }
+            }
+            if !found && default.is_some() {
+                call_args.insert(i, self.builder.build_load(unsafe { &*default.unwrap() } ));
+            }
+            if !found && default.is_none() {
+                panic!();
+            }
+        }
+
+        let arg_vec: Vec<_> = call_args.values().map(|x| *x).collect();
+        self.builder.build_call(callee, &arg_vec)
     }
 
     fn codegen_block(&self, block: &Node<Block>, func: &llvm::Function) -> &llvm::Value {
@@ -167,13 +236,16 @@ impl<'a> CodeGenerator<'a> {
         value.unwrap()
     }
 
-    fn codegen_var(&self, ident: Identifier, _: &llvm::Function) -> &llvm::Value {
-        let values = self.values.borrow();
-        let sym = values.get_symbol(ident).unwrap();
-        let value = unsafe { &*sym.val };
-        if llvm::GlobalValue::cast(value).is_some() {
+    fn codegen_var(&self, ident: Node<Identifier>, _: &llvm::Function) -> &llvm::Value {
+        let value = {
+            let values = self.values.borrow();
+            let sym = values.get_symbol(*ident.item()).unwrap();
+            unsafe { &*sym.val }
+        };
+        if llvm::GlobalValue::cast(value).is_some() && llvm::Function::cast(value).is_none() {
             self.builder.build_load(value)
         } else {
+            self.store_val(ident, value);
             value
         }
     }
@@ -197,7 +269,7 @@ impl<'a> CodeGenerator<'a> {
         let else_block = self.builder.get_position();
 
         self.builder.position_at_end(merge_block);
-        assert!(then_val.get_type() == else_val.get_type());
+        assert_eq!(then_val.get_type(), else_val.get_type());
         let phi = self.builder.build_phi(then_val.get_type(), "iftmp");
         phi.add_incoming(then_val, then_block);
         phi.add_incoming(else_val, else_block);
@@ -207,7 +279,11 @@ impl<'a> CodeGenerator<'a> {
     fn codegen_infix(&self, infix: &Infix, func: &llvm::Function) -> &llvm::Value {
         let lhs = self.codegen_expr(infix.left(), func);
         let rhs = self.codegen_expr(infix.right(), func);
-        match infix.op() {
+        self.codegen_binary_op(infix.op(), lhs, rhs)
+    }
+
+    fn codegen_binary_op(&self, op: Operator, lhs: &llvm::Value, rhs: &llvm::Value) -> &llvm::Value {
+        match op {
             Operator::Add => self.builder.build_add(lhs, rhs),
             Operator::Sub => self.builder.build_sub(lhs, rhs),
             Operator::Mul => self.builder.build_mul(lhs, rhs),

@@ -121,12 +121,59 @@ fn function_def() {
     run_test!(
         should_pass(lex, parse, typecheck, codegen)
         => r"
-            a x, y, z=3 {
+            a x, y, z, w {
                 x;
                 y;
                 z;
+                w;
             }
-            b = a(1,2);
+            b = a(y=2, z=3, w=4, x=1);
         "
     );
+}
+
+#[test]
+fn closure() {
+    run_test!(
+        should_pass(lex, parse, typecheck, codegen)
+        => r"
+            a = \x { x+5 };
+            b = a;
+            c = b(x=5);
+        "
+    );
+}
+
+#[test]
+fn default_args() {
+    run_test!(
+        should_pass(lex, parse, typecheck, codegen)
+        => r"
+            a x=2, y { x+y }
+            b = a(y=5);
+        ");
+}
+
+#[test]
+fn factorial() {
+    run_test!(
+        should_pass(lex, parse, typecheck, codegen)
+        => r"
+            fact n {
+                n*fact(n -= 1) if n > 1 else 1;
+            }
+            x = fact(n=10);
+        ");
+}
+
+#[test]
+fn fib() {
+    run_test!(
+        should_pass(lex, parse, typecheck, codegen)
+        => r"
+            fib n {
+                fib(n -= 1) + fib(n -= 2) if n > 2 else 1;
+            }
+            x = fib(n=10);
+        ");
 }

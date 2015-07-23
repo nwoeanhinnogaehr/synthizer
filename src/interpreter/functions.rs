@@ -49,7 +49,7 @@ impl BuiltinFunction {
     pub fn new(ty: FunctionType) -> BuiltinFunction {
         let mut args = Vec::new();
         for (id, _) in &ty.args {
-            args.push(ast::Argument(Some(Node(id, SourcePos::anon())), None));
+            args.push(ast::Argument(Node(id, SourcePos::anon()), None, None));
         }
         BuiltinFunction {
             ty: ty,

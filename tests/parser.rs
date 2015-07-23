@@ -208,7 +208,7 @@ fn closure_in_arg() {
     run_test!(
         should_pass(lex, parse)
         => r"
-            a = fn(3, cond=\{x>5});
+            a = fn(x=3, cond=\{x>5});
         ");
 }
 
@@ -233,35 +233,6 @@ fn block_in_arg() {
 }
 
 #[test]
-fn partial_application_in_arg() {
-    run_test!(
-        should_pass(lex, parse)
-        => r"
-            a = fn(y=fx@(5));
-            a = fn@(y=fx@(5));
-        ");
-}
-
-#[test]
-fn partial_application_missing_paren() {
-    run_test!(
-        should_pass(lex),
-        should_fail(parse)
-        => r"
-            a = fn@5);
-        ");
-}
-
-#[test]
-fn partial_application_in_default_arg() {
-    run_test!(
-        should_pass(lex, parse)
-        => r"
-            fn x=y@(5) { x() }
-        ");
-}
-
-#[test]
 fn closure_with_semicolon() {
     run_test!(
         should_pass(lex, parse)
@@ -280,27 +251,9 @@ fn call_types() {
     run_test!(
         should_pass(lex, parse)
         => r"
-            a = fn(1, 2);
-            b = fn(x=1, 2);
-            c = fn(2, x=1);
-            e = fn(y=1, x=2);
-            f = fn[1, 2];
-            g = fn[x=1, 2];
-            h = fn[2, x=1];
-            i = fn[y=1, x=2];
-            j = fn@(1, 2);
-            k = fn@(x=1, 2);
-            l = fn@(2, x=1);
-            m = fn@(y=1, x=2);
-        ");
-}
-
-#[test]
-fn unbind() {
-    run_test!(
-        should_pass(lex, parse)
-        => r"
-            x = fn@(y=);
+            a = fn(x, y);
+            b = fn(x=1, y=2);
+            c = fn(x+=1, y+=1);
         ");
 }
 
@@ -332,6 +285,5 @@ fn same_arg_twice() {
             fn x, x {
                 x + x
             }
-            a = fn(1, 2);
         ");
 }

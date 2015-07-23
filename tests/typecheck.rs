@@ -30,7 +30,7 @@ fn call_non_function() {
         should_pass(lex, parse)
         => r"
             x = 1;
-            y = x(1, 2, 3);
+            y = x();
         ");
 }
 
@@ -41,7 +41,7 @@ fn wrong_num_arguments() {
         should_pass(lex, parse)
         => r"
             f x, y=1 { x+y }
-            x = f(1, 2, 3);
+            x = f(x=1, y=2, z=3);
         ");
     run_test!(
         should_fail(typecheck),
@@ -70,7 +70,7 @@ fn ambiguous_recursion() {
         should_pass(lex, parse)
         => r"
             fn x { fn(x) }
-            y = fn(1);
+            y = fn(x=1);
         ");
 }
 
@@ -81,8 +81,8 @@ fn wrong_arg_type() {
         should_pass(lex, parse)
         => r"
             fn x { x }
-            x = fn(1);
-            y = fn(true);
+            x = fn(x=1);
+            y = fn(x=true);
         ");
     run_test!(
         should_fail(typecheck),
@@ -90,8 +90,8 @@ fn wrong_arg_type() {
         => r"
             fn x { x }
             z = fn;
-            x = z(1);
-            y = fn(true);
+            x = z(x=1);
+            y = fn(x=true);
         ");
 }
 
@@ -256,131 +256,14 @@ fn default_args_evald_in_new_scope() {
 }
 
 #[test]
-fn default_args_from_multiple_scopes() {
-    run_test!(
-        should_pass(lex, parse, typecheck)
-        => r"
-            x = 5;
-            fn z=x, w {
-                z^2 if w else 5;
-            }
-            x = true;
-            fn' = fn@(w=x);
-            w = fn'();
-        ");
-}
-
-#[test]
-fn implicit_args_read_from_correct_scope() {
-    run_test!(
-        should_pass(lex, parse, typecheck)
-        => r"
-            x = true;
-            c x { x+5 }
-            z = {
-                x = 5;
-                c[];
-            };
-        ");
-}
-
-#[test]
 fn default_args() {
     run_test!(
         should_pass(lex, parse, typecheck)
         => r"
             fn x, y=3 { x + y }
-            a = fn(1);
-            a = fn(1, 2);
-            a = fn(1, x=2);
-        ");
-}
-
-#[test]
-fn partial_application() {
-    run_test!(
-        should_pass(lex, parse, typecheck)
-        => r"
-            fn x, y=3 { x + y }
-            fn' = fn@(x=2);
-            a = fn'(1);
-            a = fn'(1, 2);
-            a = fn'(1, x=2);
-        ");
-}
-
-#[test]
-fn implicit_call() {
-    run_test!(
-        should_pass(lex, parse, typecheck)
-        => r"
-            fn x, y=3 { x + y }
-            x = 1;
-            y = false;
-            z = fn[];
-        ");
-    run_test!(
-        should_fail(typecheck),
-        should_pass(lex, parse)
-        => r"
-            fn x, y { x + y }
-            x = 1;
-            y = false;
-            z = fn[];
-        ");
-}
-
-#[test]
-fn unbind_expression() {
-    run_test!(
-        should_fail(typecheck),
-        should_pass(lex, parse)
-        => r"
-            fn x, y=3 { x + y }
-            fn' = fn@(y=);
-            x = 1;
-            y = false;
-            z = fn'[];
-        ");
-    run_test!(
-        should_fail(typecheck),
-        should_pass(lex, parse)
-        => r"
-            fn x, y=3 { x + y }
-            fn' = fn@(y=);
-            x = 1;
-            z = fn'[];
-        ");
-    run_test!(
-        should_pass(lex, parse, typecheck)
-        => r"
-            fn x, y=3 { x + y }
-            fn' = fn@(y=);
-            x = 1;
-            y = 2;
-            z = fn'[];
-        ");
-}
-
-#[test]
-fn layered_implicit_calls() {
-    run_test!(
-        should_pass(lex, parse, typecheck)
-        => r"
-            a x { x^2 }
-            b y { y[] }
-            c z { z(a) }
-            z = c[b, x=4];
-        ");
-}
-
-#[test]
-fn recursive_partial_application() {
-    run_test!(
-        should_pass(lex, parse, typecheck)
-        => r"
-            a b { b() }
-            z = a(a@(a@(a@(a@(\{5})))));
+            a = fn(x=1);
+            a = fn(x=1, y=2);
+            a = fn(y=1, x=2);
         ");
 }
 
@@ -390,25 +273,10 @@ fn recursion_numeric() {
         should_pass(lex, parse, typecheck)
         => r"
             a b {
-                a(b-1);
                 b;
+                a(b-=1);
             }
-            z = a(5);
-        ");
-}
-
-#[test]
-fn partially_apply_recursive_function() {
-    run_test!(
-        should_pass(lex, parse, typecheck)
-        => r"
-            a b {
-                a(b-1);
-                b;
-            }
-            z = a(5);
-            w = a@(5);
-            x = w();
+            z = a(b=5);
         ");
 }
 
@@ -438,7 +306,7 @@ fn call_default_arg() {
         should_pass(lex, parse, typecheck)
         => r"
             fn d=\e{e} {
-                d(5);
+                d(e=5);
             }
             a = fn();
         ");

@@ -94,20 +94,16 @@ pub enum CallType {
 
 // At most one of the two can be None
 #[derive(Clone, Debug)]
-pub struct Argument(pub Option<Node<Identifier>>, pub Option<Expression>);
+pub struct Argument(pub Node<Identifier>, pub Option<Node<Operator>>, pub Option<Expression>);
 
 impl Argument {
-    pub fn ident(&self) -> Option<Identifier> { self.0.map(|x| *x.item()) }
-    pub fn ident_pos(&self) -> Option<SourcePos> { self.0.map(|x| x.pos()) }
-    pub fn expr(&self) -> &Option<Expression> { &self.1 }
-    pub fn expr_pos(&self) -> Option<SourcePos> { self.1.as_ref().map(|x| x.pos()) }
-    pub fn pos(&self) -> SourcePos {
-        match *self {
-            Argument(Some(ref ident), _) => ident.pos(),
-            Argument(None, Some(ref expr)) => expr.pos(),
-            _ => unreachable!(),
-        }
-    }
+    pub fn ident(&self) -> Identifier { *self.0.item() }
+    pub fn ident_pos(&self) -> SourcePos { self.0.pos() }
+    pub fn op(&self) -> Option<Operator> { self.1.map(|x| *x.item()) }
+    pub fn op_pos(&self) -> Option<SourcePos> { self.1.as_ref().map(|x| x.pos()) }
+    pub fn expr(&self) -> Option<&Expression> { self.2.as_ref() }
+    pub fn expr_pos(&self) -> Option<SourcePos> { self.2.as_ref().map(|x| x.pos()) }
+    pub fn pos(&self) -> SourcePos { self.ident_pos() }
 }
 
 pub type ArgumentList = Vec<Argument>;

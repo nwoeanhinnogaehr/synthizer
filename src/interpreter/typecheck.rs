@@ -134,233 +134,155 @@ impl<'a> TypeChecker<'a> {
             }
         };
 
-        // first set explicitly defined args, like a=5 or *a
+        // check that the args in the call match the args in the def
         for arg in call.args() {
-            match *arg {
-                Argument(Some(Node(id, _)), Some(_)) => {
-                    // check if an argument with the same id is in the function
-                    // definition.
-                    match undef_args.iter().position(|x| match *x {
-                        Argument(Some(Node(def_id, _)), _) if id == def_id => true,
-                        _ => false,
-                    }) {
-                        Some(pos) => {
-                            undef_args.remove(pos);
-                            def_args.push(arg.clone());
-                        }
-                        None => {
-                            if call.ty() == CallType::Implicit {
-                                def_args.push(arg.clone());
-                            } else {
-                                self.ctxt.emit_error(format!("unexpected named argument `{}`",
-                                                             self.ctxt.lookup_name(id)), arg.pos());
-                            }
-                        }
-                    }
+            let id = arg.ident();
+            match undef_args.iter().position(|x| x.ident() == id) {
+                Some(pos) => {
+                    def_args.push(arg.clone());
+                    undef_args.remove(pos);
                 }
-                Argument(Some(Node(id, _)), None) => {
-                    if call.ty() == CallType::Partial {
-                        match undef_args.iter().position(|x| match *x {
-                            Argument(Some(Node(def_id, _)), _) if id == def_id => true,
-                            _ => false,
-                        }) {
-                            Some(pos) => {
-                                undef_args.remove(pos);
-                                def_args.push(arg.clone());
-                            }
-                            None =>
-                                self.ctxt.emit_error("unexpected argument unbind expression", arg.pos()),
-                        }
-                    } else {
-                        self.ctxt.emit_error("expected identifier", arg.pos());
-                    }
-                }
-                _ => { },
-            }
-        }
-
-        let num_positional_args = undef_args.len();
-        // next set expression only args, like 2+2
-        for arg in call.args() {
-            match *arg {
-                Argument(None, Some(ref expr)) => {
-                    if undef_args.len() > 0 {
-                        def_args.push(Argument(Some(Node(*undef_args[0].0.unwrap().item(), arg.pos())),
-                                               Some(expr.clone())));
-                        undef_args.remove(0);
-                    } else {
-                        self.ctxt.emit_error(format!("unexpected argument, function `{}` takes {} positional argument{}",
-                                                     self.ctxt.lookup_name(func_id),
-                                                     num_positional_args,
-                                                     if num_positional_args == 1 { "" } else { "s" }),
-                                             arg.pos());
-                    }
-                }
-                _ => { },
-            }
-        }
-        // set default args that weren't set previously
-        for arg in undef_args.iter().rev() {
-            match *arg {
-                Argument(Some(Node(id, _)), Some(_)) => {
-                    def_args.insert(0, arg.clone());
-                    arg_scopes.entry(id).or_insert_with(|| func_def.scope.clone());
-                }
-                _ => { }
-            }
-        }
-        undef_args.retain(|x| match *x {
-            Argument(Some(_), Some(_)) => false,
-            _ => true,
-        });
-
-        // check that all args are defined somewhere for implicit calls
-        if call.ty() == CallType::Implicit {
-            undef_args.retain(|x| match *x {
-                Argument(Some(Node(id, pos)), None) => {
-                    if self.types.get_symbol(id).is_some() {
-                        def_args.push(Argument(Some(Node(id, pos)), Some(Expression::Variable(Node(id, pos)))));
-                        false
-                    } else { true }
-                }
-                _ => true,
-            });
-        }
-
-        if call.ty() == CallType::Partial {
-            let mut args = Vec::new();
-            args.push_all(&undef_args);
-            args.push_all(&def_args);
-            for arg in &def_args {
-                if let &Argument(Some(Node(id, _)), _) = arg {
-                    arg_scopes.entry(id).or_insert_with(|| self.types.get_scope_pos());
-                }
-            }
-
-            let new_ident = self.ctxt.names.borrow_mut().new_anon();
-            let new_type = Type::Function(new_ident);
-            self.types.set_val(new_ident, call.pos().index, new_type);
-            match func {
-                functions::Function::User(ref def) => {
-                    let mut new_def = def.item().clone();
-                    new_def.args = Node(args, call.args_pos());
-                    self.ctxt.functions.borrow_mut().insert(new_ident, functions::Function::User(
-                        functions::UserFunction {
-                            ty: None,
-                            node: Node(new_def, call.pos()),
-                            arg_scopes: Some(arg_scopes),
-                        }));
-                },
-                functions::Function::Builtin(ref def) => {
-                    self.ctxt.functions.borrow_mut().insert(new_ident, functions::Function::Builtin(
-                        functions::BuiltinFunction {
-                            ty: def.ty.clone(),
-                            args: args,
-                            arg_scopes: Some(arg_scopes),
-                        }));
-                },
-            }
-            Some(new_type)
-        } else { // Not partial application
-            for unassigned in undef_args.iter() {
-                self.ctxt.emit_error(format!("argument `{}` is required",
-                                             self.ctxt.lookup_name(unassigned.ident().unwrap())),
-                                     call.args_pos());
-            }
-            if undef_args.len() > 0 {
-                return None
-            }
-
-            let mut arg_types = VecMap::new();
-
-            let recursive = self.ctxt.callstack.borrow().is_recursive(func_id);
-            if recursive {
-                return Some(Type::Indeterminate);
-            }
-            self.ctxt.callstack.borrow_mut().push(func_id);
-            // determine the type of the arguments
-            for arg in &def_args {
-                match *arg {
-                    Argument(Some(Node(id, _)), Some(ref expr)) => {
-                        let scope = arg_scopes.get(&id).map(|x| x.clone()).unwrap_or(self.types.get_scope_pos());
-                        self.types.push_scope(&scope.scope);
-                        let ty = self.typeof_expr(expr);
-                        self.types.pop();
-                        match ty {
-                            None => return None,
-                            Some(ty) => {
-                                arg_types.insert(id, ty);
-                            }
-                        }
-                    }
-                    _ => unreachable!(),
-                }
-            }
-
-            let return_ty = match func {
-                functions::Function::User(ref def) => {
-                    self.types.push_scope(&func_def.scope.scope);
-                    for ((id, ty), arg) in arg_types.iter().zip(def_args.iter()) {
-                        self.types.set_val(id, arg.pos().index, *ty);
-                        if let Type::Function(func_id) = *ty {
-                            self.types.set_val(func_id, arg.pos().index, Type::Function(func_id));
-                        }
-                    }
-                    let ty = self.typeof_block(&def.block);
-                    self.types.pop();
-                    match ty {
-                        Some(ty) => ty,
-                        None => {
-                            self.ctxt.emit_error("could not determine return type of function", def.pos());
-                            return None;
-                        }
-                    }
-                }
-
-                functions::Function::Builtin(ref def) => {
-                    def.ty.returns
-                }
-            };
-
-            self.ctxt.callstack.borrow_mut().pop();
-
-            let calcd_type = FunctionType::new(arg_types, return_ty);
-            if let Some(def_type) = match func {
-                functions::Function::User(ref def) => def.ty.as_ref(),
-                functions::Function::Builtin(ref def) => Some(&def.ty),
-            } {
-                let mut types_match = true;
-                for ((old, new), arg) in def_type.args.iter().zip(calcd_type.args.iter()).zip(def_args.iter()) {
-                    if let ((_, &Type::Function(_)), (_, &Type::Function(_))) = (new, old) {
-                        // If they are both functions, do nothing.
-                        // Their compatibility will already have been validated
-                    } else if old != new {
-                        self.ctxt.emit_error(format!("expected type `{}` for argument `{}`, got `{}`",
-                                                     old.1,
-                                                     self.ctxt.lookup_name(arg.ident().unwrap()),
-                                                     new.1),
-                                             arg.pos());
-                        types_match = false;
-                    }
-                }
-                if !types_match {
+                None => {
+                    self.ctxt.emit_error(format!("unexpected argument `{}`",
+                                                 self.ctxt.lookup_name(id)), arg.pos());
                     return None;
                 }
             }
-            let mut func = func;
-            match func {
-                functions::Function::User(ref mut def) => {
-                    def.ty = Some(calcd_type);
-                    def.arg_scopes = Some(arg_scopes);
-                }
-
-                functions::Function::Builtin(ref mut def) => {
-                    def.arg_scopes = Some(arg_scopes);
-                }
-            };
-            self.ctxt.functions.borrow_mut().insert(func_id, func);
-            Some(return_ty)
         }
+        // set default args that weren't set previously
+        undef_args.retain(|arg|
+            match *arg {
+                Argument(Node(id, _), None, Some(_)) => {
+                    def_args.push(arg.clone());
+                    arg_scopes.entry(id).or_insert_with(|| func_def.scope.clone());
+                    false
+                }
+                _ => true
+            }
+        );
+
+        // if any arguments were not defined above, die
+        for unassigned in undef_args.iter() {
+            self.ctxt.emit_error(format!("argument `{}` is required",
+                                         self.ctxt.lookup_name(unassigned.ident())),
+                                 call.args_pos());
+        }
+        if undef_args.len() > 0 {
+            return None
+        }
+
+        let mut arg_types = VecMap::new();
+
+        let recursive = self.ctxt.callstack.borrow().is_recursive(func_id);
+        if recursive {
+            return Some(Type::Indeterminate);
+        }
+        self.ctxt.callstack.borrow_mut().push(func_id);
+        // determine the type of the arguments
+        for arg in &def_args {
+            let scope = arg_scopes.get(&arg.ident()).map(|x|
+                x.clone()).unwrap_or(self.types.get_scope_pos());
+            self.types.push_scope(&scope.scope);
+            match *arg {
+                Argument(id, Some(op), Some(ref expr)) => {
+                    let ty = self.typeof_expr(&Expression::Infix(Box::new(Node(Infix {
+                        op: op,
+                        left: Expression::Variable(id),
+                        right: expr.clone(),
+                    }, arg.pos()))));
+                    match ty {
+                        None => return None,
+                        Some(ty) => {
+                            arg_types.insert(*id, ty);
+                        }
+                    }
+                }
+                Argument(id, None, Some(ref expr)) => {
+                    let ty = self.typeof_expr(expr);
+                    match ty {
+                        None => return None,
+                        Some(ty) => {
+                            arg_types.insert(*id, ty);
+                        }
+                    }
+                }
+                Argument(id, None, None) => {
+                    let ty = self.typeof_var(&id);
+                    match ty {
+                        None => return None,
+                        Some(ty) => {
+                            arg_types.insert(*id, ty);
+                        }
+                    }
+                }
+                _ => unreachable!(),
+            }
+            self.types.pop();
+        }
+
+        let return_ty = match func {
+            functions::Function::User(ref def) => {
+                self.types.push_scope(&func_def.scope.scope);
+                for ((id, ty), arg) in arg_types.iter().zip(def_args.iter()) {
+                    self.types.set_val(id, arg.pos().index, *ty);
+                    if let Type::Function(func_id) = *ty {
+                        self.types.set_val(func_id, arg.pos().index, Type::Function(func_id));
+                    }
+                }
+                let ty = self.typeof_block(&def.block);
+                self.types.pop();
+                match ty {
+                    Some(ty) => ty,
+                    None => {
+                        self.ctxt.emit_error("could not determine return type of function", def.pos());
+                        return None;
+                    }
+                }
+            }
+
+            functions::Function::Builtin(ref def) => {
+                def.ty.returns
+            }
+        };
+
+        self.ctxt.callstack.borrow_mut().pop();
+
+        let calcd_type = FunctionType::new(arg_types, return_ty);
+        if let Some(def_type) = match func {
+            functions::Function::User(ref def) => def.ty.as_ref(),
+            functions::Function::Builtin(ref def) => Some(&def.ty),
+        } {
+            let mut types_match = true;
+            for ((old, new), arg) in def_type.args.iter().zip(calcd_type.args.iter()).zip(def_args.iter()) {
+                if let ((_, &Type::Function(_)), (_, &Type::Function(_))) = (new, old) {
+                    // If they are both functions, do nothing.
+                    // Their compatibility will already have been validated
+                } else if old != new {
+                    self.ctxt.emit_error(format!("expected type `{}` for argument `{}`, got `{}`",
+                                                 old.1,
+                                                 self.ctxt.lookup_name(arg.ident()),
+                                                 new.1),
+                                         arg.pos());
+                    types_match = false;
+                }
+            }
+            if !types_match {
+                return None;
+            }
+        }
+        let mut func = func;
+        match func {
+            functions::Function::User(ref mut def) => {
+                def.ty = Some(calcd_type);
+                def.arg_scopes = Some(arg_scopes);
+            }
+
+            functions::Function::Builtin(ref mut def) => {
+                def.arg_scopes = Some(arg_scopes);
+            }
+        };
+        self.ctxt.functions.borrow_mut().insert(func_id, func);
+        Some(return_ty)
     }
 
     pub fn typeof_block(&mut self, block: &Node<Block>) -> Option<Type> {
@@ -444,7 +366,8 @@ impl<'a> TypeChecker<'a> {
             return Some(else_ty);
         }
         if let (Type::Function(_), Type::Function(_)) = (then_ty, else_ty) {
-            unimplemented!();
+            return Some(then_ty);
+            //unimplemented!();
         }
         if else_ty != then_ty {
             self.ctxt.emit_error(format!(

@@ -319,9 +319,7 @@ impl<'a> Parser<'a> {
             }
 
             // function call
-            Some(Token::Symbol(Symbol::At)) |
-            Some(Token::Symbol(Symbol::LeftBracket(Bracket::Round))) |
-            Some(Token::Symbol(Symbol::LeftBracket(Bracket::Square))) => {
+            Some(Token::Symbol(Symbol::LeftBracket(Bracket::Round))) => {
                 self.seek(-1);
                 let call = try_opt!(self.parse_function_call(left));
                 Some(Expression::FunctionCall(Box::new(call)))
@@ -364,9 +362,7 @@ impl<'a> Parser<'a> {
             Some(Token::Symbol(Symbol::RightBracket(Bracket::Round))) => Some(1),
 
             // function call
-            Some(Token::Symbol(Symbol::At)) |
-            Some(Token::Symbol(Symbol::LeftBracket(Bracket::Round))) |
-            Some(Token::Symbol(Symbol::LeftBracket(Bracket::Square))) => Some(1000),
+            Some(Token::Symbol(Symbol::LeftBracket(Bracket::Round))) => Some(1000),
 
             None => Some(0),
             _ => {
@@ -494,7 +490,7 @@ impl<'a> Parser<'a> {
         };
         // parse arg list (everything until start of block)
         self.enter_subsection(idx, block_idx);
-        let args = try_opt!(self.parse_arg_list(true));
+        let args = try_opt!(self.parse_arg_list(false));
         self.integrate_subsection();
 
         let block = try_opt!(self.parse_block());
@@ -582,7 +578,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn parse_arg_list(&mut self, def_type: bool) -> Option<Node<ArgumentList>> {
+    fn parse_arg_list(&mut self, allow_op: bool) -> Option<Node<ArgumentList>> {
         let pos = self.peek_source_pos_or_end(0);
         let mut args = Vec::new();
         if self.len() == 0 {
@@ -593,8 +589,8 @@ impl<'a> Parser<'a> {
             let comma = self.find_smart(Token::Symbol(Symbol::Comma));
             let token_idx = comma.unwrap_or(self.end_index());
             self.enter_subsection(idx, token_idx);
-            let arg = try_opt!(self.parse_arg(def_type));
-            if arg.ident().is_some() && args.iter().any(|x| x.ident() == arg.ident()) {
+            let arg = try_opt!(self.parse_arg(allow_op));
+            if args.iter().any(|x| x.ident() == arg.ident()) {
                 self.ctxt.emit_error("argument already previously defined", arg.pos());
             }
             args.push(arg);
@@ -609,37 +605,35 @@ impl<'a> Parser<'a> {
 
     // if def_type, expression only args are not allowed, if not then identifier only args are
     // parsed as rhs expressions rather than the lhs
-    fn parse_arg(&mut self, def_type: bool) -> Option<Argument> {
-        let (one, two) = (self.next(), self.next());
-        match (one.item(), two.item()) {
-            (Some(Token::Ident(id)), Some(Token::Symbol(Symbol::Equals))) => {
-                if self.index() == self.end_index() {
-                    self.seek(1);
-                    Some(Argument(Some(Node(id, one.pos().unwrap())), None))
-                } else {
-                    let expr = try_opt!(self.parse_expression());
-                    Some(Argument(Some(Node(id, one.pos().unwrap())), Some(expr)))
+    fn parse_arg(&mut self, allow_op: bool) -> Option<Argument> {
+        let (one, two, three) = (self.next(), self.next(), self.next());
+        match (one.item(), two.item(), three.item()) {
+            (Some(Token::Ident(id)),
+             Some(Token::Operator(op)),
+             Some(Token::Symbol(Symbol::Equals))) if allow_op => {
+                if !op.can_take_x_args(2) {
+                    self.ctxt.emit_error("expected binary operator", two.pos().unwrap());
+                    return None;
                 }
-            }
-            (Some(Token::Ident(id)), None) => {
-                if !def_type { //it's actually an expression containing a single identifier
-                    self.seek(-2);
-                    let expr = try_opt!(self.parse_expression());
-                    Some(Argument(None, Some(expr)))
-                } else {
-                    Some(Argument(Some(Node(id, one.pos().unwrap())), None))
-                }
-            }
-            _ => {
+                let expr = try_opt!(self.parse_expression());
+                Some(Argument(Node(id, one.pos().unwrap()), Some(Node(op, two.pos().unwrap())), Some(expr)))
+            },
+            (Some(Token::Ident(id)),
+             Some(Token::Symbol(Symbol::Equals)),
+             _) => {
                 self.seek(-1);
-                if def_type {
-                    self.emit_error_here("expected identifier");
-                    return None
-                } else {
-                    self.seek(-1);
-                    let expr = try_opt!(self.parse_expression());
-                    Some(Argument(None, Some(expr)))
-                }
+                let expr = try_opt!(self.parse_expression());
+                Some(Argument(Node(id, one.pos().unwrap()), None, Some(expr)))
+            },
+            (Some(Token::Ident(id)),
+             None,
+             _) => {
+                self.seek(-1);
+                Some(Argument(Node(id, one.pos().unwrap()), None, None))
+            },
+            _ => {
+                self.ctxt.emit_error("expected argument", self.peek_source_pos_or_end(-3));
+                None
             }
         }
     }
@@ -675,7 +669,7 @@ impl<'a> Parser<'a> {
         }
         let idx = self.index();
         self.enter_subsection(idx, end.unwrap());
-        let args = try_opt!(self.parse_arg_list(false));
+        let args = try_opt!(self.parse_arg_list(true));
         self.integrate_subsection();
         self.seek(1); //consume closing brace
         Some(Node(FunctionCall {
