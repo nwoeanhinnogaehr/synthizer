@@ -81,7 +81,7 @@ impl<'a> TypeChecker<'a> {
             self.ctxt.emit_warning("function declaration shadows previous declaration of same name", def.pos());
         }
         let ty = Type::Function(def.ident());
-        self.types.set_val(def.ident(), def.pos().index, ty);
+        self.types.set_val(def.ident(), 0, ty);
         Some(ty)
     }
 
