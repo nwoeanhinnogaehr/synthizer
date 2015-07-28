@@ -4,8 +4,9 @@ use super::scope::ScopePos;
 use super::ident::Identifier;
 use super::tokens::{Node, SourcePos};
 
-use std::collections::{VecMap, BitSet};
+use std::collections::VecMap;
 use std::ops::Deref;
+use bit_set::BitSet;
 
 #[derive(Debug, Clone)]
 pub enum Function {

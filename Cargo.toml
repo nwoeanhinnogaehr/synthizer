@@ -11,6 +11,7 @@ docopt_macros = "*"
 regex = "*"
 regex_macros = "*"
 cbox = "*"
+bit-set = "*"
 
 [dependencies.llvm-alt]
 path = "../llvm-rs"

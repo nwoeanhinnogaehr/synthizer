@@ -122,10 +122,7 @@ fn function_def() {
         should_pass(lex, parse, typecheck, codegen)
         => r"
             a x, y, z, w {
-                x;
-                y;
-                z;
-                w;
+                x+y*z-w;
             }
             b = a(y=2, z=3, w=4, x=1);
         "
@@ -175,5 +172,25 @@ fn fib() {
                 fib(n -= 1) + fib(n -= 2) if n > 2 else 1;
             }
             x = fib(n=10);
+        ");
+}
+
+#[test]
+fn closure_default_args() {
+    run_test!(
+        should_pass(lex, parse, typecheck, codegen)
+        => r"
+            foo bar=\y{y*2} { bar }
+            a = foo()(y=2);
+        ");
+}
+
+#[test]
+fn return_closure() {
+    run_test!(
+        should_pass(lex, parse, typecheck, codegen)
+        => r"
+            foo { \y{y*2} }
+            a = foo()(y=2);
         ");
 }
