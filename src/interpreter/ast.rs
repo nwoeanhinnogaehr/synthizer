@@ -94,16 +94,27 @@ pub enum CallType {
 
 // At most one of the two can be None
 #[derive(Clone, Debug)]
-pub struct Argument(pub Node<Identifier>, pub Option<Node<Operator>>, pub Option<Expression>);
+pub enum Argument {
+    Ident(Node<Identifier>),
+    Assign(Node<Identifier>, Expression),
+    OpAssign(Node<Identifier>, Node<Operator>, Expression)
+}
 
 impl Argument {
-    pub fn ident(&self) -> Identifier { *self.0.item() }
-    pub fn ident_pos(&self) -> SourcePos { self.0.pos() }
-    pub fn op(&self) -> Option<Operator> { self.1.map(|x| *x.item()) }
-    pub fn op_pos(&self) -> Option<SourcePos> { self.1.as_ref().map(|x| x.pos()) }
-    pub fn expr(&self) -> Option<&Expression> { self.2.as_ref() }
-    pub fn expr_pos(&self) -> Option<SourcePos> { self.2.as_ref().map(|x| x.pos()) }
-    pub fn pos(&self) -> SourcePos { self.ident_pos() }
+    pub fn ident(&self) -> Identifier {
+        match *self {
+            Argument::Ident(Node(id, _)) |
+            Argument::Assign(Node(id, _), _) |
+            Argument::OpAssign(Node(id, _), _, _) => id
+        }
+    }
+    pub fn ident_pos(&self) -> SourcePos {
+        match *self {
+            Argument::Ident(Node(_, pos)) |
+            Argument::Assign(Node(_, pos), _) |
+            Argument::OpAssign(Node(_, pos), _, _) => pos
+        }
+    }
 }
 
 pub type ArgumentList = Vec<Argument>;

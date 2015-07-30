@@ -591,7 +591,7 @@ impl<'a> Parser<'a> {
             self.enter_subsection(idx, token_idx);
             let arg = try_opt!(self.parse_arg(allow_op));
             if args.iter().any(|x| x.ident() == arg.ident()) {
-                self.ctxt.emit_error("argument already previously defined", arg.pos());
+                self.ctxt.emit_error("argument already previously defined", arg.ident_pos());
             }
             args.push(arg);
             self.integrate_subsection();
@@ -616,20 +616,20 @@ impl<'a> Parser<'a> {
                     return None;
                 }
                 let expr = try_opt!(self.parse_expression());
-                Some(Argument(Node(id, one.pos().unwrap()), Some(Node(op, two.pos().unwrap())), Some(expr)))
+                Some(Argument::OpAssign(Node(id, one.pos().unwrap()), Node(op, two.pos().unwrap()), expr))
             },
             (Some(Token::Ident(id)),
              Some(Token::Symbol(Symbol::Equals)),
              _) => {
                 self.seek(-1);
                 let expr = try_opt!(self.parse_expression());
-                Some(Argument(Node(id, one.pos().unwrap()), None, Some(expr)))
+                Some(Argument::Assign(Node(id, one.pos().unwrap()), expr))
             },
             (Some(Token::Ident(id)),
              None,
              _) => {
                 self.seek(-1);
-                Some(Argument(Node(id, one.pos().unwrap()), None, None))
+                Some(Argument::Ident(Node(id, one.pos().unwrap())))
             },
             _ => {
                 self.ctxt.emit_error("expected argument", self.peek_source_pos_or_end(-3));

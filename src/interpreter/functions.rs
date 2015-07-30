@@ -50,7 +50,7 @@ impl BuiltinFunction {
     pub fn new(ty: FunctionType) -> BuiltinFunction {
         let mut args = Vec::new();
         for (id, _) in &ty.args {
-            args.push(ast::Argument(Node(id, SourcePos::anon()), None, None));
+            args.push(ast::Argument::Ident(Node(id, SourcePos::anon())));
         }
         BuiltinFunction {
             ty: ty,

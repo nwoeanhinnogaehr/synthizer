@@ -147,7 +147,7 @@ impl<'a> TypeChecker<'a> {
                 }
                 None => {
                     self.ctxt.emit_error(format!("unexpected argument `{}`",
-                                                 self.ctxt.lookup_name(id)), arg.pos());
+                                                 self.ctxt.lookup_name(id)), arg.ident_pos());
                     return None;
                 }
             }
@@ -155,7 +155,7 @@ impl<'a> TypeChecker<'a> {
         // set default args that weren't set previously
         undef_args.retain(|arg|
             match *arg {
-                Argument(Node(id, _), None, Some(_)) => {
+                Argument::Assign(Node(id, _), _) => {
                     def_args.push(arg.clone());
                     arg_scopes.entry(id).or_insert_with(|| func_def.scope.clone());
                     false
@@ -187,12 +187,12 @@ impl<'a> TypeChecker<'a> {
                 x.clone()).unwrap_or(self.types.get_scope_pos());
             self.types.push_scope(&scope.scope);
             match *arg {
-                Argument(id, Some(op), Some(ref expr)) => {
+                Argument::OpAssign(id, op, ref expr) => {
                     let ty = self.typeof_expr(&Expression::Infix(Box::new(Node(Infix {
                         op: op,
                         left: Expression::Variable(id),
                         right: expr.clone(),
-                    }, arg.pos()))));
+                    }, arg.ident_pos()))));
                     match ty {
                         None => return None,
                         Some(ty) => {
@@ -200,7 +200,7 @@ impl<'a> TypeChecker<'a> {
                         }
                     }
                 }
-                Argument(id, None, Some(ref expr)) => {
+                Argument::Assign(id, ref expr) => {
                     let ty = self.typeof_expr(expr);
                     match ty {
                         None => return None,
@@ -209,7 +209,7 @@ impl<'a> TypeChecker<'a> {
                         }
                     }
                 }
-                Argument(id, None, None) => {
+                Argument::Ident(id) => {
                     let ty = self.typeof_var(&id);
                     match ty {
                         None => return None,
@@ -218,7 +218,6 @@ impl<'a> TypeChecker<'a> {
                         }
                     }
                 }
-                _ => unreachable!(),
             }
             self.types.pop();
         }
@@ -227,9 +226,9 @@ impl<'a> TypeChecker<'a> {
             functions::Function::User(ref def) => {
                 self.types.push_scope(&func_def.scope.scope);
                 for ((id, ty), arg) in arg_types.iter().zip(def_args.iter()) {
-                    self.types.set_val(id, arg.pos().index, *ty);
+                    self.types.set_val(id, arg.ident_pos().index, *ty);
                     if let Type::Function(func_id) = *ty {
-                        self.types.set_val(func_id, arg.pos().index, Type::Function(func_id));
+                        self.types.set_val(func_id, arg.ident_pos().index, Type::Function(func_id));
                     }
                 }
                 let ty = self.typeof_block(&def.block);
@@ -265,7 +264,7 @@ impl<'a> TypeChecker<'a> {
                                                  old.1,
                                                  self.ctxt.lookup_name(arg.ident()),
                                                  new.1),
-                                         arg.pos());
+                                         arg.ident_pos());
                     types_match = false;
                 }
             }

@@ -145,7 +145,7 @@ impl<'a> CodeGenerator<'a> {
         for i in 0..num_args {
             let ref arg = func_args[i];
 
-            let default = if let Some(ref expr) = arg.expr() {
+            let default = if let Argument::Assign(_, ref expr) = *arg {
                 let default = self.module.add_global("default_arg", llvm_func[i].get_type());
                 default.set_initializer(llvm::Value::new_undef(llvm_func[i].get_type()));
                 let default_val = self.codegen_expr(expr, caller_func);
@@ -163,7 +163,8 @@ impl<'a> CodeGenerator<'a> {
         for i in 0..num_args {
             let ref arg = func_args[i];
             llvm_func[i].set_name(&self.ctxt.lookup_name(arg.ident()));
-            self.store_val(arg.0, ValueWrapper::new(&llvm_func[i], sig.args[arg.ident()].1.clone()));
+            self.store_val(Node(arg.ident(), arg.ident_pos()),
+                           ValueWrapper::new(&llvm_func[i], sig.args[arg.ident()].1.clone()));
         }
         // codegen block
         let entry = llvm_func.append("entry");
@@ -222,22 +223,21 @@ impl<'a> CodeGenerator<'a> {
             for arg in call.args() {
                 if id == arg.ident() {
                     match *arg {
-                        Argument(_, None, Some(ref expr)) => {
+                        Argument::Assign(_, ref expr) => {
                             call_args.insert(id, self.codegen_expr(expr, func).value);
                             found = true;
                         },
-                        Argument(ident, Some(Node(op, _)), Some(ref expr)) => {
+                        Argument::OpAssign(ident, Node(op, _), ref expr) => {
                             let lhs = self.codegen_var(ident, func);
                             let rhs = self.codegen_expr(expr, func);
                             let arg_value = self.codegen_binary_op(op, lhs, rhs);
                             call_args.insert(id, arg_value.value);
                             found = true;
                         }
-                        Argument(ident, None, None) => {
+                        Argument::Ident(ident) => {
                             call_args.insert(id, self.codegen_var(ident, func).value);
                             found = true;
                         }
-                        _ => unreachable!(),
                     }
                 }
             }
