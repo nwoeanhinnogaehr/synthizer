@@ -20,6 +20,16 @@ impl Function {
             Function::Builtin(_) => true,
         }
     }
+    pub fn args(&self) -> &ast::ArgumentList {
+        match *self {
+            Function::User(ref def) => {
+                def.args()
+            },
+            Function::Builtin(ref def) => {
+                &def.args
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone)]

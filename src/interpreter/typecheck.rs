@@ -127,15 +127,7 @@ impl<'a> TypeChecker<'a> {
 
         let mut def_args = Vec::new();
 
-        let mut undef_args = match func {
-            functions::Function::User(ref def) => {
-                def.args().clone()
-            },
-            functions::Function::Builtin(ref def) => {
-                def.args.clone()
-            }
-        };
-
+        let mut undef_args = func.args().clone();
         // check that the args in the call match the args in the def
         for arg in call.args() {
             let id = arg.ident();
