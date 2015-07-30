@@ -132,10 +132,6 @@ impl<'a> CodeGenerator<'a> {
         let last_block = self.builder.get_position();
         let caller_func = llvm::Function::cast(last_block.get_parent().unwrap()).unwrap();
         let ident = func.ident();
-        if !self.functions.get(ident).unwrap().has_concrete_type() {
-            panic!(); //TODO
-            //return; // in other words, the function was never used, so the type of it's signature is unknown
-        }
         let name = self.ctxt.lookup_name(ident);
         let synt_ty = self.types.get_symbol(ident).unwrap().val;
         let ty = self.type_to_llvm(synt_ty);

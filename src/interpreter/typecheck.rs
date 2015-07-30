@@ -27,11 +27,11 @@ impl<'a> TypeChecker<'a> {
     }
 
     pub fn check(&mut self) {
-        self.check_root(&*self.ctxt.ast.borrow());
+        self.check_root(&mut *self.ctxt.ast.borrow_mut());
     }
 
-    fn check_root(&mut self, root: &Root) {
-        for item in root {
+    fn check_root(&mut self, root: &mut Root) {
+        for item in root.iter() {
             match *item {
                 Item::FunctionDef(ref f) => {
                     self.typeof_function_def(&f);
@@ -41,16 +41,19 @@ impl<'a> TypeChecker<'a> {
                 }
             };
         }
-        for item in root {
+        root.retain(|item|
             match *item {
                 Item::FunctionDef(ref f) => {
                     if !self.ctxt.functions.borrow().get(f.ident()).unwrap().has_concrete_type() {
                         self.ctxt.emit_warning("function is never used", f.pos());
+                        false
+                    } else {
+                        true
                     }
                 },
-                _ => { }
-            };
-        }
+                _ => true
+            }
+        );
     }
 
     pub fn typeof_assignment(&mut self, assign: &Node<Assignment>) -> Option<Type> {

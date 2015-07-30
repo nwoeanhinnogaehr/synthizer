@@ -194,3 +194,14 @@ fn return_closure() {
             a = foo()(y=2);
         ");
 }
+
+#[test]
+fn unused_function() {
+    run_test!(
+        should_pass(lex, parse, typecheck, codegen)
+        => r"
+            fn x {
+                x*5;
+            }
+        ");
+}
