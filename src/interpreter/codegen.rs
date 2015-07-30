@@ -242,12 +242,7 @@ impl<'a> CodeGenerator<'a> {
                 }
             }
             if !found {
-                match default {
-                    Some(d) => {
-                        call_args.insert(id, self.builder.build_load(d));
-                    }
-                    None => unreachable!(),
-                }
+                call_args.insert(id, self.builder.build_load(default.unwrap()));
             }
         }
 
