@@ -28,7 +28,7 @@ pub struct Context<'a> {
 
 impl<'a> Context<'a> {
     pub fn new(filename: String, source: String) -> Context<'a> {
-        let ctx = Context {
+        Context {
             filename: filename,
             source: source,
             issues: RefCell::new(IssueTracker::new()),
@@ -39,9 +39,7 @@ impl<'a> Context<'a> {
             ast: RefCell::new(Vec::new()),
             callstack: RefCell::new(CallStack::new()),
             llvm: llvm::Context::new(),
-        };
-        ctx.add_intrinsics();
-        ctx
+        }
     }
 
     pub fn emit_error<T>(&'a self, msg: T, pos: SourcePos) where T: Into<Cow<'static, str>> {

@@ -26,6 +26,7 @@ fn main() {
     let filename = args.arg_file;
     let source = read_file(&filename).unwrap();
     let ctxt = Context::new(filename, source);
+    ctxt.add_intrinsics();
 
     lex(&ctxt);
     parse(&ctxt);
