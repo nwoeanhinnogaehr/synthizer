@@ -229,9 +229,8 @@ impl<'a> TypeChecker<'a> {
                 }
             }
 
-            functions::Function::Builtin(ref def) => {
-                def.ty.returns
-            }
+            functions::Function::Builtin(ref def) => { def.ty.returns }
+            functions::Function::External(ref def) => { def.ty.returns }
         };
 
         self.ctxt.callstack.borrow_mut().pop();

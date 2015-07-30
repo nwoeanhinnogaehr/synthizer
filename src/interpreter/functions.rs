@@ -11,33 +11,29 @@ use bit_set::BitSet;
 pub enum Function {
     User(UserFunction),
     Builtin(BuiltinFunction),
+    External(ExternalFunction),
 }
 
 impl Function {
     pub fn has_concrete_type(&self) -> bool {
         match *self {
             Function::User(ref f) => f.ty.is_some(),
-            Function::Builtin(_) => true,
+            Function::Builtin(_) |
+            Function::External(_) => true,
         }
     }
     pub fn args(&self) -> &ast::ArgumentList {
         match *self {
-            Function::User(ref def) => {
-                def.args()
-            },
-            Function::Builtin(ref def) => {
-                &def.args
-            }
+            Function::User(ref def) => { def.args() },
+            Function::Builtin(ref def) => { &def.args }
+            Function::External(ref def) => { &def.args }
         }
     }
     pub fn ty(&self) -> Option<&FunctionType> {
         match *self {
-            Function::User(ref def) => {
-                def.ty.as_ref()
-            },
-            Function::Builtin(ref def) => {
-                Some(&def.ty)
-            }
+            Function::User(ref def) => { def.ty.as_ref() },
+            Function::Builtin(ref def) => { Some(&def.ty) }
+            Function::External(ref def) => { Some(&def.ty) }
         }
     }
 }
@@ -53,6 +49,27 @@ impl Deref for UserFunction {
 
     fn deref<'a>(&'a self) -> &'a Node<ast::Function> {
         &self.node
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ExternalFunction {
+    pub ty: FunctionType,
+    pub args: ast::ArgumentList,
+    pub symbol: &'static str,
+}
+
+impl ExternalFunction {
+    pub fn new(symbol: &'static str, ty: FunctionType) -> ExternalFunction {
+        let mut args = Vec::new();
+        for (id, _) in &ty.args {
+            args.push(ast::Argument::Ident(Node(id, SourcePos::anon())));
+        }
+        ExternalFunction {
+            ty: ty,
+            args: args,
+            symbol: symbol,
+        }
     }
 }
 
@@ -78,7 +95,7 @@ impl BuiltinFunction {
 
 #[derive(Debug)]
 pub struct FunctionTable {
-    map: VecMap<Function>, // from Identifier.
+    pub map: VecMap<Function>, // from Identifier.
 }
 
 // Holds the actual implementation details of functions.

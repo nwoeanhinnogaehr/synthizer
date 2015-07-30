@@ -1,10 +1,10 @@
 use super::common::Context;
 use super::ast::*;
-use super::tokens::{Number, Boolean, NodeImpl, Node, Operator};
+use super::tokens::{Number, Boolean, NodeImpl, Node, Operator, SourcePos};
 use super::types::{Type, TypeTable};
 use super::scope::ScopedTable;
 use super::ident::Identifier;
-use super::functions::FunctionTable;
+use super::functions::{self, FunctionTable, ExternalFunction};
 
 use llvm;
 use llvm::{Compile, ExecutionEngine, CastFrom};
@@ -88,6 +88,14 @@ impl<'a> CodeGenerator<'a> {
     }
 
     fn codegen(&'a self) {
+        for (ident, func) in &self.functions.map {
+            match *func {
+                functions::Function::External(ref def) => {
+                    self.codegen_external_function(ident, def);
+                },
+                _ => { },
+            }
+        }
         self.codegen_root(&self.ctxt.ast.borrow());
 
         println!("{:?}", self.module);
@@ -103,7 +111,6 @@ impl<'a> CodeGenerator<'a> {
             if let Some(g) = ee.find_global::<f32>("x") {
                 println!("VALUE = {}", g);
             }
-
         }
     }
 
@@ -126,6 +133,14 @@ impl<'a> CodeGenerator<'a> {
         }
 
         self.builder.build_ret_void();
+    }
+
+    fn codegen_external_function(&'a self, ident: Identifier, func: &ExternalFunction) -> ValueWrapper<'a> {
+        let ty = Type::Function(ident);
+        let func = self.module.add_function(func.symbol, self.type_to_llvm(ty));
+        let val = ValueWrapper::new(func, self.type_to_signature(ty));
+        self.store_val(Node(ident, SourcePos::anon()), val.clone());
+        val
     }
 
     fn codegen_global_function(&'a self, func: &FunctionDef) -> ValueWrapper<'a> {

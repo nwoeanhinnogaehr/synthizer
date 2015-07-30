@@ -205,3 +205,13 @@ fn unused_function() {
             }
         ");
 }
+
+#[test]
+fn intrinsics() {
+    run_test!(
+        should_pass(lex, parse, typecheck, codegen)
+        => r"
+            x = 1.5;
+            y = sin(x) + cos(x) + sqrt(x) + log(x) + log2(x) + floor(x) + exp(x);
+        ");
+}
