@@ -116,14 +116,8 @@ impl<'a> TypeChecker<'a> {
                 return None;
             },
         };
-        let func_def = match self.types.get_symbol(func_id) {
-            Some(s) => s.clone(),
-            None => unreachable!(),
-        };
-        let func = match self.ctxt.functions.borrow().get(func_id) {
-            Some(f) => f.clone(),
-            None => unreachable!(),
-        };
+        let func_def = self.types.get_symbol(func_id).unwrap().clone();
+        let func = self.ctxt.functions.borrow().get(func_id).unwrap().clone();
 
         let mut def_args = Vec::new();
 
