@@ -165,6 +165,7 @@ impl<'a> TypeChecker<'a> {
             return Some(Type::Indeterminate);
         }
         self.ctxt.callstack.borrow_mut().push(func_id);
+
         // determine the type of the arguments
         for &(ref arg, is_default) in &def_args {
             if is_default {
@@ -236,10 +237,7 @@ impl<'a> TypeChecker<'a> {
         self.ctxt.callstack.borrow_mut().pop();
 
         let calcd_type = FunctionType::new(arg_types, return_ty);
-        if let Some(def_type) = match func {
-            functions::Function::User(ref def) => def.ty.as_ref(),
-            functions::Function::Builtin(ref def) => Some(&def.ty),
-        } {
+        if let Some(def_type) = func.ty() {
             let mut types_match = true;
             for ((old, new), &(ref arg, _)) in def_type.args.iter().zip(calcd_type.args.iter()).zip(def_args.iter()) {
                 if let ((_, &Type::Function(_)), (_, &Type::Function(_))) = (new, old) {

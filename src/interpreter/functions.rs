@@ -30,6 +30,16 @@ impl Function {
             }
         }
     }
+    pub fn ty(&self) -> Option<&FunctionType> {
+        match *self {
+            Function::User(ref def) => {
+                def.ty.as_ref()
+            },
+            Function::Builtin(ref def) => {
+                Some(&def.ty)
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone)]

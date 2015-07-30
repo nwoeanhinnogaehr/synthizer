@@ -4,7 +4,7 @@ use super::tokens::{Number, Boolean, NodeImpl, Node, Operator};
 use super::types::{Type, TypeTable};
 use super::scope::ScopedTable;
 use super::ident::Identifier;
-use super::functions::{self, FunctionTable};
+use super::functions::FunctionTable;
 
 use llvm;
 use llvm::{Compile, ExecutionEngine, CastFrom};
@@ -367,10 +367,7 @@ impl<'a> CodeGenerator<'a> {
             Type::Boolean => None,
             Type::Function(id) => {
                 let func = self.functions.get(id).unwrap();
-                let ty = match *func {
-                    functions::Function::User(ref f) => f.ty.as_ref().unwrap(),
-                    functions::Function::Builtin(ref f) => &f.ty,
-                };
+                let ty = func.ty().unwrap();
                 let args = ty.args.iter().map(|(id, &ty)|
                     (id, (None, self.type_to_signature(ty)))).collect();
                 let ret = self.type_to_signature(ty.returns);
@@ -389,10 +386,7 @@ impl<'a> CodeGenerator<'a> {
             Type::Boolean => llvm::Type::get::<Boolean>(self.llvm),
             Type::Function(id) => {
                 let func = self.functions.get(id).unwrap();
-                let ty = match *func {
-                    functions::Function::User(ref f) => f.ty.as_ref().unwrap(),
-                    functions::Function::Builtin(ref f) => &f.ty,
-                };
+                let ty = func.ty().unwrap();
                 let arg_map: VecMap<&llvm::Type> = ty.args.iter().map(|(id, &ty)|
                     (id, self.make_fn_ptr(self.type_to_llvm(ty)))).collect();
                 let args: Vec<&llvm::Type> = arg_map.values().map(|x| *x).collect();
