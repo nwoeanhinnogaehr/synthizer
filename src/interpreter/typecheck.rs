@@ -127,13 +127,12 @@ impl<'a> TypeChecker<'a> {
 
         let mut def_args = Vec::new();
 
-        let (mut undef_args, mut arg_scopes) = match func {
+        let mut undef_args = match func {
             functions::Function::User(ref def) => {
-                (def.args().clone(), def.arg_scopes.clone().unwrap_or(VecMap::new()))
-            }
-
+                def.args().clone()
+            },
             functions::Function::Builtin(ref def) => {
-                (def.args.clone(), def.arg_scopes.clone().unwrap_or(VecMap::new()))
+                def.args.clone()
             }
         };
 
@@ -142,7 +141,7 @@ impl<'a> TypeChecker<'a> {
             let id = arg.ident();
             match undef_args.iter().position(|x| x.ident() == id) {
                 Some(pos) => {
-                    def_args.push(arg.clone());
+                    def_args.push((arg.clone(), false));
                     undef_args.remove(pos);
                 }
                 None => {
@@ -155,9 +154,8 @@ impl<'a> TypeChecker<'a> {
         // set default args that weren't set previously
         undef_args.retain(|arg|
             match *arg {
-                Argument::Assign(Node(id, _), _) => {
-                    def_args.push(arg.clone());
-                    arg_scopes.entry(id).or_insert_with(|| func_def.scope.clone());
+                Argument::Assign(_, _) => {
+                    def_args.push((arg.clone(), true));
                     false
                 }
                 _ => true
@@ -182,10 +180,10 @@ impl<'a> TypeChecker<'a> {
         }
         self.ctxt.callstack.borrow_mut().push(func_id);
         // determine the type of the arguments
-        for arg in &def_args {
-            let scope = arg_scopes.get(&arg.ident()).map(|x|
-                x.clone()).unwrap_or(self.types.get_scope_pos());
-            self.types.push_scope(&scope.scope);
+        for &(ref arg, is_default) in &def_args {
+            if is_default {
+                self.types.push_scope(&func_def.scope.scope);
+            }
             match *arg {
                 Argument::OpAssign(id, op, ref expr) => {
                     let ty = self.typeof_expr(&Expression::Infix(Box::new(Node(Infix {
@@ -219,13 +217,15 @@ impl<'a> TypeChecker<'a> {
                     }
                 }
             }
-            self.types.pop();
+            if is_default {
+                self.types.pop();
+            }
         }
 
         let return_ty = match func {
             functions::Function::User(ref def) => {
                 self.types.push_scope(&func_def.scope.scope);
-                for ((id, ty), arg) in arg_types.iter().zip(def_args.iter()) {
+                for ((id, ty), &(ref arg, _)) in arg_types.iter().zip(def_args.iter()) {
                     self.types.set_val(id, arg.ident_pos().index, *ty);
                     if let Type::Function(func_id) = *ty {
                         self.types.set_val(func_id, arg.ident_pos().index, Type::Function(func_id));
@@ -255,7 +255,7 @@ impl<'a> TypeChecker<'a> {
             functions::Function::Builtin(ref def) => Some(&def.ty),
         } {
             let mut types_match = true;
-            for ((old, new), arg) in def_type.args.iter().zip(calcd_type.args.iter()).zip(def_args.iter()) {
+            for ((old, new), &(ref arg, _)) in def_type.args.iter().zip(calcd_type.args.iter()).zip(def_args.iter()) {
                 if let ((_, &Type::Function(_)), (_, &Type::Function(_))) = (new, old) {
                     // If they are both functions, do nothing.
                     // Their compatibility will already have been validated
@@ -276,12 +276,8 @@ impl<'a> TypeChecker<'a> {
         match func {
             functions::Function::User(ref mut def) => {
                 def.ty = Some(calcd_type);
-                def.arg_scopes = Some(arg_scopes);
-            }
-
-            functions::Function::Builtin(ref mut def) => {
-                def.arg_scopes = Some(arg_scopes);
-            }
+            },
+            _ => { }
         };
         self.ctxt.functions.borrow_mut().insert(func_id, func);
         Some(return_ty)

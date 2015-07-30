@@ -1,6 +1,5 @@
 use super::ast;
 use super::types::{FunctionType};
-use super::scope::ScopePos;
 use super::ident::Identifier;
 use super::tokens::{Node, SourcePos};
 
@@ -27,7 +26,6 @@ impl Function {
 pub struct UserFunction {
     pub ty: Option<FunctionType>,
     pub node: Node<ast::Function>,
-    pub arg_scopes: Option<VecMap<ScopePos>>,
 }
 
 impl Deref for UserFunction {
@@ -42,7 +40,6 @@ impl Deref for UserFunction {
 pub struct BuiltinFunction {
     pub ty: FunctionType,
     pub args: ast::ArgumentList,
-    pub arg_scopes: Option<VecMap<ScopePos>>,
     //fn ptr...
 }
 
@@ -55,7 +52,6 @@ impl BuiltinFunction {
         BuiltinFunction {
             ty: ty,
             args: args,
-            arg_scopes: None,
         }
     }
 }

@@ -413,7 +413,6 @@ impl<'a> Parser<'a> {
                 functions::UserFunction {
                     ty: None,
                     node: Node(func.item().clone(), pos),
-                    arg_scopes: None,
                 }));
 
         Some(Node(FunctionDef {
@@ -431,7 +430,6 @@ impl<'a> Parser<'a> {
                 functions::UserFunction {
                     ty: None,
                     node: Node(func.item().clone(), pos),
-                    arg_scopes: None,
                 }));
 
         Some(Node(FunctionDef {
