@@ -344,6 +344,7 @@ impl<'a> CodeGenerator<'a> {
             Operator::Or => self.builder.build_or(lhs, rhs),
             Operator::And => self.builder.build_and(lhs, rhs),
             Operator::Xor => self.builder.build_xor(lhs, rhs),
+            Operator::Mod => self.builder.build_rem(lhs, rhs),
             _ => unimplemented!(),
         }.into()
     }

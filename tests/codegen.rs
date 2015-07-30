@@ -17,7 +17,7 @@ fn constant_arithmetic() {
     run_test!(
         should_pass(lex, parse, typecheck, codegen)
         => r"
-            a = -(1+1)*(2/(3-8)); // 0.8
+            a = (-(1+1)*(2/(3-8)))%0.3; // 0.8
         "
     );
 }
