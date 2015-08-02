@@ -163,7 +163,7 @@ fn wrong_bracket_type() {
         should_fail(parse),
         should_pass(lex)
         => r"
-            a = fn{5);
+            a = fn[5);
         ");
 }
 
@@ -173,19 +173,19 @@ fn bad_argument() {
         should_fail(parse),
         should_pass(lex)
         => r"
-            a = fn(5=a);
+            a = fn[5=a];
         ");
     run_test!(
         should_fail(parse),
         should_pass(lex)
         => r"
-            b = fn(=5);
+            b = fn[=5];
         ");
     run_test!(
         should_fail(parse),
         should_pass(lex)
         => r"
-            d = fn(=);
+            d = fn[=];
         ");
 }
 
@@ -208,7 +208,8 @@ fn closure_in_arg() {
     run_test!(
         should_pass(lex, parse)
         => r"
-            a = fn(x=3, cond=\{x>5});
+            a = fn[x=3, cond=\{x>5}];
+            a = fn(3, \{x>5});
         ");
 }
 
@@ -217,7 +218,7 @@ fn block_in_default_arg() {
     run_test!(
         should_fail(parse),
         should_pass(lex) // hopefully this will be supported at some point for completeness
-                           // but right now implementing it is a major pain
+                         // but right now implementing it is a major pain
         => r"
             fn y=99-{1+2+3+4+5} { }
         ");
@@ -228,7 +229,8 @@ fn block_in_arg() {
     run_test!(
         should_pass(lex, parse)
         => r"
-            a = fn(y={1+2+3+4+5});
+            a = fn[y={1+2+3+4+5}];
+            b = fn({1+2+3+4+5});
         ");
 }
 
@@ -251,9 +253,10 @@ fn call_types() {
     run_test!(
         should_pass(lex, parse)
         => r"
-            a = fn(x, y);
-            b = fn(x=1, y=2);
-            c = fn(x+=1, y+=1);
+            a = fn[x, y];
+            b = fn[x=1, y=2];
+            c = fn[x+=1, y+=1];
+            c = fn(x+y, x-y);
         ");
 }
 

@@ -35,13 +35,31 @@ fn call_non_function() {
 }
 
 #[test]
-fn wrong_num_arguments() {
+fn wrong_num_arguments_named() {
     run_test!(
         should_fail(typecheck),
         should_pass(lex, parse)
         => r"
             f x, y=1 { x+y }
-            x = f(x=1, y=2, z=3);
+            x = f[x=1, y=2, z=3];
+        ");
+    run_test!(
+        should_fail(typecheck),
+        should_pass(lex, parse)
+        => r"
+            f x, y=1 { x+y }
+            x = f[];
+        ");
+}
+
+#[test]
+fn wrong_num_arguments_ordered() {
+    run_test!(
+        should_fail(typecheck),
+        should_pass(lex, parse)
+        => r"
+            f x, y=1 { x+y }
+            x = f(1, 2, 3);
         ");
     run_test!(
         should_fail(typecheck),
@@ -59,7 +77,7 @@ fn misspelled_argument() {
         should_pass(lex, parse)
         => r"
             fn x { x }
-            x = fn(y=5);
+            x = fn[y=5];
         ");
 }
 
@@ -70,7 +88,7 @@ fn ambiguous_recursion() {
         should_pass(lex, parse)
         => r"
             fn x { fn(x) }
-            y = fn(x=1);
+            y = fn(1);
         ");
 }
 
@@ -81,8 +99,8 @@ fn wrong_arg_type() {
         should_pass(lex, parse)
         => r"
             fn x { x }
-            x = fn(x=1);
-            y = fn(x=true);
+            x = fn(1);
+            y = fn(true);
         ");
     run_test!(
         should_fail(typecheck),
@@ -90,8 +108,8 @@ fn wrong_arg_type() {
         => r"
             fn x { x }
             z = fn;
-            x = z(x=1);
-            y = fn(x=true);
+            x = z(1);
+            y = fn(true);
         ");
 }
 
@@ -246,7 +264,7 @@ fn default_args_evald_in_new_scope() {
         => r"
             x = 5;
             fn z=x {
-                z^2;
+                z%2;
             }
             w = {
                 x = true;
@@ -261,9 +279,10 @@ fn default_args() {
         should_pass(lex, parse, typecheck)
         => r"
             fn x, y=3 { x + y }
-            a = fn(x=1);
-            a = fn(x=1, y=2);
-            a = fn(y=1, x=2);
+            a = fn[x=1];
+            a = fn[x=1, y=2];
+            a = fn[y=1, x=2];
+            a = fn(1, 2);
         ");
 }
 
@@ -274,9 +293,9 @@ fn recursion_numeric() {
         => r"
             a b {
                 b;
-                a(b-=1);
+                a[b-=1] if b > 0 else 0;
             }
-            z = a(b=5);
+            z = a[b=5];
         ");
 }
 
@@ -306,7 +325,7 @@ fn call_default_arg() {
         should_pass(lex, parse, typecheck)
         => r"
             fn d=\e{e} {
-                d(e=5);
+                d(5);
             }
             a = fn();
         ");

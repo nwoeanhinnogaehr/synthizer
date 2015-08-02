@@ -5,6 +5,8 @@ extern crate regex;
 extern crate llvm;
 extern crate cbox;
 extern crate bit_set;
+extern crate sound_stream;
+extern crate hound;
 
 pub mod common;
 pub mod ident;
@@ -18,6 +20,8 @@ pub mod functions;
 pub mod typecheck;
 pub mod codegen;
 pub mod scope;
+pub mod compiler;
+pub mod audio;
 
 #[macro_use]
 pub mod tests;

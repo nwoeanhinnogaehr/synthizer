@@ -85,11 +85,10 @@ impl FunctionCall {
     pub fn ty(&self) -> CallType { self.ty.clone() }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum CallType {
-    Explicit,
-    Implicit,
-    Partial,
+    Named,
+    Ordered,
 }
 
 // At most one of the two can be None
@@ -97,22 +96,25 @@ pub enum CallType {
 pub enum Argument {
     Ident(Node<Identifier>),
     Assign(Node<Identifier>, Expression),
-    OpAssign(Node<Identifier>, Node<Operator>, Expression)
+    OpAssign(Node<Identifier>, Node<Operator>, Expression),
+    Expr(Expression),
 }
 
 impl Argument {
-    pub fn ident(&self) -> Identifier {
+    pub fn ident(&self) -> Option<Identifier> {
         match *self {
             Argument::Ident(Node(id, _)) |
             Argument::Assign(Node(id, _), _) |
-            Argument::OpAssign(Node(id, _), _, _) => id
+            Argument::OpAssign(Node(id, _), _, _) => Some(id),
+            Argument::Expr(_) => None,
         }
     }
-    pub fn ident_pos(&self) -> SourcePos {
+    pub fn pos(&self) -> SourcePos {
         match *self {
             Argument::Ident(Node(_, pos)) |
             Argument::Assign(Node(_, pos), _) |
-            Argument::OpAssign(Node(_, pos), _, _) => pos
+            Argument::OpAssign(Node(_, pos), _, _) => pos,
+            Argument::Expr(ref e) => e.pos()
         }
     }
 }

@@ -124,7 +124,7 @@ fn function_def() {
             a x, y, z, w {
                 x+y*z-w;
             }
-            b = a(y=2, z=3, w=4, x=1);
+            b = a[y=2, z=3, w=4, x=1];
         "
     );
 }
@@ -136,7 +136,7 @@ fn closure() {
         => r"
             a = \x { x+5 };
             b = a;
-            c = b(x=5);
+            c = b[x=5];
         "
     );
 }
@@ -147,7 +147,14 @@ fn default_args() {
         should_pass(lex, parse, typecheck, codegen)
         => r"
             a x=2, y { x+y }
-            b = a(y=5);
+            b = a[y=5];
+        ");
+    run_test!(
+        should_pass(lex, parse, typecheck, codegen)
+        => r"
+            a x, y=2 { x+y }
+            b = a[x=5];
+            c = a(5);
         ");
 }
 
@@ -157,9 +164,9 @@ fn factorial() {
         should_pass(lex, parse, typecheck, codegen)
         => r"
             fact n {
-                n*fact(n -= 1) if n > 1 else 1;
+                n*fact[n -= 1] if n > 1 else 1;
             }
-            x = fact(n=10);
+            x = fact(10);
         ");
 }
 
@@ -169,9 +176,9 @@ fn fib() {
         should_pass(lex, parse, typecheck, codegen)
         => r"
             fib n {
-                fib(n -= 1) + fib(n -= 2) if n > 2 else 1;
+                fib[n -= 1] + fib[n -= 2] if n > 2 else 1;
             }
-            x = fib(n=10);
+            x = fib(10);
         ");
 }
 
@@ -181,7 +188,7 @@ fn closure_default_args() {
         should_pass(lex, parse, typecheck, codegen)
         => r"
             foo bar=\y{y*2} { bar }
-            a = foo()(y=2);
+            a = foo()(2);
         ");
 }
 
@@ -191,7 +198,7 @@ fn return_closure() {
         should_pass(lex, parse, typecheck, codegen)
         => r"
             foo { \y{y*2} }
-            a = foo()(y=2);
+            a = foo()(2);
         ");
 }
 
@@ -213,5 +220,34 @@ fn intrinsics() {
         => r"
             x = 1.5;
             y = sin(x) + cos(x) + sqrt(x) + log(x) + log2(x) + floor(x) + exp(x);
+        ");
+}
+
+#[test]
+fn closure_capture() {
+    run_test!(
+        should_pass(lex, parse, typecheck, codegen)
+        => r"
+            x = 5;
+            y = \{x+5};
+            z = {
+                x = true;
+                y();
+            };
+        ");
+}
+
+#[test]
+fn return_closure_capture() {
+    run_test!(
+        should_pass(lex, parse, typecheck, codegen)
+        => r"
+            fn x {
+                z = 5;
+                \w=x{w+z};
+            }
+            y = fn(5);
+            z = fn(6);
+            x = y() + z(); //x = 22, but should be 21.
         ");
 }

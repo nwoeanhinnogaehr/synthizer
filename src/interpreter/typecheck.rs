@@ -124,17 +124,29 @@ impl<'a> TypeChecker<'a> {
         let mut undef_args = func.args().clone();
         // check that the args in the call match the args in the def
         for arg in call.args() {
-            let id = arg.ident();
-            match undef_args.iter().position(|x| x.ident() == id) {
-                Some(pos) => {
-                    def_args.push((arg.clone(), false));
-                    undef_args.remove(pos);
+            if let Some(id) = arg.ident() {
+                match undef_args.iter().position(|x| x.ident().unwrap() == id) {
+                    Some(pos) => {
+                        def_args.push((arg.clone(), false));
+                        undef_args.remove(pos);
+                    }
+                    None => {
+                        self.ctxt.emit_error(format!("unexpected argument `{}`",
+                                                     self.ctxt.lookup_name(id)), arg.pos());
+                        return None;
+                    }
                 }
-                None => {
-                    self.ctxt.emit_error(format!("unexpected argument `{}`",
-                                                 self.ctxt.lookup_name(id)), arg.ident_pos());
-                    return None;
+            } else {
+                if undef_args.is_empty() {
+                        self.ctxt.emit_error("unexpected argument", arg.pos());
+                        return None;
                 }
+                let expr = match *arg {
+                    Argument::Expr(ref expr) => { expr.clone() },
+                    _ => unreachable!(),
+                };
+                let id = undef_args.remove(0).ident().unwrap();
+                def_args.push((Argument::Assign(Node(id, expr.pos()), expr), false));
             }
         }
         // set default args that weren't set previously
@@ -151,7 +163,7 @@ impl<'a> TypeChecker<'a> {
         // if any arguments were not defined above, die
         for unassigned in undef_args.iter() {
             self.ctxt.emit_error(format!("argument `{}` is required",
-                                         self.ctxt.lookup_name(unassigned.ident())),
+                                         self.ctxt.lookup_name(unassigned.ident().unwrap())),
                                  call.args_pos());
         }
         if undef_args.len() > 0 {
@@ -177,7 +189,7 @@ impl<'a> TypeChecker<'a> {
                         op: op,
                         left: Expression::Variable(id),
                         right: expr.clone(),
-                    }, arg.ident_pos()))));
+                    }, arg.pos()))));
                     match ty {
                         None => return None,
                         Some(ty) => {
@@ -203,6 +215,7 @@ impl<'a> TypeChecker<'a> {
                         }
                     }
                 }
+                _ => unreachable!(),
             }
             if is_default {
                 self.types.pop();
@@ -213,9 +226,9 @@ impl<'a> TypeChecker<'a> {
             functions::Function::User(ref def) => {
                 self.types.push_scope(&func_def.scope.scope);
                 for ((id, ty), &(ref arg, _)) in arg_types.iter().zip(def_args.iter()) {
-                    self.types.set_val(id, arg.ident_pos().index, *ty);
+                    self.types.set_val(id, arg.pos().index, *ty);
                     if let Type::Function(func_id) = *ty {
-                        self.types.set_val(func_id, arg.ident_pos().index, Type::Function(func_id));
+                        self.types.set_val(func_id, arg.pos().index, Type::Function(func_id));
                     }
                 }
                 let ty = self.typeof_block(&def.block);
@@ -245,9 +258,9 @@ impl<'a> TypeChecker<'a> {
                 } else if old != new {
                     self.ctxt.emit_error(format!("expected type `{}` for argument `{}`, got `{}`",
                                                  old.1,
-                                                 self.ctxt.lookup_name(arg.ident()),
+                                                 self.ctxt.lookup_name(arg.ident().unwrap()),
                                                  new.1),
-                                         arg.ident_pos());
+                                         arg.pos());
                     types_match = false;
                 }
             }

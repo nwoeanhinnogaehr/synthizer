@@ -55,7 +55,7 @@ impl<'a> Deref for ValueWrapper<'a> {
     }
 }
 
-const GLOBAL_INIT_FN_NAME: &'static str = "__global_init";
+pub const GLOBAL_INIT_FN_NAME: &'static str = "__global_init";
 
 pub fn codegen<'a>(ctxt: &'a Context<'a>) {
     //XXX
@@ -64,18 +64,18 @@ pub fn codegen<'a>(ctxt: &'a Context<'a>) {
     foo.codegen();
 }
 
-struct CodeGenerator<'a> {
+pub struct CodeGenerator<'a> {
     ctxt: &'a Context<'a>,
     types: Ref<'a, TypeTable>,
     functions: Ref<'a, FunctionTable>,
     llvm: &'a llvm::Context,
-    module: CSemiBox<'a, llvm::Module>,
+    pub module: CSemiBox<'a, llvm::Module>,
     builder: CSemiBox<'a, llvm::Builder>,
     values: RefCell<ScopedTable<ValueWrapper<'a>>>,
 }
 
 impl<'a> CodeGenerator<'a> {
-    fn new(ctxt: &'a Context<'a>) -> CodeGenerator<'a> {
+    pub fn new(ctxt: &'a Context<'a>) -> CodeGenerator<'a> {
         CodeGenerator {
             ctxt: ctxt,
             types: ctxt.types.borrow(),
@@ -87,7 +87,7 @@ impl<'a> CodeGenerator<'a> {
         }
     }
 
-    fn codegen(&'a self) {
+    pub fn codegen(&'a self) {
         for (ident, func) in &self.functions.map {
             match *func {
                 functions::Function::External(ref def) => {
@@ -100,18 +100,6 @@ impl<'a> CodeGenerator<'a> {
 
         println!("{:?}", self.module);
         self.module.verify().unwrap();
-
-        let init = self.module.get_function(GLOBAL_INIT_FN_NAME).unwrap();
-        let ee = llvm::JitEngine::new(&self.module, llvm::JitOptions { opt_level: 3 }).unwrap();
-        //let ee = llvm::Interpreter::new(&self.module, ()).unwrap();
-        ee.with_function(init, |init: extern fn(())| {
-            init(());
-        });
-        unsafe {
-            if let Some(g) = ee.find_global::<f32>("x") {
-                println!("VALUE = {}", g);
-            }
-        }
     }
 
     fn codegen_root(&'a self, root: &Root) {
@@ -155,6 +143,7 @@ impl<'a> CodeGenerator<'a> {
         let mut func_args = func.args().clone();
         func_args.sort_by(|a, b| a.ident().cmp(&b.ident()));
         let llvm_func = self.module.add_function(&name, ty);
+        llvm_func.add_attributes(&[llvm::Attribute::NoUnwind]);
 
         // set default args in the signature
         for i in 0..num_args {
@@ -165,10 +154,10 @@ impl<'a> CodeGenerator<'a> {
                 default.set_initializer(llvm::Value::new_undef(llvm_func[i].get_type()));
                 let default_val = self.codegen_expr(expr, caller_func);
                 self.builder.build_store(default_val.value, default);
-                Some(default as &llvm::Value)
-            } else { None };
+                (Some(default as &llvm::Value), default_val.sig)
+            } else { (None, None) };
 
-            sig.args[arg.ident()].0 = default;
+            sig.args[arg.ident().unwrap()] = default;
         }
 
         self.store_val(func.ident, ValueWrapper::new(llvm_func, Some(sig.clone())));
@@ -177,14 +166,17 @@ impl<'a> CodeGenerator<'a> {
         self.values.borrow_mut().push(func.ident_pos().index);
         for i in 0..num_args {
             let ref arg = func_args[i];
-            llvm_func[i].set_name(&self.ctxt.lookup_name(arg.ident()));
-            self.store_val(Node(arg.ident(), arg.ident_pos()),
-                           ValueWrapper::new(&llvm_func[i], sig.args[arg.ident()].1.clone()));
+            let id = arg.ident().unwrap();
+            llvm_func[i].set_name(&self.ctxt.lookup_name(id));
+            self.store_val(Node(id, arg.pos()),
+                           ValueWrapper::new(&llvm_func[i], sig.args[id].1.clone()));
         }
         // codegen block
         let entry = llvm_func.append("entry");
         self.builder.position_at_end(entry);
         let res = self.codegen_block(&func.block, llvm_func);
+        sig.ret = res.sig.map(|x| Box::new(x));
+        self.store_val(func.ident, ValueWrapper::new(llvm_func, Some(sig.clone())));
         self.builder.build_ret(res.value);
         self.values.borrow_mut().pop();
         self.builder.position_at_end(last_block);
@@ -201,7 +193,6 @@ impl<'a> CodeGenerator<'a> {
     }
 
     fn store_val(&self, ident: Node<Identifier>, value: ValueWrapper<'a>) {
-        // hopefully there's some way to make this not use raw pointers.
         self.values.borrow_mut().set_val(*ident, ident.pos().index, value);
     }
 
@@ -228,36 +219,58 @@ impl<'a> CodeGenerator<'a> {
     }
 
     fn codegen_function_call(&'a self, call: &FunctionCall, func: &llvm::Function) -> ValueWrapper<'a> {
-        assert_eq!(call.ty(), CallType::Explicit); // for now
         let callee_val = self.codegen_expr(call.callee(), func);
         let callee = llvm::Function::cast(*callee_val).unwrap();
         let sig = callee_val.sig.unwrap();
         let mut call_args = VecMap::new();
-        for (id, &(default, _)) in sig.args.iter() {
-            let mut found = false;
-            for arg in call.args() {
-                if id == arg.ident() {
-                    match *arg {
-                        Argument::Assign(_, ref expr) => {
-                            call_args.insert(id, self.codegen_expr(expr, func).value);
-                            found = true;
-                        },
-                        Argument::OpAssign(ident, Node(op, _), ref expr) => {
-                            let lhs = self.codegen_var(ident, func);
-                            let rhs = self.codegen_expr(expr, func);
-                            let arg_value = self.codegen_binary_op(op, lhs, rhs);
-                            call_args.insert(id, arg_value.value);
-                            found = true;
-                        }
-                        Argument::Ident(ident) => {
-                            call_args.insert(id, self.codegen_var(ident, func).value);
-                            found = true;
+        match call.ty {
+            CallType::Named => {
+                for (id, &(default, _)) in sig.args.iter() {
+                    let mut found = false;
+                    for arg in call.args() {
+                        match *arg {
+                            Argument::Assign(ident, ref expr) => {
+                                if id == *ident {
+                                    call_args.insert(id, self.codegen_expr(expr, func).value);
+                                    found = true;
+                                }
+                            },
+                            Argument::OpAssign(ident, Node(op, _), ref expr) => {
+                                if id == *ident {
+                                    let lhs = self.codegen_var(ident, func);
+                                    let rhs = self.codegen_expr(expr, func);
+                                    let arg_value = self.codegen_binary_op(op, lhs, rhs);
+                                    call_args.insert(id, arg_value.value);
+                                    found = true;
+                                }
+                            }
+                            Argument::Ident(ident) => {
+                                if id == *ident {
+                                    call_args.insert(id, self.codegen_var(ident, func).value);
+                                    found = true;
+                                }
+                            }
+                            _ => unreachable!(),
                         }
                     }
+                    if !found {
+                        call_args.insert(id, self.builder.build_load(default.unwrap()));
+                    }
                 }
-            }
-            if !found {
-                call_args.insert(id, self.builder.build_load(default.unwrap()));
+            },
+            CallType::Ordered => {
+                let mut sig_args = sig.args.iter();
+                for arg in call.args() {
+                    match *arg {
+                        Argument::Expr(ref expr) => {
+                            call_args.insert(sig_args.next().unwrap().0, self.codegen_expr(expr, func).value);
+                        }
+                        _ => unreachable!(),
+                    }
+                }
+                for (id, &(default, _)) in sig_args {
+                    call_args.insert(id, self.builder.build_load(default.unwrap()));
+                }
             }
         }
 
@@ -355,7 +368,11 @@ impl<'a> CodeGenerator<'a> {
             Operator::And => self.builder.build_and(lhs, rhs),
             Operator::Xor => self.builder.build_xor(lhs, rhs),
             Operator::Mod => self.builder.build_rem(lhs, rhs),
-            _ => unimplemented!(),
+            Operator::Exp => {
+                let pow_fn = self.module.get_function("llvm.pow.f32").unwrap();
+                self.builder.build_call(pow_fn, &[lhs, rhs])
+            }
+            _ => unreachable!(),
         }.into()
     }
 

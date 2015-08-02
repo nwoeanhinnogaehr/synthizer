@@ -12,6 +12,8 @@ regex = "*"
 regex_macros = "*"
 cbox = "*"
 bit-set = "*"
+sound_stream = "*"
+hound = "*"
 
 [dependencies.llvm-alt]
 path = "../llvm-rs"

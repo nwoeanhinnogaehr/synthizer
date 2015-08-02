@@ -30,7 +30,6 @@ macro_rules! run_test {
             )*
         )*
         let ctxt = Context::new("<test>".into(), $source.into());
-        ctxt.add_intrinsics();
 
         if should_run.contains(&"lex") {
             lex(&ctxt);

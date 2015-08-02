@@ -319,7 +319,8 @@ impl<'a> Parser<'a> {
             }
 
             // function call
-            Some(Token::Symbol(Symbol::LeftBracket(Bracket::Round))) => {
+            Some(Token::Symbol(Symbol::LeftBracket(Bracket::Round))) |
+            Some(Token::Symbol(Symbol::LeftBracket(Bracket::Square))) => {
                 self.seek(-1);
                 let call = try_opt!(self.parse_function_call(left));
                 Some(Expression::FunctionCall(Box::new(call)))
@@ -362,7 +363,8 @@ impl<'a> Parser<'a> {
             Some(Token::Symbol(Symbol::RightBracket(Bracket::Round))) => Some(1),
 
             // function call
-            Some(Token::Symbol(Symbol::LeftBracket(Bracket::Round))) => Some(1000),
+            Some(Token::Symbol(Symbol::LeftBracket(Bracket::Round))) |
+            Some(Token::Symbol(Symbol::LeftBracket(Bracket::Square))) => Some(1000),
 
             None => Some(0),
             _ => {
@@ -488,7 +490,7 @@ impl<'a> Parser<'a> {
         };
         // parse arg list (everything until start of block)
         self.enter_subsection(idx, block_idx);
-        let args = try_opt!(self.parse_arg_list(false));
+        let args = try_opt!(self.parse_arg_list(None));
         self.integrate_subsection();
 
         let block = try_opt!(self.parse_block());
@@ -576,7 +578,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn parse_arg_list(&mut self, allow_op: bool) -> Option<Node<ArgumentList>> {
+    fn parse_arg_list(&mut self, calltype: Option<CallType>) -> Option<Node<ArgumentList>> {
         let pos = self.peek_source_pos_or_end(0);
         let mut args = Vec::new();
         if self.len() == 0 {
@@ -587,9 +589,16 @@ impl<'a> Parser<'a> {
             let comma = self.find_smart(Token::Symbol(Symbol::Comma));
             let token_idx = comma.unwrap_or(self.end_index());
             self.enter_subsection(idx, token_idx);
-            let arg = try_opt!(self.parse_arg(allow_op));
-            if args.iter().any(|x| x.ident() == arg.ident()) {
-                self.ctxt.emit_error("argument already previously defined", arg.ident_pos());
+            let arg = match calltype {
+                None => try_opt!(self.parse_arg_named(false)),
+                Some(CallType::Named) => try_opt!(self.parse_arg_named(true)),
+                Some(CallType::Ordered) => try_opt!(self.parse_arg_ordered()),
+
+            };
+            if let Some(id) = arg.ident() {
+                if args.iter().any(|x| x.ident().unwrap() == id) {
+                    self.ctxt.emit_error("argument already previously defined", arg.pos());
+                }
             }
             args.push(arg);
             self.integrate_subsection();
@@ -601,9 +610,7 @@ impl<'a> Parser<'a> {
         Some(Node(args, pos))
     }
 
-    // if def_type, expression only args are not allowed, if not then identifier only args are
-    // parsed as rhs expressions rather than the lhs
-    fn parse_arg(&mut self, allow_op: bool) -> Option<Argument> {
+    fn parse_arg_named(&mut self, allow_op: bool) -> Option<Argument> {
         let (one, two, three) = (self.next(), self.next(), self.next());
         match (one.item(), two.item(), three.item()) {
             (Some(Token::Ident(id)),
@@ -636,25 +643,20 @@ impl<'a> Parser<'a> {
         }
     }
 
+    fn parse_arg_ordered(&mut self) -> Option<Argument> {
+        let expr = try_opt!(self.parse_expression());
+        Some(Argument::Expr(expr))
+    }
+
     fn parse_function_call(&mut self, callee: Expression) -> Option<Node<FunctionCall>> {
         let pos = callee.pos();
         let (ty, brace) = match self.next_token() {
             Some(Token::Symbol(Symbol::LeftBracket(Bracket::Round))) =>
-                (CallType::Explicit, Bracket::Round),
+                (CallType::Ordered, Bracket::Round),
             Some(Token::Symbol(Symbol::LeftBracket(Bracket::Square))) =>
-                (CallType::Implicit, Bracket::Square),
-            Some(Token::Symbol(Symbol::At)) => {
-                match self.next_token() {
-                    Some(Token::Symbol(Symbol::LeftBracket(Bracket::Round))) =>
-                        (CallType::Partial, Bracket::Round),
-                    _ => {
-                        self.emit_error_here("expected `(`");
-                        return None;
-                    },
-                }
-            }
+                (CallType::Named, Bracket::Square),
             _ => {
-                self.emit_error_here("expected `(`, `[`, or `@(`");
+                self.emit_error_here("expected `(` or `[`");
                 return None;
             }
         };
@@ -667,7 +669,7 @@ impl<'a> Parser<'a> {
         }
         let idx = self.index();
         self.enter_subsection(idx, end.unwrap());
-        let args = try_opt!(self.parse_arg_list(true));
+        let args = try_opt!(self.parse_arg_list(Some(ty)));
         self.integrate_subsection();
         self.seek(1); //consume closing brace
         Some(Node(FunctionCall {

@@ -7,30 +7,31 @@ extern crate interpreter;
 
 docopt!(Args, "
 Usage:
-  synthizer <file>
+  synthizer stream <input>
+  synthizer write <input> <output> [--length=<sec>]
   synthizer --help
 
 Options:
-  -h, --help       Show this message.
-");
+  -h, --help                Show this message.
+  -l, --length=<sec>     Length of audio to render, in seconds [default: 32].
+", flag_length: f32);
 
 use interpreter::common::{Context, read_file};
-use interpreter::lexer::lex;
-use interpreter::parser::parse;
-use interpreter::typecheck::typecheck;
-use interpreter::codegen::codegen;
+use interpreter::compiler::Compiler;
+use interpreter::audio::{write_wav, play_stream};
 
 #[allow(dead_code)]
 fn main() {
     let args: Args = Args::docopt().decode().unwrap_or_else(|e| e.exit());
-    let filename = args.arg_file;
+    let filename = args.arg_input;
     let source = read_file(&filename).unwrap();
     let ctxt = Context::new(filename, source);
-    ctxt.add_intrinsics();
-
-    lex(&ctxt);
-    parse(&ctxt);
-    typecheck(&ctxt);
-    codegen(&ctxt);
-    println!("{}", *ctxt.issues.borrow());
+    let compiler = Compiler::new(&ctxt);
+    compiler.compile();
+    let ep = compiler.get_entrypoints();
+    if args.cmd_write {
+        write_wav(&ep, args.arg_output, args.flag_length);
+    } else if args.cmd_stream {
+        play_stream(&ep);
+    }
 }
