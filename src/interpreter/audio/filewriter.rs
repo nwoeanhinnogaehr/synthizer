@@ -53,7 +53,7 @@ pub fn write_wav(ep: &EntryPoints, filename: String, length: f32) {
     let mut buffer = rx.recv().unwrap();
     let mut buf_ptr = 0;
     for _ in 0..(length*spec.sample_rate as f32) as usize {
-        let sample = buffer[buf_ptr];
+        let sample = buffer[buf_ptr].max(-1.0).min(1.0);
         let amplitude = ::std::i16::MAX as f32;
         writer.write_sample((sample * amplitude) as i16).unwrap();
         buf_ptr += 1;
