@@ -13,21 +13,22 @@ use std::cell::{RefCell, Ref};
 use std::collections::VecMap;
 use std::ops::Deref;
 use std::mem;
+use std::rc::Rc;
 
 #[derive(Clone, Debug)]
-struct FnSignature<'a> {
-    ret: Option<Box<FnSignature<'a>>>,
-    args: VecMap<(Option<&'a llvm::Value>, Option<FnSignature<'a>>)>
+struct FnSignature {
+    ret: Option<Rc<RefCell<FnSignature>>>,
+    args: VecMap<(Option<usize>, Option<Rc<RefCell<FnSignature>>>)>
 }
 
 #[derive(Clone)]
 pub struct ValueWrapper<'a> {
     value: &'a llvm::Value,
-    sig: Option<FnSignature<'a>>,
+    sig: Option<Rc<RefCell<FnSignature>>>,
 }
 
 impl<'a> ValueWrapper<'a> {
-    fn new(value: &'a llvm::Value, sig: Option<FnSignature<'a>>) -> ValueWrapper<'a> {
+    fn new(value: &'a llvm::Value, sig: Option<Rc<RefCell<FnSignature>>>) -> ValueWrapper<'a> {
         ValueWrapper {
             value: value,
             sig: sig
@@ -115,7 +116,7 @@ impl<'a> CodeGenerator<'a> {
                     self.codegen_global_assignment(x, init_fn);
                 },
                 Item::FunctionDef(ref x) => {
-                    self.codegen_global_function(x);
+                    self.codegen_global_function(x, init_fn);
                 }
             }
         }
@@ -125,62 +126,95 @@ impl<'a> CodeGenerator<'a> {
 
     fn codegen_external_function(&'a self, ident: Identifier, func: &ExternalFunction) -> ValueWrapper<'a> {
         let ty = Type::Function(ident);
-        let func = self.module.add_function(func.symbol, self.type_to_llvm(ty));
+        let func = self.module.add_function(func.symbol, self.type_to_llvm(ty, false));
         let val = ValueWrapper::new(func, self.type_to_signature(ty));
         self.store_val(Node(ident, SourcePos::anon()), val.clone());
         val
     }
 
-    fn codegen_global_function(&'a self, func: &FunctionDef) -> ValueWrapper<'a> {
-        let last_block = self.builder.get_position();
-        let caller_func = llvm::Function::cast(last_block.get_parent().unwrap()).unwrap();
+    fn codegen_global_function(&'a self, func: &FunctionDef, owning_fn: &llvm::Function) -> ValueWrapper<'a> {
+        let owning_block = self.builder.get_position();
         let ident = func.ident();
         let name = self.ctxt.lookup_name(ident);
-        let synt_ty = self.types.get_symbol(ident).unwrap().val;
-        let ty = self.type_to_llvm(synt_ty);
-        let mut sig = self.type_to_signature(synt_ty).unwrap();
-        let num_args = func.args().len();
-        let mut func_args = func.args().clone();
-        func_args.sort_by(|a, b| a.ident().cmp(&b.ident()));
-        let llvm_func = self.module.add_function(&name, ty);
-        llvm_func.add_attributes(&[llvm::Attribute::NoUnwind]);
 
-        // set default args in the signature
-        for i in 0..num_args {
-            let ref arg = func_args[i];
+        let (llvm_func, func_struct, sig, func_args) = self.codegen_function_decl(func, owning_fn, &name);
 
-            let default = if let Argument::Assign(_, ref expr) = *arg {
-                let default = self.module.add_global("default_arg", llvm_func[i].get_type());
-                default.set_initializer(llvm::Value::new_undef(llvm_func[i].get_type()));
-                let default_val = self.codegen_expr(expr, caller_func);
-                self.builder.build_store(default_val.value, default);
-                (Some(default as &llvm::Value), default_val.sig)
-            } else { (None, None) };
+        let struct_ty = func_struct.get_type();
+        let g_struct = self.module.add_global(&name, struct_ty);
+        g_struct.set_initializer(llvm::Value::new_undef(struct_ty));
+        self.builder.build_store(func_struct, g_struct);
 
-            sig.args[arg.ident().unwrap()] = default;
-        }
+        self.codegen_function_body(func, func_args, llvm_func, sig, owning_block, g_struct)
+    }
 
-        self.store_val(func.ident, ValueWrapper::new(llvm_func, Some(sig.clone())));
+    fn codegen_closure(&'a self, func: &FunctionDef, owning_fn: &llvm::Function) -> ValueWrapper<'a> {
+        let owning_block = self.builder.get_position();
+        let (llvm_func, func_struct, sig, func_args) = self.codegen_function_decl(func, owning_fn, "closure");
+        self.codegen_function_body(func, func_args, llvm_func, sig, owning_block, func_struct)
+    }
+
+    fn codegen_function_body(&'a self, func: &FunctionDef, func_args: Vec<Argument>,
+                             llvm_func: &'a llvm::Function, sig: Rc<RefCell<FnSignature>>,
+                             owning_block: &llvm::BasicBlock, g_struct: &'a llvm::Value) -> ValueWrapper<'a> {
+        self.store_val(func.ident, ValueWrapper::new(g_struct, Some(sig.clone())));
 
         // setup args
         self.values.borrow_mut().push(func.ident_pos().index);
-        for i in 0..num_args {
+        for i in 0..func.args.len() {
             let ref arg = func_args[i];
             let id = arg.ident().unwrap();
             llvm_func[i].set_name(&self.ctxt.lookup_name(id));
             self.store_val(Node(id, arg.pos()),
-                           ValueWrapper::new(&llvm_func[i], sig.args[id].1.clone()));
+                           ValueWrapper::new(&llvm_func[i], sig.borrow().args[id].1.clone()));
         }
         // codegen block
         let entry = llvm_func.append("entry");
         self.builder.position_at_end(entry);
         let res = self.codegen_block(&func.block, llvm_func);
-        sig.ret = res.sig.map(|x| Box::new(x));
-        self.store_val(func.ident, ValueWrapper::new(llvm_func, Some(sig.clone())));
         self.builder.build_ret(res.value);
         self.values.borrow_mut().pop();
-        self.builder.position_at_end(last_block);
-        ValueWrapper::new(llvm_func, Some(sig))
+        self.builder.position_at_end(owning_block);
+
+        // update the signature to add in the signature of the return value
+        sig.borrow_mut().ret = res.sig.clone();
+        self.store_val(func.ident, ValueWrapper::new(g_struct, Some(sig.clone())));
+
+        ValueWrapper::new(g_struct, Some(sig))
+    }
+
+    fn codegen_function_decl(&'a self, func: &FunctionDef, owning_fn: &llvm::Function, name: &str) ->
+            (&llvm::Function, &llvm::Value, Rc<RefCell<FnSignature>>, Vec<Argument>) {
+        let ident = func.ident();
+        let synt_ty = self.types.get_symbol(ident).unwrap().val;
+        let ty = self.type_to_llvm(synt_ty, false);
+        let sig = self.type_to_signature(synt_ty).unwrap();
+        let num_args = func.args().len();
+        let mut func_args = func.args().clone();
+        func_args.sort_by(|a, b| a.ident().cmp(&b.ident()));
+        let llvm_func = self.module.add_function(name, ty);
+        llvm_func.add_attributes(&[llvm::Attribute::NoUnwind]);
+
+        let mut fn_struct_values: Vec<&llvm::Value> = Vec::new();
+        fn_struct_values.push(llvm_func);
+
+        // catalog default args and set their signatures
+        let mut default_idx = 0;
+        for i in 0..num_args {
+            let ref arg = func_args[i];
+
+            let default = if let Argument::Assign(_, ref expr) = *arg {
+                let default_val = self.codegen_expr(expr, owning_fn);
+                fn_struct_values.push(default_val.value);
+                default_idx += 1;
+                Some(default_idx)
+            } else {
+                None
+            };
+
+            sig.borrow_mut().args[arg.ident().unwrap()].0 = default;
+        }
+        let func_struct = llvm::Value::new_struct(self.llvm, &fn_struct_values, true);
+        (llvm_func, func_struct, sig, func_args)
     }
 
     fn codegen_global_assignment(&'a self, assign: &Assignment, func: &llvm::Function) {
@@ -213,15 +247,29 @@ impl<'a> CodeGenerator<'a> {
             Expression::Variable(ref v) => self.codegen_var(*v, func),
             Expression::Conditional(ref v) => self.codegen_conditional(v, func),
             Expression::Block(ref v) => self.codegen_block(v, func),
-            Expression::Closure(ref v) => self.codegen_global_function(v),
+            Expression::Closure(ref v) => self.codegen_closure(v, func),
             Expression::FunctionCall(ref v) => self.codegen_function_call(v, func),
         }
     }
 
+    fn codegen_struct_load(&self, val: &llvm::Value, index: usize) -> &llvm::Value {
+        if val.get_type().is_pointer() {
+            let ptr = self.builder.build_gep(val,
+                                             &[0.compile(self.llvm),
+                                               (index as i32).compile(self.llvm)]);
+            self.builder.build_load(ptr)
+        } else {
+            self.builder.build_extract_value(val, index)
+        }
+    }
+
     fn codegen_function_call(&'a self, call: &FunctionCall, func: &llvm::Function) -> ValueWrapper<'a> {
-        let callee_val = self.codegen_expr(call.callee(), func);
-        let callee = llvm::Function::cast(*callee_val).unwrap();
-        let sig = callee_val.sig.unwrap();
+        let callee_expr = self.codegen_expr(call.callee(), func);
+        let callee = match llvm::Function::cast(callee_expr.value) {
+            Some(callee) => callee,
+            None => llvm::Function::cast(self.codegen_struct_load(callee_expr.value, 0)).unwrap(),
+        };
+        let sig = callee_expr.sig.as_ref().unwrap().borrow();
         let mut call_args = VecMap::new();
         match call.ty {
             CallType::Named => {
@@ -254,7 +302,7 @@ impl<'a> CodeGenerator<'a> {
                         }
                     }
                     if !found {
-                        call_args.insert(id, self.builder.build_load(default.unwrap()));
+                        call_args.insert(id, self.codegen_struct_load(callee_expr.value, default.unwrap()));
                     }
                 }
             },
@@ -269,13 +317,13 @@ impl<'a> CodeGenerator<'a> {
                     }
                 }
                 for (id, &(default, _)) in sig_args {
-                    call_args.insert(id, self.builder.build_load(default.unwrap()));
+                    call_args.insert(id, self.codegen_struct_load(callee_expr.value, default.unwrap()));
                 }
             }
         }
 
         let arg_vec: Vec<_> = call_args.values().map(|x| *x).collect();
-        ValueWrapper::new(self.builder.build_call(callee, &arg_vec), sig.ret.map(|x| *x))
+        ValueWrapper::new(self.builder.build_call(callee, &arg_vec), sig.ret.clone())
     }
 
     fn codegen_block(&'a self, block: &Node<Block>, func: &llvm::Function) -> ValueWrapper<'a> {
@@ -311,7 +359,9 @@ impl<'a> CodeGenerator<'a> {
 
         };
         ValueWrapper::new(
-            if llvm::GlobalValue::cast(value).is_some() && llvm::Function::cast(value).is_none() {
+            if llvm::GlobalValue::cast(value).is_some() &&
+               llvm::Function::cast(value).is_none() { // it will only be a function if it's an intrinsic,
+                                                       // which we can't load.
                 self.builder.build_load(value)
             } else {
                 value
@@ -385,7 +435,7 @@ impl<'a> CodeGenerator<'a> {
         })
     }
 
-    fn make_fn_ptr<'c>(&'c self, ty: &'c llvm::Type) -> &llvm::Type {
+    fn maybe_make_fn_ptr<'c>(&'c self, ty: &'c llvm::Type) -> &llvm::Type {
         if ty.is_function() {
             llvm::Type::new_pointer(ty)
         } else {
@@ -393,26 +443,33 @@ impl<'a> CodeGenerator<'a> {
         }
     }
 
-    fn type_to_signature(&self, ty: Type) -> Option<FnSignature> {
+    fn type_to_signature(&self, ty: Type) -> Option<Rc<RefCell<FnSignature>>> {
         match ty {
             Type::Number => None,
             Type::Boolean => None,
             Type::Function(id) => {
                 let func = self.functions.get(id).unwrap();
                 let ty = func.ty().unwrap();
-                let args = ty.args.iter().map(|(id, &ty)|
-                    (id, (None, self.type_to_signature(ty)))).collect();
+                let mut default_count = 0;
+                let args = ty.args.iter().zip(func.args().iter()).map(|((id, &ty), arg)| {
+                    if arg.expr().is_some() {
+                        default_count += 1;
+                        (id, (Some(default_count), self.type_to_signature(ty)))
+                    } else {
+                        (id, (None, self.type_to_signature(ty)))
+                    }
+                }).collect();
                 let ret = self.type_to_signature(ty.returns);
-                Some(FnSignature {
-                    ret: ret.map(|x| Box::new(x)),
+                Some(Rc::new(RefCell::new(FnSignature {
+                    ret: ret,
                     args: args,
-                })
+                })))
             }
             _ => unreachable!(),
         }
     }
 
-    fn type_to_llvm(&self, ty: Type) -> &llvm::Type {
+    fn type_to_llvm(&self, ty: Type, make_fn_struct: bool) -> &llvm::Type {
         match ty {
             Type::Number => llvm::Type::get::<Number>(self.llvm),
             Type::Boolean => llvm::Type::get::<Boolean>(self.llvm),
@@ -420,10 +477,23 @@ impl<'a> CodeGenerator<'a> {
                 let func = self.functions.get(id).unwrap();
                 let ty = func.ty().unwrap();
                 let arg_map: VecMap<&llvm::Type> = ty.args.iter().map(|(id, &ty)|
-                    (id, self.make_fn_ptr(self.type_to_llvm(ty)))).collect();
+                    (id, self.maybe_make_fn_ptr(self.type_to_llvm(ty, true)))).collect();
                 let args: Vec<&llvm::Type> = arg_map.values().map(|x| *x).collect();
-                let ret = self.make_fn_ptr(self.type_to_llvm(ty.returns));
-                llvm::Type::new_function(ret, &args)
+                let ret = self.maybe_make_fn_ptr(self.type_to_llvm(ty.returns, true));
+                let func_ty = llvm::Type::new_function(ret, &args);
+                if make_fn_struct {
+                    let mut struct_types: Vec<&llvm::Type> = vec![llvm::Type::new_pointer(func_ty)];
+                    for (ty, arg) in args.iter().zip(func.args().iter()) {
+                        match *arg {
+                            Argument::Assign(..) => struct_types.push(ty),
+                            _ => { },
+                        }
+                    }
+                    let struct_ty = llvm::StructType::new(self.llvm, &struct_types, true);
+                    struct_ty
+                } else {
+                    func_ty
+                }
             }
             _ => unreachable!(),
         }

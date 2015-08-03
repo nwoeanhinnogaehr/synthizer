@@ -117,6 +117,14 @@ impl Argument {
             Argument::Expr(ref e) => e.pos()
         }
     }
+    pub fn expr(&self) -> Option<&Expression> {
+        match *self {
+            Argument::Ident(_) => None,
+            Argument::Assign(_, ref expr) |
+            Argument::Expr(ref expr) |
+            Argument::OpAssign(_, _, ref expr) => Some(expr),
+        }
+    }
 }
 
 pub type ArgumentList = Vec<Argument>;

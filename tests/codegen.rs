@@ -193,16 +193,6 @@ fn closure_default_args() {
 }
 
 #[test]
-fn return_closure() {
-    run_test!(
-        should_pass(lex, parse, typecheck, codegen)
-        => r"
-            foo { \y{y*2} }
-            a = foo()(2);
-        ");
-}
-
-#[test]
 fn unused_function() {
     run_test!(
         should_pass(lex, parse, typecheck, codegen)
@@ -213,6 +203,7 @@ fn unused_function() {
         ");
 }
 
+// not passing because the testing macro doesn't define any intrinsics
 #[test]
 fn intrinsics() {
     run_test!(
@@ -248,6 +239,87 @@ fn return_closure_capture() {
             }
             y = fn(5);
             z = fn(6);
-            x = y() + z(); //x = 22, but should be 21.
+            x = y() + z(); // x == 21
+        ");
+}
+
+// it's currently unclear whether this is okay or not.
+// if it's an easy fix it'll work soon.
+#[test]
+fn use_funtion_before_def() {
+    run_test!(
+        should_pass(lex, parse, typecheck, codegen)
+        => r"
+            fn1 {
+                fn2()
+            }
+            fn2 {
+                42
+            }
+            x = fn1();
+        ");
+}
+
+#[test]
+fn pass_function() {
+    run_test!(
+        should_pass(lex, parse, typecheck, codegen)
+        => r"
+            fiver fn {
+                fn(5)
+            }
+
+            square x {
+                x*x
+            }
+
+            x = fiver(square);
+        ");
+}
+
+#[test]
+fn pass_closure() {
+    run_test!(
+        should_pass(lex, parse, typecheck, codegen)
+        => r"
+            fiver fn {
+                fn(5)
+            }
+
+            x = fiver(\x { x*x });
+        ");
+}
+
+#[test]
+fn return_function() {
+    run_test!(
+        should_pass(lex, parse, typecheck, codegen)
+        => r"
+            passthru x {
+                x
+            }
+
+            squarer {
+                \x { x*x }
+            }
+
+            square = passthru(squarer());
+            x = square(5);
+            y = square(6);
+        ");
+}
+
+#[test]
+fn return_closure() {
+    run_test!(
+        should_pass(lex, parse, typecheck, codegen)
+        => r"
+            squarer {
+                \x { x*x }
+            }
+
+            square = squarer();
+            x = square(5);
+            y = square(6);
         ");
 }
