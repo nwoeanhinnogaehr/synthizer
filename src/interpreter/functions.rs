@@ -36,6 +36,13 @@ impl Function {
             Function::External(ref def) => { Some(&def.ty) }
         }
     }
+    pub fn set_ty(&mut self, ty: FunctionType) {
+        match *self {
+            Function::User(ref mut def) => { def.ty = Some(ty) }
+            Function::Builtin(ref mut def) => { def.ty = ty }
+            Function::External(ref mut def) => { def.ty = ty }
+        }
+    }
 }
 
 #[derive(Debug, Clone)]

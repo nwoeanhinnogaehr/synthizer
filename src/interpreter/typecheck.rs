@@ -85,6 +85,12 @@ impl<'a> TypeChecker<'a> {
         }
         let ty = Type::Function(def.ident());
         self.types.set_val(def.ident(), 0, ty);
+        if let Some(fn_ty) = self.ctxt.entrypoints.borrow().get(&def.ident()) {
+            match self.typeof_predeclared_function(def, fn_ty) {
+                None => return None,
+                Some(_) => { }
+            }
+        }
         Some(ty)
     }
 
@@ -100,6 +106,49 @@ impl<'a> TypeChecker<'a> {
             Expression::FunctionCall(ref c) => self.typeof_function_call(c),
             Expression::Closure(ref c) => self.typeof_function_def(c),
         }
+    }
+
+    pub fn typeof_predeclared_function(&mut self, def: &Node<FunctionDef>, fn_ty: &FunctionType) -> Option<Type> {
+        // check to make sure the identifiers of the args match, and that there's no defaults
+        // set the types of all the args, and check the type of the block.
+        let name = self.ctxt.lookup_name(def.ident());
+        let mut args_match = true;
+        for (id, pos) in def.args().iter().map(|x| (x.ident().unwrap(), Some(x.pos())))
+                         .chain(fn_ty.args.keys().map(|x| (x, None))) {
+            let arg_name = self.ctxt.lookup_name(id);
+            if !def.args().iter().any(|x| x.ident().unwrap() == id) {
+                self.ctxt.emit_error(format!("expected argument `{}` for entrypoint `{}`", arg_name, name),
+                                     def.args_pos());
+                args_match = false;
+            }
+            if !fn_ty.args.contains_key(&id) {
+                self.ctxt.emit_error(format!("unexpected argument `{}` for entrypoint `{}`", arg_name, name),
+                                     pos.unwrap());
+                args_match = false;
+            }
+        }
+        if !args_match {
+            return None;
+        }
+        let type_def = self.types.get_symbol(def.ident()).unwrap().clone();
+        self.types.push_scope(&type_def.scope.scope);
+        for ((id, ty), ref arg) in fn_ty.args.iter().zip(def.args().iter()) {
+            self.types.set_val(id, arg.pos().index, *ty);
+            if let Type::Function(func_id) = *ty {
+                self.types.set_val(func_id, arg.pos().index, Type::Function(func_id));
+            }
+        }
+        let ty = self.typeof_block(&def.block);
+        self.types.pop();
+        let return_ty = match ty {
+            Some(ty) => Some(ty),
+            None => {
+                self.ctxt.emit_error("could not determine return type of function", def.pos());
+                return None;
+            }
+        };
+        self.ctxt.functions.borrow_mut().get_mut(def.ident()).unwrap().set_ty(fn_ty.clone());
+        return_ty
     }
 
     pub fn typeof_function_call(&mut self, call: &Node<FunctionCall>) -> Option<Type> {
@@ -176,7 +225,6 @@ impl<'a> TypeChecker<'a> {
         if recursive {
             return Some(Type::Indeterminate);
         }
-        self.ctxt.callstack.borrow_mut().push(func_id);
 
         // determine the type of the arguments
         for &(ref arg, is_default) in &def_args {
@@ -221,6 +269,8 @@ impl<'a> TypeChecker<'a> {
                 self.types.pop();
             }
         }
+
+        self.ctxt.callstack.borrow_mut().push(func_id);
 
         let return_ty = match func {
             functions::Function::User(ref def) => {
@@ -268,14 +318,7 @@ impl<'a> TypeChecker<'a> {
                 return None;
             }
         }
-        let mut func = func;
-        match func {
-            functions::Function::User(ref mut def) => {
-                def.ty = Some(calcd_type);
-            },
-            _ => { }
-        };
-        self.ctxt.functions.borrow_mut().insert(func_id, func);
+        self.ctxt.functions.borrow_mut().get_mut(func_id).unwrap().set_ty(calcd_type);
         Some(return_ty)
     }
 

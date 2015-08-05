@@ -1,12 +1,13 @@
 use super::issue::{IssueTracker, Level};
 use super::tokens::{Token, SourcePos, Node};
 use super::ast::Root;
-use super::types::TypeTable;
+use super::types::{TypeTable, FunctionType};
 use super::ident::{Identifier, NameTable};
 use super::functions::{FunctionTable, CallStack};
 
 use std::cell::RefCell;
 use std::borrow::Cow;
+use std::collections::VecMap;
 
 use llvm;
 use cbox::CBox;
@@ -21,6 +22,7 @@ pub struct Context<'a> {
     pub tokens: RefCell<Vec<Node<Token>>>,
     pub ast: RefCell<Root>,
     pub callstack: RefCell<CallStack>,
+    pub entrypoints: RefCell<VecMap<FunctionType>>,
     pub llvm: CBox<llvm::Context>,
 }
 
@@ -36,6 +38,7 @@ impl<'a> Context<'a> {
             tokens: RefCell::new(Vec::new()),
             ast: RefCell::new(Vec::new()),
             callstack: RefCell::new(CallStack::new()),
+            entrypoints: RefCell::new(VecMap::new()),
             llvm: llvm::Context::new(),
         }
     }

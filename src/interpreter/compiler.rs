@@ -36,12 +36,11 @@ impl<'a> Compiler<'a> {
     }
 
     pub fn compile(&self) -> bool {
-        self.add_intrinsics();
-        self.define_entrypoints();
-
         // front end
+        self.add_intrinsics();
         lex(self.ctxt);
         parse(self.ctxt);
+        self.define_entrypoints();
         typecheck(self.ctxt);
         println!("{}", *self.ctxt.issues.borrow());
         if self.ctxt.issues.borrow().has_errors() {
@@ -101,7 +100,15 @@ impl<'a> Compiler<'a> {
     }
 
     fn define_entrypoints(&self) {
-
+        let main_id = self.ctxt.names.borrow_mut().new_id("main");
+        let time_id = self.ctxt.names.borrow_mut().new_id("time");
+        let mut arg_map = VecMap::new();
+        arg_map.insert(time_id, Type::Number);
+        let main_ty = FunctionType {
+            returns: Type::Number,
+            args: arg_map.clone()
+        };
+        self.ctxt.entrypoints.borrow_mut().insert(main_id, main_ty);
     }
 
     unsafe fn get_fn<A, R>(&self, name: &'static str) -> Option<extern fn(A) -> R> {
