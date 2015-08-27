@@ -6,14 +6,18 @@ authors = ["Noah Weninger"]
 
 [dependencies]
 rustc-serialize = "*"
-docopt = "*"
-docopt_macros = "*"
 regex = "*"
 regex_macros = "*"
 cbox = "*"
 bit-set = "*"
 sound_stream = "*"
 hound = "*"
+vec_map = "*"
+
+[dependencies.docopt]
+git = "https://github.com/docopt/docopt.rs"
+[dependencies.docopt_macros]
+git = "https://github.com/docopt/docopt.rs"
 
 [dependencies.llvm-alt]
 path = "../llvm-rs"

@@ -26,12 +26,17 @@ fn main() {
     let filename = args.arg_input;
     let source = read_file(&filename).unwrap();
     let ctxt = Context::new(filename, source);
-    let compiler = Compiler::new(&ctxt);
-    compiler.compile();
-    let ep = compiler.get_entrypoints();
-    if args.cmd_write {
-        write_wav(&ep, args.arg_output, args.flag_length);
-    } else if args.cmd_stream {
-        play_stream(&ep);
+    let mut compiler = Compiler::new(&ctxt);
+    match compiler.compile() {
+        Ok(issues) => {
+            println!("{}", issues);
+            let ep = compiler.get_entrypoints();
+            if args.cmd_write {
+                write_wav(&ep, args.arg_output, args.flag_length);
+            } else if args.cmd_stream {
+                play_stream(&ep);
+            }
+        },
+        Err(issues) => println!("Compile Error!\n{}", issues),
     }
 }

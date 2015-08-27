@@ -3,7 +3,7 @@ use super::ident::Identifier;
 use std::fmt;
 use std::ops::Deref;
 
-pub type Number = f32;
+pub type Number = f64;
 pub type Boolean = bool;
 
 /// The various types that a token can be

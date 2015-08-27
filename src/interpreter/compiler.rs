@@ -6,9 +6,9 @@ use super::typecheck::typecheck;
 use super::tokens::Number;
 use super::types::{Type, FunctionType};
 use super::functions::{ExternalFunction, Function};
+use super::issue::IssueTracker;
 
-use std::collections::VecMap;
-use std::cell::RefCell;
+use vec_map::VecMap;
 use llvm;
 use llvm::ExecutionEngine;
 use std::mem;
@@ -22,43 +22,79 @@ pub struct EntryPoints<'a> {
 
 pub struct Compiler<'a> {
     ctxt: &'a Context<'a>,
-    codegen: RefCell<Option<CodeGenerator<'a>>>,
-    engine: RefCell<Option<llvm::JitEngine<'a>>>,
+    codegen: Option<CodeGenerator<'a>>,
+    engine: Option<llvm::JitEngine<'a>>,
+    stage: Stage,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum Stage {
+    Lex,
+    Parse,
+    Typecheck,
+    Codegen,
+    Complete
 }
 
 impl<'a> Compiler<'a> {
     pub fn new(ctxt: &'a Context<'a>) -> Compiler<'a> {
         Compiler {
             ctxt: ctxt,
-            codegen: RefCell::new(None),
-            engine: RefCell::new(None),
+            codegen: None,
+            engine: None,
+            stage: Stage::Lex,
         }
     }
 
-    pub fn compile(&self) -> bool {
+    pub fn compile(&mut self) -> Result<IssueTracker<'a>, IssueTracker<'a>> {
         // front end
-        self.add_intrinsics();
-        lex(self.ctxt);
-        parse(self.ctxt);
+        self.define_intrinsics();
         self.define_entrypoints();
-        typecheck(self.ctxt);
-        println!("{}", *self.ctxt.issues.borrow());
-        if self.ctxt.issues.borrow().has_errors() {
-            return false;
+        if !self.lex() {
+            return Err(self.ctxt.issues.borrow().clone());
         }
+        if !self.parse() {
+            return Err(self.ctxt.issues.borrow().clone());
+        }
+        if !self.typecheck() {
+            return Err(self.ctxt.issues.borrow().clone());
+        }
+        if !self.codegen() {
+            return Err(self.ctxt.issues.borrow().clone());
+        }
+        Ok(self.ctxt.issues.borrow().clone())
+    }
 
-        // XXX backend
+    pub fn lex(&mut self) -> bool {
+        assert_eq!(self.stage, Stage::Lex);
+        self.stage = Stage::Parse;
+        lex(self.ctxt);
+        return !self.ctxt.issues.borrow().has_errors();
+    }
+    pub fn parse(&mut self) -> bool {
+        assert_eq!(self.stage, Stage::Parse);
+        self.stage = Stage::Typecheck;
+        parse(self.ctxt);
+        return !self.ctxt.issues.borrow().has_errors();
+    }
+    pub fn typecheck(&mut self) -> bool {
+        assert_eq!(self.stage, Stage::Typecheck);
+        self.stage = Stage::Codegen;
+        typecheck(self.ctxt);
+        return !self.ctxt.issues.borrow().has_errors();
+    }
+    pub fn codegen(&mut self) -> bool {
+        assert_eq!(self.stage, Stage::Codegen);
+        self.stage = Stage::Complete;
         let cg = CodeGenerator::new(self.ctxt);
         let cg_ptr: &'a CodeGenerator<'a> = unsafe { mem::transmute(&cg) };
         cg_ptr.codegen();
-        let mut engine = self.engine.borrow_mut();
-        *engine = Some(llvm::JitEngine::new(&cg_ptr.module, llvm::JitOptions { opt_level: 3 }).unwrap());
-        let mut codegen = self.codegen.borrow_mut();
-        *codegen = Some(cg);
-        true
+        self.engine = Some(llvm::JitEngine::new(&cg_ptr.module, llvm::JitOptions { opt_level: 3 }).unwrap());
+        self.codegen = Some(cg);
+        return !self.ctxt.issues.borrow().has_errors();
     }
 
-    pub fn add_external_function(&self, name: &'static str, symbol: &'static str, ty: &FunctionType) {
+    pub fn define_external_function(&self, name: &'static str, symbol: &'static str, ty: &FunctionType) {
         let id = self.ctxt.names.borrow_mut().new_id(name);
         let func = Function::External(ExternalFunction::new(symbol, ty.clone()));
         let ty = Type::Function(id);
@@ -66,7 +102,7 @@ impl<'a> Compiler<'a> {
         self.ctxt.types.borrow_mut().set_val(id, 0, ty);
     }
 
-    fn add_intrinsics(&self) {
+    pub fn define_intrinsics(&self) {
         let x_id = self.ctxt.names.borrow_mut().new_id("x");
         let y_id = self.ctxt.names.borrow_mut().new_id("y");
         let mut arg_map = VecMap::new();
@@ -80,26 +116,27 @@ impl<'a> Compiler<'a> {
             returns: Type::Number,
             args: arg_map.clone()
         };
-        self.add_external_function("sin", "llvm.sin.f32", num_num_ty);
-        self.add_external_function("cos", "llvm.cos.f32", num_num_ty);
-        self.add_external_function("log", "llvm.log.f32", num_num_ty);
-        self.add_external_function("log10", "llvm.log10.f32", num_num_ty);
-        self.add_external_function("log2", "llvm.log2.f32", num_num_ty);
-        self.add_external_function("exp", "llvm.exp.f32", num_num_ty);
-        self.add_external_function("exp2", "llvm.exp2.f32", num_num_ty);
-        self.add_external_function("sqrt", "llvm.sqrt.f32", num_num_ty);
-        self.add_external_function("abs", "llvm.fabs.f32", num_num_ty);
-        self.add_external_function("floor", "llvm.floor.f32", num_num_ty);
-        self.add_external_function("ceil", "llvm.ceil.f32", num_num_ty);
-        self.add_external_function("trunc", "llvm.trunc.f32", num_num_ty);
-        self.add_external_function("round", "llvm.round.f32", num_num_ty);
 
-        self.add_external_function("pow", "llvm.pow.f32", num_2num_ty);
-        self.add_external_function("min", "llvm.minnum.f32", num_2num_ty);
-        self.add_external_function("max", "llvm.maxnum.f32", num_2num_ty);
+        self.define_external_function("sin", "llvm.sin.f64", num_num_ty);
+        self.define_external_function("cos", "llvm.cos.f64", num_num_ty);
+        self.define_external_function("log", "llvm.log.f64", num_num_ty);
+        self.define_external_function("log10", "llvm.log10.f64", num_num_ty);
+        self.define_external_function("log2", "llvm.log2.f64", num_num_ty);
+        self.define_external_function("exp", "llvm.exp.f64", num_num_ty);
+        self.define_external_function("exp2", "llvm.exp2.f64", num_num_ty);
+        self.define_external_function("sqrt", "llvm.sqrt.f64", num_num_ty);
+        self.define_external_function("abs", "llvm.fabs.f64", num_num_ty);
+        self.define_external_function("floor", "llvm.floor.f64", num_num_ty);
+        self.define_external_function("ceil", "llvm.ceil.f64", num_num_ty);
+        self.define_external_function("trunc", "llvm.trunc.f64", num_num_ty);
+        self.define_external_function("round", "llvm.round.f64", num_num_ty);
+
+        self.define_external_function("pow", "llvm.pow.f64", num_2num_ty);
+        self.define_external_function("min", "llvm.minnum.f64", num_2num_ty);
+        self.define_external_function("max", "llvm.maxnum.f64", num_2num_ty);
     }
 
-    fn define_entrypoints(&self) {
+    pub fn define_entrypoints(&self) {
         let main_id = self.ctxt.names.borrow_mut().new_id("main");
         let time_id = self.ctxt.names.borrow_mut().new_id("time");
         let mut arg_map = VecMap::new();
@@ -112,9 +149,9 @@ impl<'a> Compiler<'a> {
     }
 
     unsafe fn get_fn<A, R>(&self, name: &'static str) -> Option<extern fn(A) -> R> {
-        match self.codegen.borrow().as_ref().unwrap().module.get_function(name) {
+        match self.codegen.as_ref().unwrap().module.get_function(name) {
             Some(f) => {
-                Some(self.engine.borrow().as_ref().unwrap().get_function(f))
+                Some(self.engine.as_ref().unwrap().get_function(f))
             },
             None => None,
         }

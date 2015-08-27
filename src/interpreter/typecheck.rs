@@ -6,7 +6,7 @@ use super::ident::Identifier;
 use super::functions;
 
 use std::cell::RefMut;
-use std::collections::VecMap;
+use vec_map::VecMap;
 
 pub fn typecheck<'a>(ctxt: &'a Context<'a>) {
     let mut t = TypeChecker::new(ctxt);

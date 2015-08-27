@@ -7,6 +7,7 @@ extern crate cbox;
 extern crate bit_set;
 extern crate sound_stream;
 extern crate hound;
+extern crate vec_map;
 
 pub mod common;
 pub mod ident;

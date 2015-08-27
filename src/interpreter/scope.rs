@@ -1,6 +1,7 @@
 use super::ident::Identifier;
 
-use std::collections::{HashMap, VecMap};
+use std::collections::{HashMap};
+use vec_map::VecMap;
 
 /// Represents a single scope, translates to source code locations.
 pub type ScopeId = usize;

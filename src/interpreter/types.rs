@@ -1,7 +1,7 @@
 use super::ident::Identifier;
 use super::scope::ScopedTable;
 
-use std::collections::VecMap;
+use vec_map::VecMap;
 use std::fmt;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -27,7 +27,7 @@ impl fmt::Display for Type {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct FunctionType {
     pub args: VecMap<Type>, // From Identifier to Type
     pub returns: Type,

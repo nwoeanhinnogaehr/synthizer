@@ -1,4 +1,6 @@
 use super::super::compiler::EntryPoints;
+use super::super::tokens::Number;
+
 use hound;
 use std::thread;
 use std::sync::mpsc::sync_channel;
@@ -33,8 +35,8 @@ pub fn write_wav(ep: &EntryPoints, filename: String, length: f32) {
                 for (chunk_id, chunk) in buffer.chunks_mut(CHUNK_SIZE).enumerate() {
                     threads.push(thread::spawn(move || {
                         for i in 0..CHUNK_SIZE {
-                            let time = (buf_id*BUF_SIZE + chunk_id*CHUNK_SIZE + i) as f32 / spec.sample_rate as f32;
-                            chunk[i] = main_fn(time);
+                            let time = (buf_id*BUF_SIZE + chunk_id*CHUNK_SIZE + i) as Number / spec.sample_rate as Number;
+                            chunk[i] = main_fn(time) as f32;
                         }
                     }));
                 }

@@ -1,4 +1,5 @@
 use super::super::compiler::EntryPoints;
+use super::super::tokens::Number;
 
 use sound_stream::{CallbackFlags, CallbackResult, SoundStream, Settings, StreamParams};
 use std::thread;
@@ -29,8 +30,8 @@ pub fn play_stream(ep: &EntryPoints) {
                 for (chunk_id, chunk) in buffer.chunks_mut(CHUNK_SIZE).enumerate() {
                     threads.push(thread::spawn(move || {
                         for i in 0..CHUNK_SIZE {
-                            let time = (buf_id*BUF_SIZE + chunk_id*CHUNK_SIZE + i) as f32 / 44100.0;
-                            chunk[i] = main_fn(time);
+                            let time = (buf_id*BUF_SIZE + chunk_id*CHUNK_SIZE + i) as Number / 44100.0;
+                            chunk[i] = main_fn(time) as f32;
                         }
                     }));
                 }

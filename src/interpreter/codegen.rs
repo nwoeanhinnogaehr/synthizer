@@ -10,7 +10,7 @@ use llvm;
 use llvm::{Compile, ExecutionEngine, CastFrom};
 use cbox::*;
 use std::cell::{RefCell, Ref};
-use std::collections::VecMap;
+use vec_map::VecMap;
 use std::ops::Deref;
 use std::mem;
 use std::rc::Rc;
@@ -110,13 +110,23 @@ impl<'a> CodeGenerator<'a> {
         let block = init_fn.append("entry");
         self.builder.position_at_end(block);
 
+        let mut decls = Vec::new();
+        for item in root.iter().rev() {
+            match *item {
+                Item::FunctionDef(ref func) => {
+                    decls.push(self.declare_global_function(func, init_fn));
+                }
+                _ => { },
+            }
+        }
+
         for item in root {
             match *item {
                 Item::Assignment(ref x) => {
                     self.codegen_global_assignment(x, init_fn);
                 },
                 Item::FunctionDef(ref x) => {
-                    self.codegen_global_function(x, init_fn);
+                    self.codegen_global_function(x, init_fn, decls.pop().unwrap());
                 }
             }
         }
@@ -132,8 +142,7 @@ impl<'a> CodeGenerator<'a> {
         val
     }
 
-    fn codegen_global_function(&'a self, func: &FunctionDef, owning_fn: &llvm::Function) -> ValueWrapper<'a> {
-        let owning_block = self.builder.get_position();
+    fn declare_global_function(&'a self, func: &FunctionDef, owning_fn: &llvm::Function) -> (Vec<Argument>, &'a llvm::Function, Rc<RefCell<FnSignature>>, &'a llvm::Value) {
         let ident = func.ident();
         let name = self.ctxt.lookup_name(ident);
 
@@ -143,7 +152,19 @@ impl<'a> CodeGenerator<'a> {
         let g_struct = self.module.add_global(&name, struct_ty);
         g_struct.set_initializer(llvm::Value::new_undef(struct_ty));
         self.builder.build_store(func_struct, g_struct);
+        self.store_val(func.ident, ValueWrapper::new(g_struct, Some(sig.clone())));
 
+        (func_args, llvm_func, sig, g_struct)
+    }
+
+
+    fn codegen_global_function(&'a self, func: &FunctionDef, owning_fn: &llvm::Function,
+                               decl: (Vec<Argument>, &'a llvm::Function, Rc<RefCell<FnSignature>>, &'a llvm::Value)) -> ValueWrapper<'a> {
+        let owning_block = self.builder.get_position();
+        let ident = func.ident();
+        let name = self.ctxt.lookup_name(ident);
+
+        let (func_args, llvm_func, sig, g_struct) = decl;
         self.codegen_function_body(func, func_args, llvm_func, sig, owning_block, g_struct)
     }
 
@@ -156,8 +177,6 @@ impl<'a> CodeGenerator<'a> {
     fn codegen_function_body(&'a self, func: &FunctionDef, func_args: Vec<Argument>,
                              llvm_func: &'a llvm::Function, sig: Rc<RefCell<FnSignature>>,
                              owning_block: &llvm::BasicBlock, g_struct: &'a llvm::Value) -> ValueWrapper<'a> {
-        self.store_val(func.ident, ValueWrapper::new(g_struct, Some(sig.clone())));
-
         // setup args
         self.values.borrow_mut().push(func.ident_pos().index);
         for i in 0..func.args.len() {
@@ -419,7 +438,7 @@ impl<'a> CodeGenerator<'a> {
             Operator::Xor => self.builder.build_xor(lhs, rhs),
             Operator::Mod => self.builder.build_rem(lhs, rhs),
             Operator::Exp => {
-                let pow_fn = self.module.get_function("llvm.pow.f32").unwrap();
+                let pow_fn = self.module.get_function("llvm.pow.f64").unwrap();
                 self.builder.build_call(pow_fn, &[lhs, rhs])
             }
             _ => unreachable!(),
@@ -429,7 +448,7 @@ impl<'a> CodeGenerator<'a> {
     fn codegen_prefix(&'a self, prefix: &Prefix, func: &llvm::Function) -> ValueWrapper<'a> {
         let expr = self.codegen_expr(prefix.expr(), func);
         expr.map(match prefix.op() {
-            Operator::Sub => self.builder.build_sub(0f32.compile(self.llvm), *expr),
+            Operator::Sub => self.builder.build_sub(0f64.compile(self.llvm), *expr),
             Operator::Not => self.builder.build_not(*expr),
             _ => unreachable!(),
         })

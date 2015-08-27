@@ -4,13 +4,13 @@ use super::common::Context;
 use std::fmt;
 use std::borrow::Cow;
 
-#[derive(Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Level {
     Error,
     Warning,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Issue<'a> {
     pub source: &'a str,
     pub filename: &'a str,
@@ -50,7 +50,7 @@ impl<'a> fmt::Display for Issue<'a> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct IssueTracker<'a> {
     issues: Vec<Issue<'a>>,
 }

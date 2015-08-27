@@ -7,7 +7,7 @@ use super::functions::{FunctionTable, CallStack};
 
 use std::cell::RefCell;
 use std::borrow::Cow;
-use std::collections::VecMap;
+use vec_map::VecMap;
 
 use llvm;
 use cbox::CBox;

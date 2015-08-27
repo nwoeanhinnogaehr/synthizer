@@ -3,7 +3,7 @@ use super::types::{FunctionType};
 use super::ident::Identifier;
 use super::tokens::{Node, SourcePos};
 
-use std::collections::VecMap;
+use vec_map::VecMap;
 use std::ops::Deref;
 use bit_set::BitSet;
 
