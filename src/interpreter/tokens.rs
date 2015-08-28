@@ -258,7 +258,7 @@ pub trait NodeImpl<'a> {
     fn pos(&'a self) -> <Self as NodeImpl>::Pos;
 }
 
-impl<'a, T> NodeImpl<'a> for Node<T> {
+impl<'a, T: 'a> NodeImpl<'a> for Node<T> {
     type Item =  &'a T;
     type Pos = SourcePos;
     fn item(&'a self) -> &'a T {

@@ -6,10 +6,7 @@ macro_rules! run_test {
     ( $( $prop:ident ( $( $val:ident ),* ) ),*
       => $source:expr ) => {{
         use ::interpreter::common::Context;
-        use ::interpreter::parser::parse;
-        use ::interpreter::lexer::lex;
-        use ::interpreter::typecheck::typecheck;
-        use ::interpreter::codegen::codegen;
+        use ::interpreter::compiler::Compiler;
 
         use std::collections::HashSet;
 
@@ -30,9 +27,11 @@ macro_rules! run_test {
             )*
         )*
         let ctxt = Context::new("<test>".into(), $source.into());
+        let mut compiler = Compiler::new(&ctxt);
+        compiler.define_intrinsics();
 
         if should_run.contains(&"lex") {
-            lex(&ctxt);
+            compiler.lex();
             let err = ctxt.issues.borrow().has_errors();
             let warn = ctxt.issues.borrow().has_warnings();
             if should_pass.contains(&"lex") && err {
@@ -48,7 +47,7 @@ macro_rules! run_test {
         }
 
         if should_run.contains(&"parse") {
-            parse(&ctxt);
+            compiler.parse();
             let err = ctxt.issues.borrow().has_errors();
             let warn = ctxt.issues.borrow().has_warnings();
             if should_pass.contains(&"parse") && err {
@@ -64,7 +63,7 @@ macro_rules! run_test {
         }
 
         if should_run.contains(&"typecheck") {
-            typecheck(&ctxt);
+            compiler.typecheck();
             let err = ctxt.issues.borrow().has_errors();
             let warn = ctxt.issues.borrow().has_warnings();
             if should_pass.contains(&"typecheck") && err {
@@ -80,7 +79,7 @@ macro_rules! run_test {
         }
 
         if should_run.contains(&"codegen") {
-            codegen(&ctxt);
+            compiler.codegen();
             let err = ctxt.issues.borrow().has_errors();
             let warn = ctxt.issues.borrow().has_warnings();
             if should_pass.contains(&"codegen") && err {

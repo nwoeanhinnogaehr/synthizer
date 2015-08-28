@@ -126,7 +126,8 @@ impl<'a> CodeGenerator<'a> {
                     self.codegen_global_assignment(x, init_fn);
                 },
                 Item::FunctionDef(ref x) => {
-                    self.codegen_global_function(x, init_fn, decls.pop().unwrap());
+                    let (func_args, llvm_func, sig, g_struct) = decls.pop().unwrap();
+                    self.codegen_global_function(x, func_args, llvm_func, sig, g_struct);
                 }
             }
         }
@@ -142,7 +143,8 @@ impl<'a> CodeGenerator<'a> {
         val
     }
 
-    fn declare_global_function(&'a self, func: &FunctionDef, owning_fn: &llvm::Function) -> (Vec<Argument>, &'a llvm::Function, Rc<RefCell<FnSignature>>, &'a llvm::Value) {
+    fn declare_global_function(&'a self, func: &FunctionDef, owning_fn: &llvm::Function)
+            -> (Vec<Argument>, &'a llvm::Function, Rc<RefCell<FnSignature>>, &'a llvm::Value) {
         let ident = func.ident();
         let name = self.ctxt.lookup_name(ident);
 
@@ -158,13 +160,10 @@ impl<'a> CodeGenerator<'a> {
     }
 
 
-    fn codegen_global_function(&'a self, func: &FunctionDef, owning_fn: &llvm::Function,
-                               decl: (Vec<Argument>, &'a llvm::Function, Rc<RefCell<FnSignature>>, &'a llvm::Value)) -> ValueWrapper<'a> {
+    fn codegen_global_function(&'a self, func: &FunctionDef, func_args: Vec<Argument>,
+                               llvm_func: &'a llvm::Function, sig: Rc<RefCell<FnSignature>>,
+                               g_struct: &'a llvm::Value) -> ValueWrapper<'a> {
         let owning_block = self.builder.get_position();
-        let ident = func.ident();
-        let name = self.ctxt.lookup_name(ident);
-
-        let (func_args, llvm_func, sig, g_struct) = decl;
         self.codegen_function_body(func, func_args, llvm_func, sig, owning_block, g_struct)
     }
 
@@ -201,8 +200,8 @@ impl<'a> CodeGenerator<'a> {
         ValueWrapper::new(g_struct, Some(sig))
     }
 
-    fn codegen_function_decl(&'a self, func: &FunctionDef, owning_fn: &llvm::Function, name: &str) ->
-            (&llvm::Function, &llvm::Value, Rc<RefCell<FnSignature>>, Vec<Argument>) {
+    fn codegen_function_decl(&'a self, func: &FunctionDef, owning_fn: &llvm::Function, name: &str)
+            -> (&llvm::Function, &llvm::Value, Rc<RefCell<FnSignature>>, Vec<Argument>) {
         let ident = func.ident();
         let synt_ty = self.types.get_symbol(ident).unwrap().val;
         let ty = self.type_to_llvm(synt_ty, false);
