@@ -1,0 +1,21 @@
+pi = 3.141592653589;
+
+// additively synthesize a sawtooth wave
+// n is number of harmonics
+saw freq, amp, time, n=50 {
+	sin(freq*n*time*pi*2)*amp/n/pi;
+	saw(freq, amp, time, n-1) if n > 1 else 0;
+}
+
+// use simple math to make a sawtooth wave
+fastsaw freq, amp, time {
+	freq*time%1*amp;
+}
+
+main time {
+	saw [
+		freq=256,
+		amp=0.8,
+		time
+	];
+}

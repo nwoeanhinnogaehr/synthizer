@@ -17,5 +17,8 @@ A simple experimental language for real time additive audio synthesis, intended 
 - Graphical representations of the sound
 
 ## Example code
-A wide variety of unit tests can be found in the tests directory.
-Actual sound producing examples coming soon!
+Check the examples directory for example synths.
+You can listen to them in real time with:
+```
+cargo run -- stream examples/???.synt
+```
