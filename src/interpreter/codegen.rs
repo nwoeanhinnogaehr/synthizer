@@ -18,7 +18,7 @@ use std::rc::Rc;
 #[derive(Clone, Debug)]
 struct FnSignature {
     ret: Option<Rc<RefCell<FnSignature>>>,
-    args: VecMap<(Option<usize>, Option<Rc<RefCell<FnSignature>>>)>
+    args: VecMap<(Option<usize>, Option<Rc<RefCell<FnSignature>>>, usize)>
 }
 
 #[derive(Clone)]
@@ -291,7 +291,7 @@ impl<'a> CodeGenerator<'a> {
         let mut call_args = VecMap::new();
         match call.ty {
             CallType::Named => {
-                for (id, &(default, _)) in sig.args.iter() {
+                for (id, &(default, _, _)) in sig.args.iter() {
                     let mut found = false;
                     for arg in call.args() {
                         match *arg {
@@ -329,12 +329,12 @@ impl<'a> CodeGenerator<'a> {
                 for arg in call.args() {
                     match *arg {
                         Argument::Expr(ref expr) => {
-                            call_args.insert(sig_args.next().unwrap().0, self.codegen_expr(expr, func).value);
+                            call_args.insert(sig_args.next().unwrap().1 .2, self.codegen_expr(expr, func).value);
                         }
                         _ => unreachable!(),
                     }
                 }
-                for (id, &(default, _)) in sig_args {
+                for (id, &(default, _, _)) in sig_args {
                     call_args.insert(id, self.codegen_struct_load(callee_expr.value, default.unwrap()));
                 }
             }
@@ -472,9 +472,9 @@ impl<'a> CodeGenerator<'a> {
                 let args = ty.args.iter().zip(func.args().iter()).map(|((id, &ty), arg)| {
                     if arg.expr().is_some() {
                         default_count += 1;
-                        (id, (Some(default_count), self.type_to_signature(ty)))
+                        (id, (Some(default_count), self.type_to_signature(ty), id))
                     } else {
-                        (id, (None, self.type_to_signature(ty)))
+                        (id, (None, self.type_to_signature(ty), id))
                     }
                 }).collect();
                 let ret = self.type_to_signature(ty.returns);
