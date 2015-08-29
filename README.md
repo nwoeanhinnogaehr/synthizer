@@ -5,14 +5,17 @@ A simple experimental language for real time additive audio synthesis, intended 
 - Lexing
 - Parsing
 - Typechecking
+- Codegen (LLVM backend)
+- Audio output (WAV)
+- Real time audio output
 
 ## Todo
-- Codegen
-- Audio output
+- Documentation
+- GPU backend
 - GUI
-- Real time audio output
 - MIDI (maybe) or at least some interface for a DAW
 - Graphical representations of the sound
 
 ## Example code
 A wide variety of unit tests can be found in the tests directory.
+Actual sound producing examples coming soon!
