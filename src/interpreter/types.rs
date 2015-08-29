@@ -43,3 +43,20 @@ impl FunctionType {
 }
 
 pub type TypeTable = ScopedTable<Type>;
+
+#[macro_export]
+macro_rules! make_fn_ty {
+    ( $ctxt:expr, fn ( $( $name:ident : $ty:ident ),* ) -> $ret:ident ) => {{
+        use vec_map::VecMap;
+        use $crate::types::FunctionType;
+        use $crate::types::Type::*;
+        let mut arg_map = VecMap::new();
+        $(
+            arg_map.insert($ctxt.names.borrow_mut().new_id(stringify!($name)), $ty);
+        )*
+        FunctionType {
+            returns: $ret,
+            args: arg_map
+        }
+    }}
+}

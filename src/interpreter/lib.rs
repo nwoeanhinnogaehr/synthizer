@@ -11,7 +11,7 @@ extern crate vec_map;
 
 pub mod common;
 pub mod ident;
-pub mod types;
+#[macro_use] pub mod types;
 pub mod tokens;
 pub mod ast;
 pub mod issue;

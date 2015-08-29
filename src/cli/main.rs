@@ -3,6 +3,8 @@
 
 extern crate docopt;
 extern crate rustc_serialize;
+extern crate vec_map;
+#[macro_use]
 extern crate interpreter;
 
 docopt!(Args, "
@@ -12,7 +14,7 @@ Usage:
   synthizer --help
 
 Options:
-  -h, --help                Show this message.
+  -h, --help             Show this message.
   -l, --length=<sec>     Length of audio to render, in seconds [default: 32].
 ", flag_length: f32);
 
@@ -27,14 +29,14 @@ fn main() {
     let source = read_file(&filename).unwrap();
     let ctxt = Context::new(filename, source);
     let mut compiler = Compiler::new(&ctxt);
+    compiler.define_entrypoint("main", make_fn_ty!(&ctxt, fn(time: Number) -> Number));
     match compiler.compile() {
         Ok(issues) => {
             println!("{}", issues);
-            let ep = compiler.get_entrypoints();
             if args.cmd_write {
-                write_wav(&ep, args.arg_output, args.flag_length);
+                write_wav(&compiler, args.arg_output, args.flag_length);
             } else if args.cmd_stream {
-                play_stream(&ep);
+                play_stream(&compiler);
             }
         },
         Err(issues) => println!("Compile Error!\n{}", issues),

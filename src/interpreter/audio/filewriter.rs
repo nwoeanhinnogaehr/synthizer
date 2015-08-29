@@ -1,4 +1,4 @@
-use super::super::compiler::EntryPoints;
+use super::super::compiler::Compiler;
 use super::super::tokens::Number;
 
 use hound;
@@ -6,12 +6,12 @@ use std::thread;
 use std::sync::mpsc::sync_channel;
 use std::slice;
 
-pub fn write_wav(ep: &EntryPoints, filename: String, length: f32) {
-    (ep.init)(());
-    let main_fn = match ep.main {
+pub fn write_wav(compiler: &Compiler, filename: String, length: f32) {
+    compiler.get_init_fn()(());
+    let main_fn: extern fn(Number) -> Number = unsafe { match compiler.get_fn("main") {
         Some(f) => f,
         None => return,
-    };
+    }};
 
     let spec = hound::WavSpec {
         channels: 1,

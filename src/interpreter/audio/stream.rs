@@ -1,4 +1,4 @@
-use super::super::compiler::EntryPoints;
+use super::super::compiler::Compiler;
 use super::super::tokens::Number;
 
 use sound_stream::{CallbackFlags, CallbackResult, SoundStream, Settings, StreamParams};
@@ -6,12 +6,12 @@ use std::thread;
 use std::sync::mpsc::sync_channel;
 use std::slice;
 
-pub fn play_stream(ep: &EntryPoints) {
-    (ep.init)(());
-    let main_fn = match ep.main {
+pub fn play_stream(compiler: &Compiler) {
+    compiler.get_init_fn()(());
+    let main_fn: extern fn(Number) -> Number = unsafe { match compiler.get_fn("main") {
         Some(f) => f,
         None => return,
-    };
+    }};
 
     const POOL_SIZE: usize = 8;
     const CHUNK_SIZE: usize = 256;
