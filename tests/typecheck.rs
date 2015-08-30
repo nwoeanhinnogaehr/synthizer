@@ -352,3 +352,19 @@ fn unused_function() {
             f x { x }
         ");
 }
+
+#[test]
+fn recursion_closure_issue() {
+    run_test!(
+        should_pass(lex, parse, typecheck)
+        => r"
+            fact n {
+                n*fact(n-1) if n > 1 else 1;
+            }
+            summer fn, n {
+                fn(n);
+                summer(fn, n-1) if n > 0 else 0;
+            }
+            x = summer(\n { fact(n) }, 5);
+        ");
+}
