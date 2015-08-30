@@ -16,9 +16,16 @@ use std::mem;
 use std::rc::Rc;
 
 #[derive(Clone, Debug)]
+struct FnArgument {
+    default_idx: Option<usize>,
+    sig: Option<Rc<RefCell<FnSignature>>>,
+    ordered_id: usize,
+}
+
+#[derive(Clone, Debug)]
 struct FnSignature {
     ret: Option<Rc<RefCell<FnSignature>>>,
-    args: VecMap<(Option<usize>, Option<Rc<RefCell<FnSignature>>>, usize)>
+    args: VecMap<FnArgument>,
 }
 
 #[derive(Clone)]
@@ -183,7 +190,7 @@ impl<'a> CodeGenerator<'a> {
             let id = arg.ident().unwrap();
             llvm_func[i].set_name(&self.ctxt.lookup_name(id));
             self.store_val(Node(id, arg.pos()),
-                           ValueWrapper::new(&llvm_func[i], sig.borrow().args[id].1.clone()));
+                           ValueWrapper::new(&llvm_func[i], sig.borrow().args[id].sig.clone()));
         }
         // codegen block
         let entry = llvm_func.append("entry");
@@ -284,7 +291,7 @@ impl<'a> CodeGenerator<'a> {
         let mut call_args = VecMap::new();
         match call.ty {
             CallType::Named => {
-                for (id, &(default, _, _)) in sig.args.iter() {
+                for (id, ref sig_arg) in sig.args.iter() {
                     let mut found = false;
                     for arg in call.args() {
                         match *arg {
@@ -313,7 +320,8 @@ impl<'a> CodeGenerator<'a> {
                         }
                     }
                     if !found {
-                        call_args.insert(id, self.codegen_struct_load(callee_expr.value, default.unwrap()));
+                        call_args.insert(id, self.codegen_struct_load(callee_expr.value,
+                                                                      sig_arg.default_idx.unwrap()));
                     }
                 }
             },
@@ -322,13 +330,15 @@ impl<'a> CodeGenerator<'a> {
                 for arg in call.args() {
                     match *arg {
                         Argument::Expr(ref expr) => {
-                            call_args.insert(sig_args.next().unwrap().1 .2, self.codegen_expr(expr, func).value);
+                            call_args.insert(sig_args.next().unwrap().1.ordered_id,
+                                             self.codegen_expr(expr, func).value);
                         }
                         _ => unreachable!(),
                     }
                 }
-                for (id, &(default, _, _)) in sig_args {
-                    call_args.insert(id, self.codegen_struct_load(callee_expr.value, default.unwrap()));
+                for (id, ref sig_arg) in sig_args {
+                    call_args.insert(id, self.codegen_struct_load(callee_expr.value,
+                                                                  sig_arg.default_idx.unwrap()));
                 }
             }
         }
@@ -463,12 +473,17 @@ impl<'a> CodeGenerator<'a> {
                 let ty = func.ty().unwrap();
                 let mut default_count = 0;
                 let args = ty.args.iter().zip(func.args().iter()).map(|((id, &ty), arg)| {
-                    if arg.expr().is_some() {
-                        default_count += 1;
-                        (id, (Some(default_count), self.type_to_signature(ty), arg.ident().unwrap()))
-                    } else {
-                        (id, (None, self.type_to_signature(ty), arg.ident().unwrap()))
-                    }
+                    (id, FnArgument {
+                        default_idx:
+                            if arg.expr().is_some() {
+                                default_count += 1;
+                                Some(default_count)
+                            } else {
+                                None
+                            },
+                        sig: self.type_to_signature(ty),
+                        ordered_id: arg.ident().unwrap()
+                    })
                 }).collect();
                 let ret = self.type_to_signature(ty.returns);
                 Some(Rc::new(RefCell::new(FnSignature {
