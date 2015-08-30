@@ -351,3 +351,16 @@ fn argument_ordering() {
             h = fn4(true, 1);
         ");
 }
+
+#[test]
+fn complex_closure_capture() {
+    run_test!(
+        should_pass(lex, parse, typecheck, codegen)
+        => r"
+            fn x {
+                y = 2^x if x < 1 else x^2;
+                \n { y%n };
+            }
+            x = fn(3)(2);
+        ");
+}
