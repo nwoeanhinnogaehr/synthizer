@@ -323,3 +323,31 @@ fn return_closure() {
             y = square(6);
         ");
 }
+
+#[test]
+fn argument_ordering() {
+    run_test!(
+        should_pass(lex, parse, typecheck, codegen)
+        => r"
+            fn1 x, y {
+                x if y else -x;
+            }
+            fn2 y, x {
+                x if y else -x;
+            }
+            fn3 = \x, y {
+                x if y else -x;
+            };
+            fn4 = \y, x {
+                x if y else -x;
+            };
+            a = fn1[x=1, y=true];
+            b = fn1(1, true);
+            c = fn2[y=true, x=1];
+            d = fn2(true, 1);
+            e = fn3[x=1, y=true];
+            f = fn3(1, true);
+            g = fn4[y=true, x=1];
+            h = fn4(true, 1);
+        ");
+}

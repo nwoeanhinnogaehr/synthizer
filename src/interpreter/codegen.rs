@@ -216,20 +216,13 @@ impl<'a> CodeGenerator<'a> {
         fn_struct_values.push(llvm_func);
 
         // catalog default args and set their signatures
-        let mut default_idx = 0;
         for i in 0..num_args {
             let ref arg = func_args[i];
 
-            let default = if let Argument::Assign(_, ref expr) = *arg {
+            if let Argument::Assign(_, ref expr) = *arg {
                 let default_val = self.codegen_expr(expr, owning_fn);
                 fn_struct_values.push(default_val.value);
-                default_idx += 1;
-                Some(default_idx)
-            } else {
-                None
-            };
-
-            sig.borrow_mut().args[arg.ident().unwrap()].0 = default;
+            }
         }
         let func_struct = llvm::Value::new_struct(self.llvm, &fn_struct_values, true);
         (llvm_func, func_struct, sig, func_args)
@@ -472,9 +465,9 @@ impl<'a> CodeGenerator<'a> {
                 let args = ty.args.iter().zip(func.args().iter()).map(|((id, &ty), arg)| {
                     if arg.expr().is_some() {
                         default_count += 1;
-                        (id, (Some(default_count), self.type_to_signature(ty), id))
+                        (id, (Some(default_count), self.type_to_signature(ty), arg.ident().unwrap()))
                     } else {
-                        (id, (None, self.type_to_signature(ty), id))
+                        (id, (None, self.type_to_signature(ty), arg.ident().unwrap()))
                     }
                 }).collect();
                 let ret = self.type_to_signature(ty.returns);
