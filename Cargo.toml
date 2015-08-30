@@ -13,14 +13,11 @@ bit-set = "*"
 sound_stream = "*"
 hound = "*"
 vec_map = "*"
-
-[dependencies.docopt]
-git = "https://github.com/docopt/docopt.rs"
-[dependencies.docopt_macros]
-git = "https://github.com/docopt/docopt.rs"
+docopt = "*"
+docopt_macros = "*"
 
 [dependencies.llvm-alt]
-path = "../llvm-rs"
+git = "https://github.com/nwoeanhinnogaehr/llvm-rs"
 
 [lib]
 name = "interpreter"

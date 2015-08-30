@@ -4,10 +4,10 @@ version = "0.0.1"
 dependencies = [
  "bit-set 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "cbox 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "docopt 0.6.70 (git+https://github.com/docopt/docopt.rs)",
- "docopt_macros 0.6.70 (git+https://github.com/docopt/docopt.rs)",
+ "docopt 0.6.72 (registry+https://github.com/rust-lang/crates.io-index)",
+ "docopt_macros 0.6.72 (registry+https://github.com/rust-lang/crates.io-index)",
  "hound 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "llvm-alt 0.3.3",
+ "llvm-alt 0.3.3 (git+https://github.com/nwoeanhinnogaehr/llvm-rs)",
  "regex 0.1.41 (registry+https://github.com/rust-lang/crates.io-index)",
  "regex_macros 0.1.21 (registry+https://github.com/rust-lang/crates.io-index)",
  "rustc-serialize 0.3.16 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -26,10 +26,10 @@ dependencies = [
 
 [[package]]
 name = "aho-corasick"
-version = "0.3.0"
+version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
- "memchr 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "memchr 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -60,8 +60,8 @@ dependencies = [
 
 [[package]]
 name = "docopt"
-version = "0.6.70"
-source = "git+https://github.com/docopt/docopt.rs#ccf228e7ddf4492d12d98e080c5c119479a09e7a"
+version = "0.6.72"
+source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "regex 0.1.41 (registry+https://github.com/rust-lang/crates.io-index)",
  "rustc-serialize 0.3.16 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -70,10 +70,10 @@ dependencies = [
 
 [[package]]
 name = "docopt_macros"
-version = "0.6.70"
-source = "git+https://github.com/docopt/docopt.rs#ccf228e7ddf4492d12d98e080c5c119479a09e7a"
+version = "0.6.72"
+source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
- "docopt 0.6.70 (git+https://github.com/docopt/docopt.rs)",
+ "docopt 0.6.72 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -107,6 +107,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [[package]]
 name = "llvm-alt"
 version = "0.3.3"
+source = "git+https://github.com/nwoeanhinnogaehr/llvm-rs#33926ab406e492187388ebd0299ad867e57ed48a"
 dependencies = [
  "cbox 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "libc 0.1.10 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -126,7 +127,7 @@ dependencies = [
 
 [[package]]
 name = "memchr"
-version = "0.1.5"
+version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "libc 0.1.10 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -158,8 +159,8 @@ name = "regex"
 version = "0.1.41"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
- "aho-corasick 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "memchr 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "aho-corasick 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "memchr 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "regex-syntax 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
