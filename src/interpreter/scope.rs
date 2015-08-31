@@ -99,10 +99,30 @@ impl<T> ScopedTable<T> where T: Clone {
     /// Searches backwards through the scope stack until a symbol with the given identifier is
     /// found, and returns the depth down the stack it was found at.
     pub fn get_symbol_depth(&self, id: Identifier) -> Option<usize> {
-        for (idx, block_pos) in self.scope.iter().rev().enumerate() {
+        return self.get_symbol_height(id).map(|x| self.scope_lengths.len() - x - 1);
+    }
+
+    /// Searches backwards through the scope stack until a symbol with the given identifier is
+    /// found, and returns the height up the stack it was found at.
+    pub fn get_symbol_height(&self, id: Identifier) -> Option<usize> {
+        let mut len_iter = self.scope_lengths.iter().rev();
+        let mut len = match len_iter.next() {
+            Some(x) => *x,
+            None => return None
+        };
+        let mut count = len_iter.len();
+        for block_pos in self.scope.iter().rev() {
+            len -= 1;
+            if len == 0 {
+                len = match len_iter.next() {
+                    Some(x) => *x,
+                    None => return None
+                };
+                count -= 1;
+            }
             let id_map = self.symbols.get(&block_pos).unwrap();
             if let Some(_) = id_map.get(&id) {
-                return Some(idx)
+                return Some(count)
             }
         }
         None
