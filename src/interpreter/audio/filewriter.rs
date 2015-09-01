@@ -1,55 +1,15 @@
 use super::super::compiler::Compiler;
-use super::super::tokens::Number;
+use super::render_samples;
 
 use hound;
-use std::thread;
-use std::sync::mpsc::sync_channel;
-use std::slice;
 
 pub fn write_wav(compiler: &Compiler, filename: String, length: f32) {
-    compiler.get_init_fn()(());
-    let main_fn: extern fn(Number) -> Number = unsafe { match compiler.get_fn("main") {
-        Some(f) => f,
-        None => return,
-    }};
-
     let spec = hound::WavSpec {
         channels: 1,
         sample_rate: 44100,
         bits_per_sample: 16
     };
-
-    const POOL_SIZE: usize = 8;
-    const CHUNK_SIZE: usize = 256;
-    const BUF_SIZE: usize = CHUNK_SIZE*POOL_SIZE;
-    let (tx, rx) = sync_channel(8);
-
-    thread::spawn(move || {
-        for buf_id in 0.. {
-            let mut buffer = vec![0f32; BUF_SIZE];
-            {
-                // this is necessary because the compiler can't reason that the threads are done with
-                // the buffer after they are joined below.
-                let buffer = unsafe { slice::from_raw_parts_mut(buffer.as_mut_ptr(), buffer.len()) };
-                let mut threads = Vec::new();
-                for (chunk_id, chunk) in buffer.chunks_mut(CHUNK_SIZE).enumerate() {
-                    threads.push(thread::spawn(move || {
-                        for i in 0..CHUNK_SIZE {
-                            let time = (buf_id*BUF_SIZE + chunk_id*CHUNK_SIZE + i) as Number / spec.sample_rate as Number;
-                            chunk[i] = main_fn(time) as f32;
-                        }
-                    }));
-                }
-                for thread in threads {
-                    thread.join().unwrap();
-                }
-            }
-            match tx.send(buffer) {
-                Ok(_) => { },
-                Err(_) => return,
-            }
-        }
-    });
+    let rx = render_samples(compiler, spec.sample_rate).unwrap();
 
     let mut writer = hound::WavWriter::create(filename, spec).unwrap();
     let mut buffer = rx.recv().unwrap();
