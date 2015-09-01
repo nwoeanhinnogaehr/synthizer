@@ -99,7 +99,7 @@ impl<T> ScopedTable<T> where T: Clone {
     /// Searches backwards through the scope stack until a symbol with the given identifier is
     /// found, and returns the depth down the stack it was found at.
     pub fn get_symbol_depth(&self, id: Identifier) -> Option<usize> {
-        return self.get_symbol_height(id).map(|x| self.scope_lengths.len() - x - 1);
+        self.get_symbol_height(id).map(|x| self.scope_lengths.len() - x - 1)
     }
 
     /// Searches backwards through the scope stack until a symbol with the given identifier is
