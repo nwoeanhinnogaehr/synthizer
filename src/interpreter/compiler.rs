@@ -140,7 +140,7 @@ impl<'a> Compiler<'a> {
         self.ctxt.entrypoints.borrow_mut().insert(id, ty);
     }
 
-    pub unsafe fn get_fn<A, R>(&self, name: &'static str) -> Option<extern fn(A) -> R> {
+    pub unsafe fn get_fn<A, R>(&self, name: &str) -> Option<extern fn(A) -> R> {
         assert_eq!(self.stage, Stage::Complete);
         match self.codegen.as_ref().unwrap().module.get_function(name) {
             Some(f) => {
