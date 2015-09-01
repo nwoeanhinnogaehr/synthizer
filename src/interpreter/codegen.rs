@@ -63,7 +63,7 @@ impl<'a> Deref for ValueWrapper<'a> {
     }
 }
 
-pub const GLOBAL_INIT_FN_NAME: &'static str = "__global_init";
+pub const GLOBAL_INIT_FN_NAME: &'static str = "*globalinit*";
 
 pub fn codegen<'a>(ctxt: &'a Context<'a>) {
     //XXX
@@ -377,7 +377,6 @@ impl<'a> CodeGenerator<'a> {
             let values = self.values.borrow();
             let ref sym = values.get_symbol(*ident).unwrap().val;
             (sym.value, sym.sig.clone())
-
         };
         ValueWrapper::new(
             if llvm::GlobalValue::cast(value).is_some() &&
