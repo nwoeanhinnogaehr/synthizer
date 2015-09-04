@@ -4,7 +4,7 @@ use super::tokens::{Number, Boolean, NodeImpl, Node, Operator, SourcePos};
 use super::types::{Type, TypeTable};
 use super::scope::ScopedTable;
 use super::ident::Identifier;
-use super::functions::{self, FunctionTable, ExternalFunction};
+use super::functions::{self, FunctionTable, ExternalFunction, PointerFunction};
 
 use llvm;
 use llvm::{Compile, ExecutionEngine, CastFrom};
@@ -14,6 +14,7 @@ use vec_map::VecMap;
 use std::ops::Deref;
 use std::mem;
 use std::rc::Rc;
+use llvm_sys::core;
 
 #[derive(Clone, Debug)]
 struct FnArgument {
@@ -96,14 +97,6 @@ impl<'a> CodeGenerator<'a> {
     }
 
     pub fn codegen(&'a self) {
-        for (ident, func) in &self.functions.map {
-            match *func {
-                functions::Function::External(ref def) => {
-                    self.codegen_external_function(ident, def);
-                },
-                _ => { },
-            }
-        }
         self.codegen_root(&self.ctxt.ast.borrow());
 
         println!("{:?}", self.module);
@@ -116,6 +109,18 @@ impl<'a> CodeGenerator<'a> {
                                                llvm::Type::new_function(unit_ty, &[]));
         let block = init_fn.append("entry");
         self.builder.position_at_end(block);
+
+        for (ident, func) in &self.functions.map {
+            match *func {
+                functions::Function::External(ref def) => {
+                    self.codegen_external_function(ident, def);
+                },
+                functions::Function::Pointer(ref def) => {
+                    self.codegen_pointer_function(ident, def, init_fn);
+                },
+                _ => { },
+            }
+        }
 
         let mut decls = Vec::new();
         for item in root.iter().rev() {
@@ -146,6 +151,44 @@ impl<'a> CodeGenerator<'a> {
         let ty = Type::Function(ident);
         let func = self.module.add_function(func.symbol, self.type_to_llvm(ty, false));
         let val = ValueWrapper::new(func, self.type_to_signature(ty));
+        self.store_val(Node(ident, SourcePos::anon()), val.clone());
+        val
+    }
+
+    fn codegen_pointer_function(&'a self, ident: Identifier, func: &PointerFunction,
+                                owning_fn: &llvm::Function) -> ValueWrapper<'a> {
+        let ty = Type::Function(ident);
+        let llvm_ty = self.type_to_llvm(ty, false);
+        let sig = self.type_to_signature(ty).unwrap();
+
+        let num_args = func.args.len();
+        let mut func_args = func.args.clone();
+        func_args.sort_by(|a, b| a.ident().cmp(&b.ident()));
+
+        let ptr = unsafe {
+            core::LLVMConstIntToPtr((func.ptr as usize).compile(self.llvm).into(),
+                                    llvm::Type::new_pointer(llvm_ty).into()).into()
+        };
+
+        let mut fn_struct_values: Vec<&llvm::Value> = Vec::new();
+        fn_struct_values.push(ptr);
+
+        // catalog default args and set their signatures
+        for i in 0..num_args {
+            let ref arg = func_args[i];
+
+            if let Argument::Assign(_, ref expr) = *arg {
+                let default_val = self.codegen_expr(expr, owning_fn);
+                fn_struct_values.push(default_val.value);
+            }
+        }
+        let func_struct = llvm::Value::new_struct(self.llvm, &fn_struct_values, true);
+        let struct_ty = func_struct.get_type();
+        let name = self.ctxt.lookup_name(ident);
+        let g_struct = self.module.add_global(&name, struct_ty);
+        g_struct.set_initializer(llvm::Value::new_undef(struct_ty));
+        self.builder.build_store(func_struct, g_struct);
+        let val = ValueWrapper::new(g_struct, Some(sig.clone()));
         self.store_val(Node(ident, SourcePos::anon()), val.clone());
         val
     }

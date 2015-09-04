@@ -4,7 +4,7 @@ use super::lexer::lex;
 use super::parser::parse;
 use super::typecheck::typecheck;
 use super::types::{Type, FunctionType};
-use super::functions::{ExternalFunction, Function};
+use super::functions::{ExternalFunction, PointerFunction, Function};
 use super::issue::IssueTracker;
 
 use llvm;
@@ -101,9 +101,19 @@ impl<'a> Compiler<'a> {
         }
     }
 
-    pub fn define_external_function(&self, name: &'static str, symbol: &'static str, ty: &FunctionType) {
+    pub unsafe fn define_pointer_function(&self, name: &'static str, ty: FunctionType, ptr: *mut ()) {
+        assert_eq!(self.stage, Stage::Lex);
         let id = self.ctxt.names.borrow_mut().new_id(name);
-        let func = Function::External(ExternalFunction::new(symbol, ty.clone()));
+        let func = Function::Pointer(PointerFunction::new(ty, mem::transmute(ptr)));
+        let ty = Type::Function(id);
+        self.ctxt.functions.borrow_mut().insert(id, func);
+        self.ctxt.types.borrow_mut().set_val(id, 0, ty);
+    }
+
+    pub fn define_external_function(&self, name: &'static str, symbol: &'static str, ty: FunctionType) {
+        assert_eq!(self.stage, Stage::Lex);
+        let id = self.ctxt.names.borrow_mut().new_id(name);
+        let func = Function::External(ExternalFunction::new(symbol, ty));
         let ty = Type::Function(id);
         self.ctxt.functions.borrow_mut().insert(id, func);
         self.ctxt.types.borrow_mut().set_val(id, 0, ty);
@@ -113,23 +123,23 @@ impl<'a> Compiler<'a> {
         let num_num_ty = &make_fn_ty!(self.ctxt, fn(x: Number) -> Number);
         let num_2num_ty = &make_fn_ty!(self.ctxt, fn(x: Number, y: Number) -> Number);
 
-        self.define_external_function("sin", "llvm.sin.f64", num_num_ty);
-        self.define_external_function("cos", "llvm.cos.f64", num_num_ty);
-        self.define_external_function("log", "llvm.log.f64", num_num_ty);
-        self.define_external_function("log10", "llvm.log10.f64", num_num_ty);
-        self.define_external_function("log2", "llvm.log2.f64", num_num_ty);
-        self.define_external_function("exp", "llvm.exp.f64", num_num_ty);
-        self.define_external_function("exp2", "llvm.exp2.f64", num_num_ty);
-        self.define_external_function("sqrt", "llvm.sqrt.f64", num_num_ty);
-        self.define_external_function("abs", "llvm.fabs.f64", num_num_ty);
-        self.define_external_function("floor", "llvm.floor.f64", num_num_ty);
-        self.define_external_function("ceil", "llvm.ceil.f64", num_num_ty);
-        self.define_external_function("trunc", "llvm.trunc.f64", num_num_ty);
-        self.define_external_function("round", "llvm.round.f64", num_num_ty);
+        self.define_external_function("sin", "llvm.sin.f64", num_num_ty.clone());
+        self.define_external_function("cos", "llvm.cos.f64", num_num_ty.clone());
+        self.define_external_function("log", "llvm.log.f64", num_num_ty.clone());
+        self.define_external_function("log10", "llvm.log10.f64", num_num_ty.clone());
+        self.define_external_function("log2", "llvm.log2.f64", num_num_ty.clone());
+        self.define_external_function("exp", "llvm.exp.f64", num_num_ty.clone());
+        self.define_external_function("exp2", "llvm.exp2.f64", num_num_ty.clone());
+        self.define_external_function("sqrt", "llvm.sqrt.f64", num_num_ty.clone());
+        self.define_external_function("abs", "llvm.fabs.f64", num_num_ty.clone());
+        self.define_external_function("floor", "llvm.floor.f64", num_num_ty.clone());
+        self.define_external_function("ceil", "llvm.ceil.f64", num_num_ty.clone());
+        self.define_external_function("trunc", "llvm.trunc.f64", num_num_ty.clone());
+        self.define_external_function("round", "llvm.round.f64", num_num_ty.clone());
 
-        self.define_external_function("pow", "llvm.pow.f64", num_2num_ty);
-        self.define_external_function("min", "llvm.minnum.f64", num_2num_ty);
-        self.define_external_function("max", "llvm.maxnum.f64", num_2num_ty);
+        self.define_external_function("pow", "llvm.pow.f64", num_2num_ty.clone());
+        self.define_external_function("min", "llvm.minnum.f64", num_2num_ty.clone());
+        self.define_external_function("max", "llvm.maxnum.f64", num_2num_ty.clone());
     }
 
     /// Defines a function as externally accessible through get_fn after compilation

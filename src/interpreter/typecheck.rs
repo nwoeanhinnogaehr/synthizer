@@ -72,6 +72,7 @@ impl<'a> TypeChecker<'a> {
                 if let Type::Indeterminate = ty {
                     self.ctxt.emit_error("expression references a function with ambiguous type",
                                          assign.expr_pos());
+                    // TODO should this set ty=None?
                 }
                 self.types.set_val(assign.ident(), assign.pos().index, ty);
             }
@@ -292,7 +293,7 @@ impl<'a> TypeChecker<'a> {
                 }
             }
 
-            functions::Function::Builtin(ref def) => { def.ty.returns }
+            functions::Function::Pointer(ref def) => { def.ty.returns }
             functions::Function::External(ref def) => { def.ty.returns }
         };
 

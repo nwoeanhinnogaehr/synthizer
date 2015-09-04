@@ -10,7 +10,7 @@ use bit_set::BitSet;
 #[derive(Debug, Clone)]
 pub enum Function {
     User(UserFunction),
-    Builtin(BuiltinFunction),
+    Pointer(PointerFunction),
     External(ExternalFunction),
 }
 
@@ -18,28 +18,28 @@ impl Function {
     pub fn has_concrete_type(&self) -> bool {
         match *self {
             Function::User(ref f) => f.ty.is_some(),
-            Function::Builtin(_) |
+            Function::Pointer(_) |
             Function::External(_) => true,
         }
     }
     pub fn args(&self) -> &ast::ArgumentList {
         match *self {
             Function::User(ref def) => { def.args() },
-            Function::Builtin(ref def) => { &def.args }
+            Function::Pointer(ref def) => { &def.args }
             Function::External(ref def) => { &def.args }
         }
     }
     pub fn ty(&self) -> Option<&FunctionType> {
         match *self {
             Function::User(ref def) => { def.ty.as_ref() },
-            Function::Builtin(ref def) => { Some(&def.ty) }
+            Function::Pointer(ref def) => { Some(&def.ty) }
             Function::External(ref def) => { Some(&def.ty) }
         }
     }
     pub fn set_ty(&mut self, ty: FunctionType) {
         match *self {
             Function::User(ref mut def) => { def.ty = Some(ty) }
-            Function::Builtin(ref mut def) => { def.ty = ty }
+            Function::Pointer(ref mut def) => { def.ty = ty }
             Function::External(ref mut def) => { def.ty = ty }
         }
     }
@@ -81,21 +81,23 @@ impl ExternalFunction {
 }
 
 #[derive(Debug, Clone)]
-pub struct BuiltinFunction {
+#[allow(raw_pointer_derive)]
+pub struct PointerFunction {
     pub ty: FunctionType,
     pub args: ast::ArgumentList,
-    //fn ptr...
+    pub ptr: *mut (),
 }
 
-impl BuiltinFunction {
-    pub fn new(ty: FunctionType) -> BuiltinFunction {
+impl PointerFunction {
+    pub fn new(ty: FunctionType, ptr: *mut ()) -> PointerFunction {
         let mut args = Vec::new();
         for (id, _) in &ty.args {
             args.push(ast::Argument::Ident(Node(id, SourcePos::anon())));
         }
-        BuiltinFunction {
+        PointerFunction {
             ty: ty,
             args: args,
+            ptr: ptr,
         }
     }
 }

@@ -8,6 +8,7 @@ dependencies = [
  "docopt_macros 0.6.72 (registry+https://github.com/rust-lang/crates.io-index)",
  "hound 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "llvm-alt 0.3.3 (git+https://github.com/nwoeanhinnogaehr/llvm-rs)",
+ "llvm-sys 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "regex 0.1.41 (registry+https://github.com/rust-lang/crates.io-index)",
  "regex_macros 0.1.21 (registry+https://github.com/rust-lang/crates.io-index)",
  "rustc-serialize 0.3.16 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -107,7 +108,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [[package]]
 name = "llvm-alt"
 version = "0.3.3"
-source = "git+https://github.com/nwoeanhinnogaehr/llvm-rs#33926ab406e492187388ebd0299ad867e57ed48a"
+source = "git+https://github.com/nwoeanhinnogaehr/llvm-rs#c2fbd15ca6d46be91166271036027df5fbd0baa3"
 dependencies = [
  "cbox 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "libc 0.1.10 (registry+https://github.com/rust-lang/crates.io-index)",

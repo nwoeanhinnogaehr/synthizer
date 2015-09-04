@@ -8,6 +8,7 @@ extern crate bit_set;
 extern crate sound_stream;
 extern crate hound;
 extern crate vec_map;
+extern crate llvm_sys;
 
 pub mod common;
 pub mod ident;
