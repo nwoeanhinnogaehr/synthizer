@@ -186,8 +186,7 @@ impl<'a> CodeGenerator<'a> {
         let struct_ty = func_struct.get_type();
         let name = self.ctxt.lookup_name(ident);
         let g_struct = self.module.add_global(&name, struct_ty);
-        g_struct.set_initializer(llvm::Value::new_undef(struct_ty));
-        self.builder.build_store(func_struct, g_struct);
+        g_struct.set_initializer(func_struct);
         let val = ValueWrapper::new(g_struct, Some(sig.clone()));
         self.store_val(Node(ident, SourcePos::anon()), val.clone());
         val
