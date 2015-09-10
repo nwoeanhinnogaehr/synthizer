@@ -10,6 +10,8 @@ pub struct NameTable<'a> {
     max_id: usize,
 }
 
+const ANON_NAME: &'static str = "*anon*";
+
 impl<'a> NameTable<'a> {
     pub fn new() -> NameTable<'a> {
         NameTable {
@@ -29,12 +31,15 @@ impl<'a> NameTable<'a> {
         self.identifier_ids.entry(name).or_insert(id);
         id
     }
-    /// Creates a new identifier which cannot be looked up by name, since it doesn't have one.
+    /// Creates a new identifier which cannot be looked up by name.
     pub fn new_anon(&mut self) -> Identifier {
         let id = self.max_id;
         self.max_id += 1;
-        self.identifier_names.insert(id, "*anon*");
+        self.identifier_names.insert(id, ANON_NAME);
         id
+    }
+    pub fn is_anon(&self, id: Identifier) -> Option<bool> {
+        self.identifier_names.get(&id).map(|&x| x == ANON_NAME)
     }
     pub fn get_id(&'a self, name: &'a str) -> Option<Identifier> {
         self.identifier_ids.get(name).map(|x| *x)
