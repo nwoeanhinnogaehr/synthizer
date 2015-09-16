@@ -16,6 +16,7 @@ vec_map = "*"
 docopt = "*"
 docopt_macros = "*"
 llvm-sys = "*"
+clippy = "*"
 
 [dependencies.llvm-alt]
 git = "https://github.com/nwoeanhinnogaehr/llvm-rs"
