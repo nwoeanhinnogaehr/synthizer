@@ -161,7 +161,6 @@ impl<'a> CodeGenerator<'a> {
         let llvm_ty = self.type_to_llvm(ty, false);
         let sig = self.type_to_signature(ty).unwrap();
 
-        let num_args = func.args.len();
         let mut func_args = func.args.clone();
         func_args.sort_by(|a, b| a.ident().cmp(&b.ident()));
 
@@ -174,10 +173,8 @@ impl<'a> CodeGenerator<'a> {
         fn_struct_values.push(ptr);
 
         // catalog default args and set their signatures
-        for i in 0..num_args {
-            let ref arg = func_args[i];
-
-            if let Argument::Assign(_, ref expr) = *arg {
+        for arg in func_args {
+            if let Argument::Assign(_, ref expr) = arg {
                 let default_val = self.codegen_expr(expr, owning_fn);
                 fn_struct_values.push(default_val.value);
             }
@@ -218,7 +215,7 @@ impl<'a> CodeGenerator<'a> {
 
     fn codegen_closure(&'a self, func: &FunctionDef, owning_fn: &llvm::Function) -> ValueWrapper<'a> {
         let owning_block = self.builder.get_position();
-        let (llvm_func, func_struct, sig, func_args) = self.codegen_function_decl(func, owning_fn, "closure");
+        let (llvm_func, func_struct, sig, func_args) = self.codegen_closure_decl(func, owning_fn);
         self.codegen_function_body(func, func_args, llvm_func, sig, owning_block, func_struct)
     }
 
@@ -242,10 +239,6 @@ impl<'a> CodeGenerator<'a> {
         self.values.borrow_mut().pop();
         self.builder.position_at_end(owning_block);
 
-        // update the signature to add in the signature of the return value
-        sig.borrow_mut().ret = res.sig.clone();
-        self.store_val(func.ident, ValueWrapper::new(g_struct, Some(sig.clone())));
-
         ValueWrapper::new(g_struct, Some(sig))
     }
 
@@ -255,7 +248,6 @@ impl<'a> CodeGenerator<'a> {
         let synt_ty = self.types.get_symbol(ident).unwrap().val;
         let ty = self.type_to_llvm(synt_ty, false);
         let sig = self.type_to_signature(synt_ty).unwrap();
-        let num_args = func.args().len();
         let mut func_args = func.args().clone();
         func_args.sort_by(|a, b| a.ident().cmp(&b.ident()));
         let llvm_func = self.module.add_function(name, ty);
@@ -265,9 +257,32 @@ impl<'a> CodeGenerator<'a> {
         fn_struct_values.push(llvm_func);
 
         // catalog default args and set their signatures
-        for i in 0..num_args {
-            let ref arg = func_args[i];
+        for arg in &func_args {
+            if let Argument::Assign(_, ref expr) = *arg {
+                let default_val = self.codegen_expr(expr, owning_fn);
+                fn_struct_values.push(default_val.value);
+            }
+        }
+        let func_struct = llvm::Value::new_struct(self.llvm, &fn_struct_values, true);
+        (llvm_func, func_struct, sig, func_args)
+    }
 
+    fn codegen_closure_decl(&'a self, func: &FunctionDef, owning_fn: &llvm::Function)
+            -> (&llvm::Function, &llvm::Value, Rc<RefCell<FnSignature>>, Vec<Argument>) {
+        let ident = func.ident();
+        let synt_ty = self.types.get_symbol(ident).unwrap().val;
+        let ty = self.type_to_llvm(synt_ty, false);
+        let sig = self.type_to_signature(synt_ty).unwrap();
+        let mut func_args = func.args().clone();
+        func_args.sort_by(|a, b| a.ident().cmp(&b.ident()));
+        let llvm_func = self.module.add_function("*closure*", ty);
+        llvm_func.add_attributes(&[llvm::Attribute::NoUnwind]);
+
+        let mut fn_struct_values: Vec<&llvm::Value> = Vec::new();
+        fn_struct_values.push(llvm_func);
+
+        // catalog default args and set their signatures
+        for arg in &func_args {
             if let Argument::Assign(_, ref expr) = *arg {
                 let default_val = self.codegen_expr(expr, owning_fn);
                 fn_struct_values.push(default_val.value);
@@ -304,7 +319,7 @@ impl<'a> CodeGenerator<'a> {
             Expression::Boolean(Node(v, _)) => v.compile(self.llvm).into(),
             Expression::Infix(ref v) => self.codegen_infix(v, func),
             Expression::Prefix(ref v) => self.codegen_prefix(v, func),
-            Expression::Variable(ref v) => self.codegen_var(*v, func),
+            Expression::Variable(ref v) => self.codegen_var(**v, func),
             Expression::Conditional(ref v) => self.codegen_conditional(v, func),
             Expression::Block(ref v) => self.codegen_block(v, func),
             Expression::Closure(ref v) => self.codegen_closure(v, func),
@@ -345,7 +360,7 @@ impl<'a> CodeGenerator<'a> {
                             },
                             Argument::OpAssign(ident, Node(op, _), ref expr) => {
                                 if id == *ident {
-                                    let lhs = self.codegen_var(ident, func);
+                                    let lhs = self.codegen_var(*ident, func);
                                     let rhs = self.codegen_expr(expr, func);
                                     let arg_value = self.codegen_binary_op(op, lhs, rhs);
                                     call_args.insert(id, arg_value.value);
@@ -354,7 +369,7 @@ impl<'a> CodeGenerator<'a> {
                             }
                             Argument::Ident(ident) => {
                                 if id == *ident {
-                                    call_args.insert(id, self.codegen_var(ident, func).value);
+                                    call_args.insert(id, self.codegen_var(*ident, func).value);
                                     found = true;
                                 }
                             }
@@ -414,10 +429,10 @@ impl<'a> CodeGenerator<'a> {
         value.unwrap()
     }
 
-    fn codegen_var(&'a self, ident: Node<Identifier>, _: &llvm::Function) -> ValueWrapper<'a> {
+    fn codegen_var(&'a self, ident: Identifier, _: &llvm::Function) -> ValueWrapper<'a> {
         let (value, sig) = {
             let values = self.values.borrow();
-            let ref sym = values.get_symbol(*ident).unwrap().val;
+            let ref sym = values.get_symbol(ident).unwrap().val;
             (sym.value, sym.sig.clone())
         };
         ValueWrapper::new(
@@ -566,4 +581,3 @@ impl<'a> CodeGenerator<'a> {
         }
     }
 }
-
