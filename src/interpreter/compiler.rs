@@ -6,6 +6,8 @@ use super::typecheck::typecheck;
 use super::types::{Type, FunctionType};
 use super::functions::{ExternalFunction, PointerFunction, Function};
 use super::issue::IssueTracker;
+use super::ast;
+use super::tokens::{Number, SourcePos, Node};
 
 use llvm;
 use llvm::ExecutionEngine;
@@ -117,6 +119,16 @@ impl<'a> Compiler<'a> {
         let ty = Type::Function(id);
         self.ctxt.functions.borrow_mut().insert(id, func);
         self.ctxt.types.borrow_mut().set_val(id, 0, ty);
+    }
+
+    pub fn define_global_constant(&self, name: &'static str, value: Number) {
+        // must be done before typecheck
+        let id = self.ctxt.names.borrow_mut().new_id(name);
+        assert!(self.stage != Stage::Complete && self.stage != Stage::Codegen);
+        self.ctxt.ast.borrow_mut().insert(0, ast::Item::Assignment(Node(ast::Assignment {
+            ident: Node(id, SourcePos::anon()),
+            expr: ast::Expression::Constant(Node(value, SourcePos::anon())),
+        }, SourcePos::anon())));
     }
 
     pub fn define_intrinsics(&self) {
