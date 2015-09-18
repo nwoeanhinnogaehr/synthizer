@@ -1,11 +1,12 @@
 #![feature(plugin, optin_builtin_traits)]
-#![plugin(regex_macros, docopt_macros)]
+#![plugin(regex_macros, docopt_macros, clippy)]
 
 extern crate docopt;
 extern crate rustc_serialize;
 extern crate vec_map;
 #[macro_use]
 extern crate interpreter;
+
 
 docopt!(Args, "
 Usage:
@@ -21,6 +22,11 @@ Options:
 use interpreter::common::{Context, read_file};
 use interpreter::compiler::Compiler;
 use interpreter::audio::{write_wav, play_stream};
+use std::mem;
+
+extern fn osc(x: f64) -> f64 {
+    (x*2.0*3.141592653589).sin()
+}
 
 #[allow(dead_code)]
 fn main() {
@@ -30,6 +36,10 @@ fn main() {
     let ctxt = Context::new(filename, source);
     let mut compiler = Compiler::new(&ctxt);
     compiler.define_entrypoint("main", make_fn_ty!(&ctxt, fn(time: Number) -> Number));
+    compiler.define_global_constant("PI", 3.141592653589);
+    unsafe {
+        compiler.define_pointer_function("osc", make_fn_ty!(&ctxt, fn(time: Number) -> Number), mem::transmute(osc));
+    }
     match compiler.compile() {
         Ok(issues) => {
             println!("{}", issues);
