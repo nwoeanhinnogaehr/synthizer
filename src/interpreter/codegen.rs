@@ -165,8 +165,8 @@ impl<'a> CodeGenerator<'a> {
         func_args.sort_by(|a, b| a.ident().cmp(&b.ident()));
 
         let ptr = unsafe {
-            core::LLVMConstIntToPtr((func.ptr as usize).compile(self.llvm).into(),
-                                    llvm::Type::new_pointer(llvm_ty).into()).into()
+            mem::transmute(core::LLVMConstIntToPtr(mem::transmute((func.ptr as usize).compile(self.llvm)),
+                                    mem::transmute(llvm::Type::new_pointer(llvm_ty))))
         };
 
         let mut fn_struct_values: Vec<&llvm::Value> = Vec::new();

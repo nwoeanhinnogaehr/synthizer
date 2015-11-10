@@ -1,5 +1,5 @@
 #![feature(plugin, optin_builtin_traits)]
-#![plugin(regex_macros, docopt_macros, clippy)]
+#![plugin(regex_macros, docopt_macros)]
 
 extern crate docopt;
 extern crate rustc_serialize;

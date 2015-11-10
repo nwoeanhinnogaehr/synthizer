@@ -3,8 +3,13 @@
 name = "synthizer"
 version = "0.0.1"
 authors = ["Noah Weninger"]
+#build = "build.rs"
+
+#[build-dependencies]
+#lalrpop = "0.5.0"
 
 [dependencies]
+#lalrpop-util = "0.5.0"
 rustc-serialize = "*"
 regex = "*"
 regex_macros = "*"
@@ -16,10 +21,9 @@ vec_map = "*"
 docopt = "*"
 docopt_macros = "*"
 llvm-sys = "*"
-clippy = "*"
 
 [dependencies.llvm-alt]
-git = "https://github.com/nwoeanhinnogaehr/llvm-rs"
+path = "../llvm-rs"
 
 [lib]
 name = "interpreter"
