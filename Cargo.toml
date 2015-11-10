@@ -3,13 +3,13 @@
 name = "synthizer"
 version = "0.0.1"
 authors = ["Noah Weninger"]
-#build = "build.rs"
+build = "build.rs"
 
-#[build-dependencies]
-#lalrpop = "0.5.0"
+[build-dependencies]
+lalrpop = "0.5.0"
 
 [dependencies]
-#lalrpop-util = "0.5.0"
+lalrpop-util = "0.5.0"
 rustc-serialize = "*"
 regex = "*"
 regex_macros = "*"
