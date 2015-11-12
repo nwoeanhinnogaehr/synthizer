@@ -19,9 +19,10 @@ Options:
   -l, --length=<sec>     Length of audio to render, in seconds [default: 32].
 ", flag_length: f32);
 
-use interpreter::common::{Context, read_file};
-use interpreter::compiler::Compiler;
-use interpreter::audio::{write_wav, play_stream};
+//use interpreter::common::{Context, read_file};
+//use interpreter::compiler::Compiler;
+//use interpreter::audio::{write_wav, play_stream};
+use interpreter::synthizer;
 use std::mem;
 
 extern fn osc(x: f64) -> f64 {
@@ -32,8 +33,9 @@ extern fn osc(x: f64) -> f64 {
 fn main() {
     let args: Args = Args::docopt().decode().unwrap_or_else(|e| e.exit());
     let filename = args.arg_input;
-    let source = read_file(&filename).unwrap();
-    let ctxt = Context::new(filename, source);
+    //let source = read_file(&filename).unwrap();
+    //println!("{:?}", synthizer::parse_Term(&source));
+    /*let ctxt = Context::new(filename, source);
     let mut compiler = Compiler::new(&ctxt);
     compiler.define_entrypoint("main", make_fn_ty!(&ctxt, fn(time: Number) -> Number));
     compiler.define_global_constant("PI", 3.141592653589);
@@ -50,5 +52,5 @@ fn main() {
             }
         },
         Err(issues) => println!("Compile Error!\n{}", issues),
-    }
+    }*/
 }

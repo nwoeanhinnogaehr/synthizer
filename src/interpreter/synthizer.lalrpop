@@ -1,0 +1,131 @@
+//
+// TODO:
+// comments
+// the rest of the operators
+// fix closure syntax/lexer
+//
+
+use std::str::FromStr;
+use super::ast;
+
+grammar;
+
+pub Grammar = Comma<Item>;
+
+Comma<T>: Vec<T> = {
+    <v:(<T> ",")*> <e:T?> => match e {
+        None => v,
+        Some(e) => {
+            let mut v = v;
+            v.push(e);
+            v
+        }
+    }
+};
+
+Item: ast::Item<'input> = {
+    Assignment => ast::Item::Assignment(<>),
+    Function => ast::Item::Function(<>),
+};
+
+Function: ast::Function<'input> = {
+    <i:Ident> <a:ArgsDef> <b:Block> => ast::Function { ident: Some(i), args: a, block: b },
+};
+
+Closure: ast::Function<'input> = {
+    "$" <a:ArgsDef> <b:Block> => ast::Function { ident: None, args: a, block: b },
+};
+
+ArgsDef: ast::ArgsDef<'input> = Comma<ArgumentDef>;
+ArgsRef: ast::ArgsRef<'input> = Comma<ArgumentRef>;
+
+ArgumentDef: ast::ArgumentDef<'input> = {
+    <i:Ident> <d:Default?> => ast::ArgumentDef { ident: i, default: d },
+};
+
+ArgumentRef: ast::ArgumentRef<'input> = {
+    Expr => ast::ArgumentRef::Expr(<>),
+    Assignment => ast::ArgumentRef::Assign(<>),
+    OpAssignment => ast::ArgumentRef::OpAssign(<>),
+};
+
+Default: Box<ast::Expr<'input>> = {
+    "=" <Expr>
+};
+
+Block = "{" <Comma<Statement>> "}";
+
+Statement: ast::Statement<'input> = {
+    Assignment => ast::Statement::Assignment(<>),
+    Expr => ast::Statement::Expr(<>),
+};
+
+Assignment: ast::Assignment<'input> = {
+    <i:Ident> "=" <e:Expr> => ast::Assignment { ident: i, expr: e },
+};
+
+OpAssignment: ast::OpAssignment<'input> = {
+    <i:Ident> <o:InfixAssign> <e:Expr> => ast::OpAssignment { ident: i, op: o, expr: e },
+};
+
+InfixAssign: ast::Infix = {
+    "+=" => ast::Infix::Add,
+    "-=" => ast::Infix::Sub,
+    "*=" => ast::Infix::Mul,
+    "/=" => ast::Infix::Div,
+};
+
+Expr: Box<ast::Expr<'input>> = {
+    Expr ExprOp Factor => Box::new(ast::Expr::Infix(<>)),
+    Factor,
+    FunctionCall => Box::new(ast::Expr::FunctionCall(<>)),
+};
+
+ExprOp: ast::Infix = {
+    "+" => ast::Infix::Add,
+    "-" => ast::Infix::Sub,
+};
+
+Factor: Box<ast::Expr<'input>> = {
+    Factor FactorOp Term => Box::new(ast::Expr::Infix(<>)),
+    Term,
+};
+
+FactorOp: ast::Infix = {
+    "*" => ast::Infix::Mul,
+    "/" => ast::Infix::Div,
+};
+
+FunctionCall: ast::FunctionCall<'input> = {
+    <t:Term> "(" <a:ArgsRef> ")" => ast::FunctionCall { callee: t, args: a },
+};
+
+Term: Box<ast::Expr<'input>> = {
+    Num => Box::new(ast::Expr::Number(<>)),
+    Ident => Box::new(ast::Expr::Identifier(<>)),
+    PrefixOp Term => Box::new(ast::Expr::Prefix(<>)),
+    Block => Box::new(ast::Expr::Block(<>)),
+    Closure => Box::new(ast::Expr::Closure(<>)),
+    "(" <Expr> ")"
+};
+
+PrefixOp: ast::Prefix = {
+    "-" => ast::Prefix::Neg,
+    "+" => ast::Prefix::Plus,
+    "!" => ast::Prefix::Not,
+};
+
+Ident: &'input str = {
+    r"[a-zA-Z_]+[a-zA-Z0-9_]*" => <>,
+};
+
+Num: f64 = {
+	<a:Digits> "." <b:Digits> => f64::from_str(&(a.to_string() + "." + b)).unwrap(),
+	"." <Digits> => f64::from_str(&("0.".to_string() + <>)).unwrap(),
+	<Digits> "." => f64::from_str(<>).unwrap(),
+	Digits => f64::from_str(<>).unwrap(),
+};
+
+Digits: &'input str = {
+	r"[0-9]+" => <>,
+};
