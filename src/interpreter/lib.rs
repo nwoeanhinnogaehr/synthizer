@@ -14,7 +14,6 @@ extern crate llvm_sys;
 //pub mod ident;
 //#[macro_use] pub mod types;
 //pub mod tokens;
-pub mod ast;
 //pub mod issue;
 //pub mod lexer;
 //pub mod parser;
@@ -24,10 +23,8 @@ pub mod ast;
 //pub mod scope;
 //pub mod compiler;
 //pub mod audio;
-pub mod synthizer;
+pub mod util;
+pub mod parse;
 
 #[macro_use]
 pub mod tests;
-
-#[cfg(test)]
-pub mod test_grammar;

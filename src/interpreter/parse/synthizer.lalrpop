@@ -3,6 +3,9 @@
 // comments
 // the rest of the operators
 // fix closure syntax/lexer
+// function call precedence ambiguity
+// control flow
+// think about semis/commas/etc for a while.
 //
 
 use std::str::FromStr;
